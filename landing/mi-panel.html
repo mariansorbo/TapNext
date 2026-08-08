@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Mi panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <div class="logo"><span data-brand>tap</span><span class="dot">.</span></div>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero" id="login-view">
+  <div class="wrap">
+    <div class="kicker">Mi panel</div>
+    <h2>Entrá con tu WhatsApp.</h2>
+    <p class="lead">Sin contraseñas. Te mandamos un código por WhatsApp para confirmar que sos vos.</p>
+
+    <div class="modal-form panel-login-form">
+      <label>
+        <span>Tu WhatsApp</span>
+        <input type="tel" id="login-whatsapp" placeholder="+54 9 11 1234 5678">
+      </label>
+    </div>
+    <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
+
+    <div class="modal-form panel-otp-form" id="login-otp-field" hidden>
+      <label>
+        <span>Código recibido</span>
+        <input type="text" inputmode="numeric" maxlength="4" id="login-otp" placeholder="0000">
+      </label>
+      <button type="button" class="btn-primary panel-btn modal-submit" id="confirm-login-otp">Ingresar</button>
+    </div>
+    <p class="modal-status" id="login-status"></p>
+  </div>
+</section>
+
+<section class="buy-hero" id="dashboard-view" hidden>
+  <div class="wrap">
+    <div class="kicker">Mi panel</div>
+    <h2 id="dashboard-title">Tus stickers</h2>
+    <p class="lead">Elegí un sticker para ver o cambiar a dónde redirige.</p>
+    <button type="button" class="btn-ghost" id="logout-button">Cerrar sesión</button>
+
+    <div class="account-email">
+      <div class="kicker">Mail de respaldo (opcional)</div>
+      <p class="section-lead" style="margin-bottom:14px;">Te avisamos acá si cambia el destino de algún sticker — sirve como respaldo si en algún momento perdés tu número de WhatsApp.</p>
+      <div class="modal-form">
+        <label>
+          <span>Tu mail</span>
+          <input type="email" id="account-email" placeholder="tu@mail.com">
+        </label>
+      </div>
+      <button type="button" class="btn-ghost" id="save-email">Guardar</button>
+      <p class="modal-status" id="email-status"></p>
+    </div>
+
+    <div class="sticker-list" id="sticker-list"></div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+<script type="module" src="/src/mi-panel.js"></script>
+</body>
+</html>

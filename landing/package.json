@@ -1,0 +1,23 @@
+{
+  "name": "landing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "seed": "node server/seed.js",
+    "start": "node server/seed.js && node server/index.js",
+    "dev:full": "concurrently -n API,VITE -c green,blue \"npm:server\" \"npm:dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4",
+    "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

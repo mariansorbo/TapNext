@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Creá tu sticker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body data-flow="presencial">
+
+<nav>
+  <div class="logo"><span data-brand>tap</span><span class="dot">.</span></div>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero">
+  <div class="wrap">
+    <div class="kicker" id="buy-ref-kicker">Compra guiada</div>
+    <h2>Estás por crear tu sticker <span data-brand>tap</span>.</h2>
+    <p class="lead">Te guiamos en unos pasos simples: elegís cómo lo vas a usar, validamos tu WhatsApp y pagás. Al confirmarse el pago, creamos tu cuenta automáticamente — sin contraseñas, solo con tu número.</p>
+    <button type="button" class="btn-primary" id="start-wizard">Empezar a personalizar</button>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="wrap">
+    <div class="kicker">Preguntas frecuentes</div>
+    <h2>Lo que más nos preguntan.</h2>
+    <div class="faq-list" id="faq-list">
+      <div class="faq-item">
+        <button type="button" class="faq-question">¿Funciona en iPhone y Android?<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>Sí. Funciona con cualquier celular moderno que tenga NFC — no hace falta instalar ninguna app ni escanear nada.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">¿Necesito crear una cuenta con contraseña?<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>No. Tu cuenta se identifica con tu WhatsApp — entrás con un código, sin contraseñas que recordar.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">¿Puedo cambiar el destino después de comprarlo?<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>Sí, en cualquier momento desde tu panel, validando tu identidad por WhatsApp.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">¿Qué pasa si se rompe o lo pierdo?<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>Podés pedir un reemplazo — te contamos el proceso exacto cuando nos escribís.</p></div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-question">¿Cuánto tarda en estar listo?<span class="faq-icon">+</span></button>
+        <div class="faq-answer"><p>La impresión y programación es a medida, así que depende del volumen del pedido — te confirmamos el plazo por WhatsApp apenas comprás.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span><a href="/mi-panel.html">Mi panel</a> · Buenos Aires, Argentina</span>
+</footer>
+
+<div class="modal-overlay" id="wizard-modal" aria-hidden="true">
+  <div class="modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
+    <button type="button" class="modal-close" id="wizard-close" aria-label="Cerrar">✕</button>
+
+    <div class="wizard-progress" id="wizard-progress"></div>
+
+    <div class="wizard-step" data-step="1">
+      <div class="kicker step-kicker"></div>
+      <h3 id="wizard-title">¿Para qué función lo vas a usar?</h3>
+      <div class="option-grid" id="function-options"></div>
+    </div>
+
+    <div class="wizard-step" data-step="2">
+      <div class="kicker step-kicker"></div>
+      <h3>Elegí el modelo</h3>
+      <div class="option-grid" id="model-options"></div>
+    </div>
+
+    <div class="wizard-step" data-step="3">
+      <div class="kicker step-kicker"></div>
+      <h3>Los datos de tu sticker</h3>
+      <div class="modal-form">
+        <label>
+          <span id="destination-label">Destino</span>
+          <input type="text" id="destination-value" placeholder="">
+        </label>
+      </div>
+      <button type="button" class="btn-ghost tyc-open" id="open-tyc">Ver Términos y Condiciones completos</button>
+      <label class="tyc-check">
+        <input type="checkbox" id="wizard-tyc">
+        <span>Acepto los Términos y Condiciones</span>
+      </label>
+    </div>
+
+    <div class="wizard-step" data-step="4">
+      <div class="kicker step-kicker"></div>
+      <h3>Validá tu WhatsApp</h3>
+      <p class="modal-sub">Necesitamos confirmar que este número es tuyo antes de cobrar. Tu cuenta tap se crea sola cuando se confirme el pago — sin contraseñas.</p>
+      <div class="modal-form">
+        <label>
+          <span>Tu WhatsApp</span>
+          <input type="tel" id="wizard-whatsapp" placeholder="+54 9 11 1234 5678">
+        </label>
+      </div>
+      <button type="button" class="btn-ghost wizard-otp-send" id="send-otp">Enviar código por WhatsApp</button>
+
+      <div class="modal-form wizard-otp-code" id="otp-code-field" hidden>
+        <label>
+          <span>Código recibido</span>
+          <input type="text" inputmode="numeric" id="wizard-otp" placeholder="0000">
+        </label>
+        <p class="carousel-note">Demo: ingresá cualquier código.</p>
+        <button type="button" class="btn-primary modal-submit" id="confirm-otp">Confirmar código</button>
+      </div>
+      <p class="modal-status is-success" id="otp-status"></p>
+    </div>
+
+    <div class="wizard-step" data-step="5">
+      <div class="kicker step-kicker"></div>
+      <h3>¿A dónde lo enviamos?</h3>
+      <p class="modal-sub">No es una venta presencial, así que te lo mandamos — decinos tu código postal para calcular el envío.</p>
+      <div class="modal-form">
+        <label>
+          <span>Código postal</span>
+          <input type="text" id="delivery-cp" placeholder="1425">
+        </label>
+      </div>
+      <button type="button" class="btn-ghost" id="calc-delivery">Calcular envío</button>
+      <div class="wizard-summary" id="delivery-result" hidden></div>
+    </div>
+
+    <div class="wizard-step" data-step="6">
+      <div class="kicker step-kicker"></div>
+      <h3>Confirmá y pagá</h3>
+      <div class="wizard-summary" id="wizard-summary"></div>
+      <button type="button" class="btn-primary modal-submit" id="wizard-pay">Pagar</button>
+    </div>
+
+    <div class="wizard-step wizard-success" data-step="success">
+      <div class="wizard-check">✓</div>
+      <h3>¡Listo! Tu sticker ya es tuyo.</h3>
+      <p id="wizard-success-summary"></p>
+      <p class="section-lead" style="margin-top:16px;">Tu cuenta tap ya está creada. Te llega la confirmación y el código de tu sticker por WhatsApp.</p>
+      <button type="button" class="btn-primary modal-submit" id="wizard-done">Entendido</button>
+    </div>
+
+    <div class="wizard-nav" id="wizard-nav">
+      <button type="button" class="btn-ghost" id="wizard-back">Atrás</button>
+      <button type="button" class="btn-primary" id="wizard-next">Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay tyc-overlay" id="tyc-modal" aria-hidden="true">
+  <div class="modal tyc-modal" role="dialog" aria-modal="true" aria-labelledby="tyc-title">
+    <button type="button" class="modal-close" id="tyc-close" aria-label="Cerrar">✕</button>
+    <h3 id="tyc-title">Términos y Condiciones — <span data-brand>tap</span> (borrador)</h3>
+    <p class="tyc-sub">Documento de trabajo, sujeto a revisión legal.</p>
+
+    <div class="tyc-notice">
+      <b>Aviso:</b> este es un borrador de trabajo, no un documento legal validado. Antes de publicarlo o hacerlo aceptar a un solo cliente, tiene que ser revisado y ajustado por un abogado matriculado en Argentina. Sirve como punto de partida, no como versión final.
+    </div>
+
+    <div class="tyc-body">
+      <h4>1. Objeto</h4>
+      <p>Los presentes Términos y Condiciones ("TyC") regulan el uso del servicio de stickers con tecnología NFC (Near Field Communication) e impresión 3D personalizada, comercializados por [Nombre de la marca / razón social] ("la Empresa"), y su plataforma de configuración y redirección web ("la Plataforma"), disponible en [dominio].</p>
+
+      <h4>2. Aceptación</h4>
+      <p>Al adquirir un sticker y/o completar el proceso de activación en la Plataforma, el Comprador declara haber leído, comprendido y aceptado estos TyC en su totalidad. La aceptación queda registrada junto con fecha, hora, versión del texto aceptado, IP y user-agent del dispositivo utilizado.</p>
+
+      <h4>3. Descripción del servicio</h4>
+      <ul>
+        <li>El sticker físico contiene un chip NFC que, al ser acercado a un dispositivo móvil compatible, redirige automáticamente a una URL configurable por el Comprador ("el Destino").</li>
+        <li>El Destino puede ser, entre otros: un número de WhatsApp, un perfil de red social, un link de pago, una página web, un menú digital, un formulario de reseñas, o un servicio de agenda/reservas.</li>
+        <li>El contenido físico grabado en el chip (la URL de redirección de la Empresa) es fijo y no puede ser modificado por el Comprador ni por terceros; lo que el Comprador configura y puede modificar en cualquier momento es el Destino al que dicha URL redirige.</li>
+      </ul>
+
+      <h4>4. Registro y datos personales</h4>
+      <ul>
+        <li>Para activar y administrar un sticker, el Comprador debe validar un número de WhatsApp mediante un código de verificación de un solo uso (OTP). No se requiere ni se solicita contraseña alguna.</li>
+        <li>La Empresa recolecta y almacena únicamente los datos necesarios para el funcionamiento del servicio: número de WhatsApp, historial de configuración del Destino, y evidencia técnica de aceptación de estos TyC (ver Sección 2).</li>
+        <li>El tratamiento de datos personales se realiza conforme a la Ley N.º 25.326 de Protección de Datos Personales de la República Argentina. El Comprador puede ejercer sus derechos de acceso, rectificación y supresión escribiendo a [email/WhatsApp de contacto].</li>
+        <li>[Pendiente: detallar terceros que procesan datos en nombre de la Empresa — proveedor de API de WhatsApp, Mercado Pago — conforme Sección "Items a definir".]</li>
+      </ul>
+
+      <h4>5. Precio y forma de pago</h4>
+      <ul>
+        <li>Los precios se informan en la Plataforma al momento de la compra, en pesos argentinos, con impuestos incluidos según corresponda.</li>
+        <li>El pago se procesa a través de Mercado Pago. La venta se considera confirmada únicamente cuando la Empresa recibe la confirmación de pago del proveedor de pagos.</li>
+        <li>En caso de que el pago no se complete o sea rechazado, no se genera ningún registro de compra ni de cuenta asociada al comprador.</li>
+      </ul>
+
+      <h4>6. Entrega del producto</h4>
+      <ul>
+        <li>El sticker es entregado en el momento de la compra, de forma presencial, por el vendedor autorizado.</li>
+        <li>[Pendiente: definir plazo y condiciones si en algún momento se ofrece entrega no presencial / envío.]</li>
+      </ul>
+
+      <h4>7. Garantía y soporte</h4>
+      <ul>
+        <li>La Empresa garantiza el funcionamiento del chip NFC del sticker por un plazo de [X] desde la fecha de compra, contra defectos de fabricación.</li>
+        <li>La garantía no cubre daños por mal uso, rotura, exposición a condiciones extremas, ni pérdida del producto.</li>
+        <li>[Pendiente: definir política de reposición y su costo — ver "Items a definir".]</li>
+      </ul>
+
+      <h4>8. Uso responsable</h4>
+      <p>El Comprador se compromete a:</p>
+      <ul>
+        <li>No utilizar el servicio para configurar un Destino que promueva contenido ilegal, fraudulento, difamatorio o que infrinja derechos de terceros.</li>
+        <li>No intentar alterar, reprogramar o manipular el chip físico del sticker.</li>
+        <li>No utilizar el servicio para suplantar la identidad de otra persona o negocio.</li>
+      </ul>
+
+      <h4>9. Propiedad intelectual</h4>
+      <p>El diseño de la Plataforma, el software, las marcas y los contenidos propios de la Empresa son de su exclusiva propiedad o de sus licenciantes. El uso de marcas de terceros (WhatsApp, Instagram, Google, Mercado Pago, etc.) dentro del servicio se realiza conforme a sus respectivas guías de marca, sin que ello implique asociación, patrocinio o aval por parte de dichas empresas.</p>
+
+      <h4>10. Continuidad y disponibilidad del servicio</h4>
+      <ul>
+        <li>El funcionamiento del sticker depende de que la Plataforma y el dominio de la Empresa permanezcan activos.</li>
+        <li>La Empresa hará sus mejores esfuerzos para mantener el servicio disponible de forma continua, pero no garantiza disponibilidad ininterrumpida ni la continuidad del servicio de forma indefinida.</li>
+        <li>[Pendiente: definir qué ocurre en caso de cese de operaciones de la Empresa — ver "Items a definir".]</li>
+      </ul>
+
+      <h4>11. Limitación de responsabilidad</h4>
+      <p>La Empresa no se responsabiliza por daños derivados de: interrupciones del servicio por causas ajenas a su control, mal uso del producto por parte del Comprador o terceros, ni por el contenido al que el Comprador decida redirigir su sticker.</p>
+
+      <h4>12. Modificaciones a los TyC</h4>
+      <p>La Empresa podrá modificar estos TyC en cualquier momento. Los cambios relevantes serán notificados a los Compradores registrados, y la versión vigente estará siempre disponible en la Plataforma con su fecha de última actualización.</p>
+
+      <h4>13. Terminación</h4>
+      <p>La Empresa se reserva el derecho de suspender o dar de baja una cuenta en caso de incumplimiento de estos TyC, sin perjuicio de las acciones legales que pudieran corresponder.</p>
+
+      <h4>14. Ley aplicable y jurisdicción</h4>
+      <p>Estos TyC se rigen por las leyes de la República Argentina. Para cualquier controversia, las partes se someten a los tribunales ordinarios de [jurisdicción a definir], con renuncia expresa a cualquier otro fuero.</p>
+
+      <h4>15. Contacto</h4>
+      <p>Ante consultas sobre estos TyC, el Comprador puede escribir a [email/WhatsApp de contacto].</p>
+
+      <div class="tyc-footer">
+        <h4>Items pendientes de definir</h4>
+        <p>Legales / a validar con abogado:</p>
+        <ol>
+          <li>Nombre/razón social exacta y forma jurídica de la Empresa.</li>
+          <li>Plazo y condiciones de la garantía del chip (Sección 7).</li>
+          <li>Política y costo de reposición ante rotura o pérdida del sticker.</li>
+          <li>Qué ocurre con los stickers activos si la Empresa cesa operaciones (Sección 10).</li>
+          <li>Si aplica derecho de arrepentimiento (Ley 24.240, compra a distancia) y cómo se instrumenta.</li>
+          <li>Detalle formal de terceros que procesan datos personales (proveedor de WhatsApp Business API, Mercado Pago) como "encargados de tratamiento" (Sección 4).</li>
+          <li>Jurisdicción exacta a incluir en la Sección 14.</li>
+          <li>Plazo de retención de datos (historial de cambios, evidencia de aceptación de TyC).</li>
+          <li>Tratamiento fiscal/impositivo del cobro a través de la Plataforma (ver notas fiscales del documento de requerimientos).</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/comprar.js"></script>
+</body>
+</html>
