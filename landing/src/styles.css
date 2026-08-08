@@ -330,7 +330,11 @@ body.modal-open{overflow:hidden;}
 }
 
 @media (max-width:600px){
-  nav{padding:20px 20px;}
+  nav{padding:16px 16px;}
+  .logo{font-size:1.1rem;}
+  .nav-actions{gap:10px;}
+  .nav-link{font-size:0.7rem;}
+  .nav-cta{padding:8px 12px; font-size:0.68rem;}
   section{padding:60px 0;}
   .hero{padding:24px 20px 60px; gap:36px;}
   .tag-stage{max-width:220px; margin:0 auto;}
