@@ -322,7 +322,8 @@ body.modal-open{overflow:hidden;}
   font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim);
 }
 .panel-divider::before, .panel-divider::after{content:''; flex:1; height:1px; background:var(--line);}
-.account-email{margin-top:32px; max-width:360px; padding-top:24px; border-top:1px solid var(--line);}
+.account-email{margin-top:40px; max-width:360px; padding-top:24px; border-top:1px solid var(--line);}
+.account-email .section-lead{margin-top:12px; margin-bottom:18px;}
 .account-email .btn-ghost{margin-top:14px;}
 .sticker-list-title{font-family:var(--display); font-weight:600; font-size:1.1rem; margin-top:40px;}
 .sticker-list{margin-top:20px; display:flex; flex-direction:column; gap:16px; max-width:560px;}
