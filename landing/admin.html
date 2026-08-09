@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <div class="logo" data-brand-logo></div>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero" id="admin-login-view">
+  <div class="wrap">
+    <div class="kicker">Admin</div>
+    <h2>Panel de administración.</h2>
+    <p class="lead">Inventario, vendedores, ventas y comisiones.</p>
+
+    <div class="modal-form" style="max-width:360px;">
+      <label>
+        <span>Contraseña</span>
+        <input type="password" id="admin-password" placeholder="••••••••">
+      </label>
+    </div>
+    <button type="button" class="btn-primary panel-btn" id="admin-login-button">Entrar</button>
+    <p class="modal-status" id="admin-login-status"></p>
+  </div>
+</section>
+
+<section class="buy-hero" id="admin-dashboard-view" hidden>
+  <div class="wrap">
+    <div class="kicker">Admin</div>
+    <h2>Panel de administración.</h2>
+    <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
+
+    <!-- Vendedores -->
+    <div class="admin-section">
+      <h3>Vendedores</h3>
+      <div class="admin-table" id="vendedores-table"></div>
+
+      <details class="tyc-details" style="margin-top:18px;">
+        <summary>Agregar vendedor</summary>
+        <div class="modal-form" style="margin-top:16px;">
+          <label>
+            <span>Nombre</span>
+            <input type="text" id="new-vendedor-nombre" placeholder="Nacho">
+          </label>
+          <label>
+            <span>Código de referencia (para su link, ej. ?ref=nacho)</span>
+            <input type="text" id="new-vendedor-ref" placeholder="nacho">
+          </label>
+          <label>
+            <span>Comisión (%)</span>
+            <input type="number" id="new-vendedor-comision" value="50" min="0" max="100">
+          </label>
+        </div>
+        <button type="button" class="btn-primary modal-submit" id="create-vendedor-button">Crear vendedor</button>
+        <p class="modal-status" id="vendedor-status"></p>
+      </details>
+    </div>
+
+    <!-- Inventario -->
+    <div class="admin-section">
+      <h3>Inventario de stickers</h3>
+      <div class="admin-table" id="stickers-table"></div>
+
+      <details class="tyc-details" style="margin-top:18px;">
+        <summary>Dar de alta un lote</summary>
+        <div class="modal-form" style="margin-top:16px;">
+          <label>
+            <span>Cantidad</span>
+            <input type="number" id="batch-cantidad" value="5" min="1" max="100">
+          </label>
+          <label>
+            <span>Modelo</span>
+            <select id="batch-modelo">
+              <option value="llavero">Llavero</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="placa">Placa</option>
+            </select>
+          </label>
+          <label>
+            <span>Asignar a vendedor (opcional)</span>
+            <select id="batch-vendedor"><option value="">Sin asignar</option></select>
+          </label>
+        </div>
+        <button type="button" class="btn-primary modal-submit" id="create-batch-button">Crear lote</button>
+        <p class="modal-status" id="batch-status"></p>
+      </details>
+    </div>
+
+    <!-- Ventas -->
+    <div class="admin-section">
+      <h3>Ventas</h3>
+      <div class="admin-table" id="ventas-table"></div>
+    </div>
+
+    <!-- Comisiones -->
+    <div class="admin-section">
+      <h3>Comisiones</h3>
+      <div class="admin-table" id="comisiones-table"></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+<script type="module" src="/src/admin.js"></script>
+</body>
+</html>

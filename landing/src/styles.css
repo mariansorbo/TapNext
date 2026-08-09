@@ -34,11 +34,11 @@ nav{
   font-family:var(--display); font-weight:700; font-size:1.3rem; letter-spacing:-0.02em;
   display:inline-flex; align-items:center; gap:3px;
 }
-.logo [data-brand]{
+.logo .brand-emphasis{
   background:var(--violet); color:var(--ink);
   padding:2px 9px 3px; border-radius:7px; line-height:1.35;
+  margin-left:2px;
 }
-.logo .dot{color:var(--amber);}
 .nav-actions{display:flex; align-items:center; gap:20px;}
 .nav-link{font-family:var(--mono); font-size:0.82rem; color:var(--paper-dim); transition:color .2s ease;}
 .nav-link:hover{color:var(--paper);}
@@ -336,6 +336,31 @@ body.modal-open{overflow:hidden;}
 .sticker-destino-empty{font-family:var(--mono); font-size:0.82rem;}
 .sticker-edit-form{margin-top:18px; display:flex; flex-direction:column; gap:14px;}
 
+/* ADMIN (admin.html) */
+.admin-section{margin-top:48px; padding-top:32px; border-top:1px solid var(--line); max-width:900px;}
+.admin-section:first-of-type{margin-top:40px;}
+.admin-section h3{font-family:var(--display); font-weight:600; font-size:1.15rem; margin-bottom:16px;}
+.admin-table{overflow-x:auto; border:1px solid var(--line); border-radius:12px;}
+.admin-table table{width:100%; border-collapse:collapse; font-size:0.85rem; white-space:nowrap;}
+.admin-table th{
+  text-align:left; font-family:var(--mono); font-size:0.7rem; text-transform:uppercase;
+  letter-spacing:0.05em; color:var(--paper-dim); padding:12px 14px; border-bottom:1px solid var(--line);
+  background:var(--surface);
+}
+.admin-table td{padding:10px 14px; border-bottom:1px solid var(--line); color:var(--paper-dim);}
+.admin-table tr:last-child td{border-bottom:none;}
+.admin-table td b{color:var(--paper);}
+.admin-table .row-btn{
+  font-family:var(--mono); font-size:0.72rem; padding:6px 12px; border:1px solid var(--line); border-radius:100px;
+  transition:border-color .2s ease;
+}
+.admin-table .row-btn:hover{border-color:var(--violet);}
+.admin-table select{
+  font:inherit; font-size:0.8rem; color:var(--paper); background:var(--surface-2);
+  border:1px solid var(--line); border-radius:6px; padding:6px 8px;
+}
+.admin-empty{padding:20px 14px; color:var(--paper-dim); font-size:0.85rem;}
+
 @media (max-width:860px){
   .hero{grid-template-columns:1fr; padding-top:30px;}
   .steps{grid-template-columns:1fr;}
@@ -344,7 +369,7 @@ body.modal-open{overflow:hidden;}
 @media (max-width:600px){
   nav{padding:16px 16px;}
   .logo{font-size:1.1rem;}
-  .logo [data-brand]{padding:1px 7px 2px; border-radius:6px;}
+  .logo .brand-emphasis{padding:1px 7px 2px; border-radius:6px;}
   .nav-actions{gap:10px;}
   .nav-link{font-size:0.7rem;}
   .nav-cta{padding:8px 12px; font-size:0.68rem;}

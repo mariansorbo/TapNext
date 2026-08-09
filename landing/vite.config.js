@@ -19,6 +19,7 @@ export default defineConfig({
         pedido: resolve(root, 'pedido.html'),
         miPanel: resolve(root, 'mi-panel.html'),
         faqs: resolve(root, 'faqs.html'),
+        admin: resolve(root, 'admin.html'),
       },
     },
   },

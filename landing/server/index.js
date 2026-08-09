@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { randomBytes } from 'node:crypto';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken } from './otp.js';
 
@@ -19,6 +20,13 @@ const GOOGLE_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGL
 const GOOGLE_STATE_TTL_MS = 5 * 60_000;
 const googleStates = new Map(); // state -> expira (ms) — CSRF del flujo OAuth, en memoria alcanza para esta escala
 
+// Admin — login simple por contraseña compartida (el documento de requerimientos
+// original dejaba esto "no definido"; esta es una decisión pragmática de MVP,
+// pensada para un solo admin). Sin ADMIN_PASSWORD configurada, el panel queda
+// inaccesible (no hay contraseña default).
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_SESSION_TTL_MINUTES = 60;
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -26,31 +34,48 @@ app.use(express.json());
 function isoInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
 }
-function isoInSeconds(seconds) {
-  return new Date(Date.now() + seconds * 1000).toISOString();
+
+function generateCodigoPublico() {
+  // No secuencial (RS-03) — evita que se puedan barrer URLs tipo /v/A100, /v/A101...
+  return randomBytes(5).toString('base64url').replace(/[^a-z0-9]/gi, '').slice(0, 6).toLowerCase();
+}
+function generateUidNfc() {
+  return randomBytes(4).toString('hex');
+}
+
+async function get(sql, args = []) {
+  const res = await db.execute({ sql, args });
+  return res.rows[0] || null;
+}
+async function all(sql, args = []) {
+  const res = await db.execute({ sql, args });
+  return res.rows;
+}
+async function run(sql, args = []) {
+  const res = await db.execute({ sql, args });
+  return { lastInsertRowid: Number(res.lastInsertRowid || 0), rowsAffected: res.rowsAffected };
 }
 
 // --- Auth: WhatsApp + OTP, no passwords (RF-12/RF-13) ---
 
-app.post('/api/auth/otp/request', (req, res) => {
+app.post('/api/auth/otp/request', async (req, res) => {
   const whatsapp = String(req.body?.whatsapp || '').trim();
   if (!whatsapp) return res.status(400).json({ error: 'Falta el WhatsApp.' });
 
-  const recent = db
-    .prepare(
-      `SELECT id FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND creado_en > datetime('now', ?) ORDER BY id DESC LIMIT 1`
-    )
-    .get(whatsapp, `-${OTP_THROTTLE_SECONDS} seconds`);
+  const recent = await get(
+    `SELECT id FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND creado_en > datetime('now', ?) ORDER BY id DESC LIMIT 1`,
+    [whatsapp, `-${OTP_THROTTLE_SECONDS} seconds`]
+  );
   if (recent) {
     return res.status(429).json({ error: 'Esperá unos segundos antes de pedir otro código.' });
   }
 
   const code = generateOtp();
-  db.prepare('INSERT INTO otp_sessions (whatsapp, codigo_hash, expira) VALUES (?, ?, ?)').run(
+  await run('INSERT INTO otp_sessions (whatsapp, codigo_hash, expira) VALUES (?, ?, ?)', [
     whatsapp,
     hashValue(code),
-    isoInMinutes(OTP_TTL_MINUTES)
-  );
+    isoInMinutes(OTP_TTL_MINUTES),
+  ]);
 
   // No hay integración real con WhatsApp Business API todavía — simulamos el envío.
   console.log(`[OTP demo] Código para ${whatsapp}: ${code} (expira en ${OTP_TTL_MINUTES} min)`);
@@ -60,35 +85,34 @@ app.post('/api/auth/otp/request', (req, res) => {
   res.json({ ok: true, debug_otp: code });
 });
 
-app.post('/api/auth/otp/verify', (req, res) => {
+app.post('/api/auth/otp/verify', async (req, res) => {
   const whatsapp = String(req.body?.whatsapp || '').trim();
   const code = String(req.body?.code || '').trim();
   if (!whatsapp || !code) return res.status(400).json({ error: 'Faltan datos.' });
 
-  const otp = db
-    .prepare(
-      `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > datetime('now') ORDER BY id DESC LIMIT 1`
-    )
-    .get(whatsapp);
+  const otp = await get(
+    `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > datetime('now') ORDER BY id DESC LIMIT 1`,
+    [whatsapp]
+  );
 
   if (!otp || otp.codigo_hash !== hashValue(code)) {
     return res.status(401).json({ error: 'Código inválido o expirado.' });
   }
 
-  db.prepare('UPDATE otp_sessions SET usado = 1 WHERE id = ?').run(otp.id);
+  await run('UPDATE otp_sessions SET usado = 1 WHERE id = ?', [otp.id]);
 
-  let comprador = db.prepare('SELECT * FROM compradores WHERE whatsapp = ?').get(whatsapp);
+  let comprador = await get('SELECT * FROM compradores WHERE whatsapp = ?', [whatsapp]);
   if (!comprador) {
-    const result = db.prepare('INSERT INTO compradores (whatsapp) VALUES (?)').run(whatsapp);
-    comprador = db.prepare('SELECT * FROM compradores WHERE id = ?').get(Number(result.lastInsertRowid));
+    const result = await run('INSERT INTO compradores (whatsapp) VALUES (?)', [whatsapp]);
+    comprador = await get('SELECT * FROM compradores WHERE id = ?', [result.lastInsertRowid]);
   }
 
   const token = generateToken();
-  db.prepare('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)').run(
+  await run('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)', [
     comprador.id,
     hashValue(token),
-    isoInMinutes(SESSION_TTL_MINUTES)
-  );
+    isoInMinutes(SESSION_TTL_MINUTES),
+  ]);
 
   res.json({
     token,
@@ -147,29 +171,28 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const profile = await profileRes.json();
     if (!profileRes.ok || !profile.sub) throw new Error('No se pudo leer el perfil de Google.');
 
-    // Si ya existe un comprador con ese google_id, es ese. Si no, pero hay uno
-    // con el mismo mail (ej. cargado como mail de respaldo), lo vinculamos en
-    // vez de crear una cuenta duplicada. Si tampoco, se crea uno nuevo.
-    let comprador = db.prepare('SELECT * FROM compradores WHERE google_id = ?').get(profile.sub);
+    let comprador = await get('SELECT * FROM compradores WHERE google_id = ?', [profile.sub]);
     if (!comprador && profile.email) {
-      comprador = db.prepare('SELECT * FROM compradores WHERE email = ?').get(profile.email);
+      comprador = await get('SELECT * FROM compradores WHERE email = ?', [profile.email]);
       if (comprador) {
-        db.prepare('UPDATE compradores SET google_id = ? WHERE id = ?').run(profile.sub, comprador.id);
+        await run('UPDATE compradores SET google_id = ? WHERE id = ?', [profile.sub, comprador.id]);
       }
     }
     if (!comprador) {
-      const result = db
-        .prepare('INSERT INTO compradores (google_id, email, nombre) VALUES (?, ?, ?)')
-        .run(profile.sub, profile.email || null, profile.name || null);
-      comprador = db.prepare('SELECT * FROM compradores WHERE id = ?').get(Number(result.lastInsertRowid));
+      const result = await run('INSERT INTO compradores (google_id, email, nombre) VALUES (?, ?, ?)', [
+        profile.sub,
+        profile.email || null,
+        profile.name || null,
+      ]);
+      comprador = await get('SELECT * FROM compradores WHERE id = ?', [result.lastInsertRowid]);
     }
 
     const token = generateToken();
-    db.prepare('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)').run(
+    await run('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)', [
       comprador.id,
       hashValue(token),
-      isoInMinutes(SESSION_TTL_MINUTES)
-    );
+      isoInMinutes(SESSION_TTL_MINUTES),
+    ]);
 
     res.redirect(`${FRONTEND_URL}/mi-panel.html?token=${token}`);
   } catch (err) {
@@ -178,26 +201,24 @@ app.get('/api/auth/google/callback', async (req, res) => {
   }
 });
 
-app.delete('/api/auth/session', (req, res) => {
+app.delete('/api/auth/session', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (token) db.prepare('DELETE FROM sesiones WHERE token_hash = ?').run(hashValue(token));
+  if (token) await run('DELETE FROM sesiones WHERE token_hash = ?', [hashValue(token)]);
   res.status(204).end();
 });
 
 // RF-15b: la sesión de edición expira tras inactividad corta — ventana deslizante.
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: 'Falta autenticación.' });
 
   const tokenHash = hashValue(token);
-  const sesion = db
-    .prepare(`SELECT * FROM sesiones WHERE token_hash = ? AND expira > datetime('now')`)
-    .get(tokenHash);
+  const sesion = await get(`SELECT * FROM sesiones WHERE token_hash = ? AND expira > datetime('now')`, [tokenHash]);
   if (!sesion) return res.status(401).json({ error: 'Sesión inválida o expirada.' });
 
-  db.prepare('UPDATE sesiones SET expira = ? WHERE id = ?').run(isoInMinutes(SESSION_TTL_MINUTES), sesion.id);
+  await run('UPDATE sesiones SET expira = ? WHERE id = ?', [isoInMinutes(SESSION_TTL_MINUTES), sesion.id]);
 
-  req.comprador = db.prepare('SELECT * FROM compradores WHERE id = ?').get(sesion.comprador_id);
+  req.comprador = await get('SELECT * FROM compradores WHERE id = ?', [sesion.comprador_id]);
   next();
 }
 
@@ -210,26 +231,27 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 // Mail de respaldo opcional — no se usa para loguearse, solo para avisos y recuperación
 // si el número de WhatsApp deja de estar en manos de su dueño original.
-app.patch('/api/me', requireAuth, (req, res) => {
+app.patch('/api/me', requireAuth, async (req, res) => {
   const email = String(req.body?.email ?? '').trim();
   if (email && !email.includes('@')) {
     return res.status(400).json({ error: 'Ese mail no parece válido.' });
   }
-  db.prepare('UPDATE compradores SET email = ? WHERE id = ?').run(email || null, req.comprador.id);
-  const actualizado = db.prepare('SELECT id, whatsapp, nombre, email FROM compradores WHERE id = ?').get(req.comprador.id);
+  await run('UPDATE compradores SET email = ? WHERE id = ?', [email || null, req.comprador.id]);
+  const actualizado = await get('SELECT id, whatsapp, nombre, email FROM compradores WHERE id = ?', [
+    req.comprador.id,
+  ]);
   res.json(actualizado);
 });
 
-app.get('/api/me/stickers', requireAuth, (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT s.id, s.codigo_publico, s.estado, s.modelo, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
+app.get('/api/me/stickers', requireAuth, async (req, res) => {
+  const rows = await all(
+    `SELECT s.id, s.codigo_publico, s.estado, s.modelo, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
        FROM stickers s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        WHERE s.comprador_id = ?
-       ORDER BY s.id`
-    )
-    .all(req.comprador.id);
+       ORDER BY s.id`,
+    [req.comprador.id]
+  );
 
   res.json(
     rows.map((r) => ({
@@ -242,7 +264,7 @@ app.get('/api/me/stickers', requireAuth, (req, res) => {
   );
 });
 
-app.patch('/api/stickers/:id/destino', requireAuth, (req, res) => {
+app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   const stickerId = Number(req.params.id);
   const tipo = String(req.body?.tipo || '').trim();
   const valor = String(req.body?.valor || '').trim();
@@ -250,29 +272,24 @@ app.patch('/api/stickers/:id/destino', requireAuth, (req, res) => {
   if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
   if (!valor) return res.status(400).json({ error: 'Falta el valor del destino.' });
 
-  const sticker = db
-    .prepare('SELECT * FROM stickers WHERE id = ? AND comprador_id = ?')
-    .get(stickerId, req.comprador.id);
+  const sticker = await get('SELECT * FROM stickers WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
   if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
   if (sticker.estado !== 'activo') {
     return res.status(400).json({ error: 'Este sticker todavía no está activado.' });
   }
 
-  const anterior = db.prepare('SELECT * FROM destinos WHERE sticker_id = ?').get(stickerId);
+  const anterior = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
 
-  db.prepare(
-    `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = datetime('now')`
-  ).run(stickerId, tipo, valor);
+  await db.execute({
+    sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = datetime('now')`,
+    args: [stickerId, tipo, valor],
+  });
 
-  db.prepare(
+  await run(
     `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
-     VALUES (?, ?, 'destino', ?, ?)`
-  ).run(
-    stickerId,
-    req.comprador.id,
-    anterior ? `${anterior.tipo}:${anterior.valor}` : null,
-    `${tipo}:${valor}`
+     VALUES (?, ?, 'destino', ?, ?)`,
+    [stickerId, req.comprador.id, anterior ? `${anterior.tipo}:${anterior.valor}` : null, `${tipo}:${valor}`]
   );
 
   // No hay integración real de mail todavía — simulamos el aviso si el comprador cargó uno de respaldo.
@@ -282,8 +299,226 @@ app.patch('/api/stickers/:id/destino', requireAuth, (req, res) => {
     );
   }
 
-  const actualizado = db.prepare('SELECT * FROM destinos WHERE sticker_id = ?').get(stickerId);
+  const actualizado = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
   res.json({ tipo: actualizado.tipo, valor: actualizado.valor, actualizadoEn: actualizado.actualizado_en });
+});
+
+// --- Admin (/admin) — inventario, vendedores, ventas, comisiones ---
+// RF-22: separación de permisos — el admin NO tiene, por diseño, ningún
+// endpoint para leer o editar el destino configurado por un comprador.
+
+app.post('/api/admin/login', async (req, res) => {
+  if (!ADMIN_PASSWORD) return res.status(503).json({ error: 'El panel de admin todavía no está configurado.' });
+  const password = String(req.body?.password || '');
+  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Contraseña incorrecta.' });
+
+  const token = generateToken();
+  await run('INSERT INTO admin_sesiones (token_hash, expira) VALUES (?, ?)', [
+    hashValue(token),
+    isoInMinutes(ADMIN_SESSION_TTL_MINUTES),
+  ]);
+  res.json({ token });
+});
+
+app.delete('/api/admin/session', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (token) await run('DELETE FROM admin_sesiones WHERE token_hash = ?', [hashValue(token)]);
+  res.status(204).end();
+});
+
+async function requireAdmin(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ error: 'Falta autenticación.' });
+
+  const tokenHash = hashValue(token);
+  const sesion = await get(`SELECT * FROM admin_sesiones WHERE token_hash = ? AND expira > datetime('now')`, [
+    tokenHash,
+  ]);
+  if (!sesion) return res.status(401).json({ error: 'Sesión inválida o expirada.' });
+
+  await run('UPDATE admin_sesiones SET expira = ? WHERE id = ?', [isoInMinutes(ADMIN_SESSION_TTL_MINUTES), sesion.id]);
+  next();
+}
+
+app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
+  const vendedores = await all(`
+    SELECT v.*,
+      (SELECT COUNT(*) FROM stickers s WHERE s.vendedor_id = v.id) AS stock_total,
+      (SELECT COUNT(*) FROM stickers s WHERE s.vendedor_id = v.id AND s.estado = 'en_stock') AS stock_disponible
+    FROM vendedores v ORDER BY v.id
+  `);
+  res.json(
+    vendedores.map((v) => ({
+      id: v.id,
+      nombre: v.nombre,
+      codigoRef: v.codigo_ref,
+      comisionPct: v.comision_pct,
+      stockTotal: v.stock_total,
+      stockDisponible: v.stock_disponible,
+    }))
+  );
+});
+
+app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
+  const nombre = String(req.body?.nombre || '').trim();
+  const codigoRef = String(req.body?.codigoRef || '').trim().toLowerCase();
+  const comisionPct = Number(req.body?.comisionPct ?? 50);
+
+  if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
+  if (!/^[a-z0-9-]+$/.test(codigoRef)) {
+    return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
+  }
+
+  const existe = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [codigoRef]);
+  if (existe) return res.status(409).json({ error: 'Ya existe un vendedor con ese código de referencia.' });
+
+  const result = await run('INSERT INTO vendedores (nombre, codigo_ref, comision_pct) VALUES (?, ?, ?)', [
+    nombre,
+    codigoRef,
+    comisionPct,
+  ]);
+  res.status(201).json({ id: result.lastInsertRowid, nombre, codigoRef, comisionPct });
+});
+
+app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.modelo, s.creado_en,
+      v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
+      c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
+    FROM stickers s
+    LEFT JOIN vendedores v ON v.id = s.vendedor_id
+    LEFT JOIN compradores c ON c.id = s.comprador_id
+    ORDER BY s.id DESC
+  `);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      codigoPublico: r.codigo_publico,
+      uidNfc: r.uid_nfc,
+      estado: r.estado,
+      modelo: r.modelo,
+      creadoEn: r.creado_en,
+      vendedor: r.vendedor_nombre ? { nombre: r.vendedor_nombre, codigoRef: r.vendedor_ref } : null,
+      comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
+    }))
+  );
+});
+
+const MODELOS = ['llavero', 'tarjeta', 'placa'];
+
+app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
+  const cantidad = Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
+  const modelo = String(req.body?.modelo || '').trim();
+  const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
+
+  if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (vendedorId) {
+    const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+    if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  }
+
+  const creados = [];
+  for (let i = 0; i < cantidad; i++) {
+    const codigoPublico = generateCodigoPublico();
+    const uidNfc = generateUidNfc();
+    const result = await run(
+      'INSERT INTO stickers (codigo_publico, uid_nfc, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?)',
+      [codigoPublico, uidNfc, vendedorId, 'en_stock', modelo]
+    );
+    creados.push({ id: result.lastInsertRowid, codigoPublico, uidNfc });
+  }
+
+  res.status(201).json({ creados });
+});
+
+app.patch('/api/admin/stickers/:id/asignar', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const vendedorId = Number(req.body?.vendedorId);
+
+  const sticker = await get('SELECT * FROM stickers WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.estado !== 'en_stock') {
+    return res.status(400).json({ error: 'Solo se puede reasignar stock que todavía no fue vendido.' });
+  }
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  await run('UPDATE stickers SET vendedor_id = ? WHERE id = ?', [vendedorId, stickerId]);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
+  const conditions = [];
+  const args = [];
+  if (req.query.vendedorId) {
+    conditions.push('ve.vendedor_id = ?');
+    args.push(Number(req.query.vendedorId));
+  }
+  if (req.query.desde) {
+    conditions.push('ve.fecha >= ?');
+    args.push(String(req.query.desde));
+  }
+  if (req.query.hasta) {
+    conditions.push('ve.fecha <= ?');
+    args.push(String(req.query.hasta));
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const rows = await all(
+    `
+    SELECT ve.*, s.codigo_publico, v.nombre AS vendedor_nombre
+    FROM ventas ve
+    LEFT JOIN stickers s ON s.id = ve.sticker_id
+    LEFT JOIN vendedores v ON v.id = ve.vendedor_id
+    ${where}
+    ORDER BY ve.fecha DESC
+  `,
+    args
+  );
+
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      stickerCodigo: r.codigo_publico,
+      vendedorNombre: r.vendedor_nombre,
+      monto: r.monto,
+      estadoPago: r.estado_pago,
+      comisionLiquidada: Boolean(r.comision_liquidada),
+      fecha: r.fecha,
+    }))
+  );
+});
+
+app.get('/api/admin/comisiones', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT v.id, v.nombre, v.comision_pct,
+      COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' THEN ve.monto ELSE 0 END), 0) AS ventas_totales,
+      COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 0 THEN ve.monto ELSE 0 END), 0) AS base_pendiente,
+      COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 1 THEN ve.monto ELSE 0 END), 0) AS base_liquidada
+    FROM vendedores v
+    LEFT JOIN ventas ve ON ve.vendedor_id = v.id
+    GROUP BY v.id
+    ORDER BY v.id
+  `);
+
+  res.json(
+    rows.map((r) => ({
+      vendedorId: r.id,
+      nombre: r.nombre,
+      comisionPct: r.comision_pct,
+      ventasTotales: r.ventas_totales,
+      comisionPendiente: Math.round((r.base_pendiente * r.comision_pct) / 100),
+      comisionLiquidada: Math.round((r.base_liquidada * r.comision_pct) / 100),
+    }))
+  );
+});
+
+app.patch('/api/admin/ventas/:id/liquidar', requireAdmin, async (req, res) => {
+  const ventaId = Number(req.params.id);
+  const venta = await get('SELECT id FROM ventas WHERE id = ?', [ventaId]);
+  if (!venta) return res.status(404).json({ error: 'Venta no encontrada.' });
+  await run('UPDATE ventas SET comision_liquidada = 1 WHERE id = ?', [ventaId]);
+  res.json({ ok: true });
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
