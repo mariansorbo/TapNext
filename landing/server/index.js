@@ -395,6 +395,46 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid, nombre, codigoRef, comisionPct });
 });
 
+app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT * FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  const nombre = String(req.body?.nombre || '').trim();
+  const codigoRef = String(req.body?.codigoRef || '').trim().toLowerCase();
+  const comisionPct = Number(req.body?.comisionPct ?? vendedor.comision_pct);
+
+  if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
+  if (!/^[a-z0-9-]+$/.test(codigoRef)) {
+    return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
+  }
+
+  const otro = await get('SELECT id FROM vendedores WHERE codigo_ref = ? AND id != ?', [codigoRef, vendedorId]);
+  if (otro) return res.status(409).json({ error: 'Ya existe otro vendedor con ese código de referencia.' });
+
+  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ? WHERE id = ?', [
+    nombre,
+    codigoRef,
+    comisionPct,
+    vendedorId,
+  ]);
+  res.json({ id: vendedorId, nombre, codigoRef, comisionPct });
+});
+
+app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  const stock = await get('SELECT id FROM stickers WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
+  if (stock) return res.status(409).json({ error: 'Tiene stock asignado — reasigná o eliminá esos stickers primero.' });
+  const venta = await get('SELECT id FROM ventas WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
+  if (venta) return res.status(409).json({ error: 'Tiene ventas registradas — no se puede eliminar un vendedor con historial.' });
+
+  await run('DELETE FROM vendedores WHERE id = ?', [vendedorId]);
+  res.status(204).end();
+});
+
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
     SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.modelo, s.creado_en,
@@ -497,6 +537,17 @@ app.patch('/api/admin/stickers/:id/asignar', requireAdmin, async (req, res) => {
 
   await run('UPDATE stickers SET vendedor_id = ? WHERE id = ?', [vendedorId, stickerId]);
   res.json({ ok: true });
+});
+
+app.delete('/api/admin/stickers/:id', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const sticker = await get('SELECT * FROM stickers WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.estado !== 'en_stock') {
+    return res.status(409).json({ error: 'Solo se puede eliminar stock que todavía no fue vendido.' });
+  }
+  await run('DELETE FROM stickers WHERE id = ?', [stickerId]);
+  res.status(204).end();
 });
 
 app.get('/api/admin/ventas', requireAdmin, async (req, res) => {

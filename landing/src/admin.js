@@ -94,18 +94,88 @@ async function loadVendedores() {
   const container = document.getElementById('vendedores-table');
   try {
     vendedoresCache = await api('/vendedores');
-    renderTable(
-      container,
-      ['Nombre', 'Código ref.', 'Comisión', 'Stock disponible / total'],
-      vendedoresCache.map(
-        (v) => `<tr>
-          <td><b>${v.nombre}</b></td>
-          <td>${v.codigoRef}</td>
-          <td>${v.comisionPct}%</td>
-          <td>${v.stockDisponible} / ${v.stockTotal}</td>
-        </tr>`
-      )
-    );
+
+    if (!vendedoresCache.length) {
+      container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
+    } else {
+      const rowsHtml = vendedoresCache
+        .map(
+          (v) => `
+          <tr data-vendedor-row="${v.id}">
+            <td><b>${v.nombre}</b></td>
+            <td>${v.codigoRef}</td>
+            <td>${v.comisionPct}%</td>
+            <td>${v.stockDisponible} / ${v.stockTotal}</td>
+            <td>
+              <button type="button" class="row-btn edit-vendedor-btn" data-id="${v.id}">Editar</button>
+              <button type="button" class="row-btn danger delete-vendedor-btn" data-id="${v.id}">Eliminar</button>
+            </td>
+          </tr>
+          <tr class="vendedor-edit-row" data-vendedor-edit="${v.id}" hidden>
+            <td colspan="5">
+              <div class="vendedor-edit-form">
+                <div class="modal-form">
+                  <label><span>Nombre</span><input type="text" class="edit-v-nombre" value="${v.nombre}"></label>
+                  <label><span>Código ref.</span><input type="text" class="edit-v-ref" value="${v.codigoRef}"></label>
+                  <label><span>Comisión (%)</span><input type="number" class="edit-v-comision" value="${v.comisionPct}" min="0" max="100"></label>
+                </div>
+                <div>
+                  <button type="button" class="btn-primary modal-submit save-vendedor-btn" data-id="${v.id}" style="width:auto; display:inline-block;">Guardar</button>
+                  <button type="button" class="btn-ghost cancel-vendedor-btn" data-id="${v.id}">Cancelar</button>
+                </div>
+                <p class="modal-status edit-v-status"></p>
+              </div>
+            </td>
+          </tr>`
+        )
+        .join('');
+
+      container.innerHTML = `<table><thead><tr><th>Nombre</th><th>Código ref.</th><th>Comisión</th><th>Stock disponible / total</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+      container.querySelectorAll('.edit-vendedor-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const editRow = container.querySelector(`[data-vendedor-edit="${btn.dataset.id}"]`);
+          editRow.hidden = !editRow.hidden;
+        });
+      });
+      container.querySelectorAll('.cancel-vendedor-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelector(`[data-vendedor-edit="${btn.dataset.id}"]`).hidden = true;
+        });
+      });
+      container.querySelectorAll('.save-vendedor-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const editRow = container.querySelector(`[data-vendedor-edit="${btn.dataset.id}"]`);
+          const nombre = editRow.querySelector('.edit-v-nombre').value.trim();
+          const codigoRef = editRow.querySelector('.edit-v-ref').value.trim();
+          const comisionPct = Number(editRow.querySelector('.edit-v-comision').value);
+          const status = editRow.querySelector('.edit-v-status');
+          status.className = 'modal-status';
+          status.textContent = 'Guardando...';
+          try {
+            await api(`/vendedores/${btn.dataset.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ nombre, codigoRef, comisionPct }),
+            });
+            await loadVendedores();
+          } catch (err) {
+            status.className = 'modal-status is-error';
+            status.textContent = err.message;
+          }
+        });
+      });
+      container.querySelectorAll('.delete-vendedor-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('¿Eliminar este vendedor?')) return;
+          try {
+            await api(`/vendedores/${btn.dataset.id}`, { method: 'DELETE' });
+            await loadVendedores();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    }
 
     ['batch-vendedor', 'individual-vendedor'].forEach((id) => {
       const select = document.getElementById(id);
@@ -152,7 +222,7 @@ async function loadStickers() {
     const stickers = await api('/stickers');
     renderTable(
       container,
-      ['Código', 'Modelo', 'Estado', 'Vendedor', 'Comprador'],
+      ['Código', 'Modelo', 'Estado', 'Vendedor', 'Comprador', ''],
       stickers.map(
         (s) => `<tr>
           <td><b>${s.codigoPublico}</b></td>
@@ -160,9 +230,21 @@ async function loadStickers() {
           <td>${ESTADO_LABELS[s.estado] || s.estado}</td>
           <td>${s.vendedor ? `${s.vendedor.nombre} (${s.vendedor.codigoRef})` : '—'}</td>
           <td>${s.comprador ? s.comprador.whatsapp : '—'}</td>
+          <td>${s.estado === 'en_stock' ? `<button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>` : ''}</td>
         </tr>`
       )
     );
+    container.querySelectorAll('.delete-sticker-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('¿Eliminar este sticker sin vender?')) return;
+        try {
+          await api(`/stickers/${btn.dataset.id}`, { method: 'DELETE' });
+          await Promise.all([loadStickers(), loadVendedores()]);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
   } catch (err) {
     container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
   }
