@@ -107,12 +107,14 @@ async function loadVendedores() {
       )
     );
 
-    const select = document.getElementById('batch-vendedor');
-    const current = select.value;
-    select.innerHTML =
-      '<option value="">Sin asignar</option>' +
-      vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
-    select.value = current;
+    ['batch-vendedor', 'individual-vendedor'].forEach((id) => {
+      const select = document.getElementById(id);
+      const current = select.value;
+      select.innerHTML =
+        '<option value="">Sin asignar</option>' +
+        vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
+      select.value = current;
+    });
   } catch (err) {
     container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
   }
@@ -181,6 +183,42 @@ document.getElementById('create-batch-button').addEventListener('click', async (
     });
     status.className = 'modal-status is-success';
     status.textContent = `Creados ${data.creados.length} stickers.`;
+    await Promise.all([loadStickers(), loadVendedores()]);
+  } catch (err) {
+    status.className = 'modal-status is-error';
+    status.textContent = err.message;
+  }
+});
+
+document.getElementById('create-individual-button').addEventListener('click', async () => {
+  const uidNfc = document.getElementById('individual-uid').value.trim();
+  const modelo = document.getElementById('individual-modelo').value;
+  const vendedorId = document.getElementById('individual-vendedor').value || null;
+  const status = document.getElementById('individual-status');
+  const result = document.getElementById('individual-result');
+
+  if (!uidNfc) {
+    status.className = 'modal-status is-error';
+    status.textContent = 'Pegá el UID del chip primero.';
+    return;
+  }
+  status.className = 'modal-status';
+  status.textContent = 'Generando...';
+  result.hidden = true;
+  try {
+    const data = await api('/stickers/individual', {
+      method: 'POST',
+      body: JSON.stringify({ uidNfc, modelo, vendedorId }),
+    });
+    status.className = 'modal-status is-success';
+    status.textContent = 'Listo — copiá la clave ahora, no se vuelve a mostrar.';
+    result.hidden = false;
+    result.innerHTML = `
+      <div><b>Código público:</b> ${data.codigoPublico}</div>
+      <div><b>URL a grabar en el chip:</b> ${data.url}</div>
+      <div><b>Clave de escritura (PWD_AUTH):</b> ${data.writePassword}</div>
+    `;
+    document.getElementById('individual-uid').value = '';
     await Promise.all([loadStickers(), loadVendedores()]);
   } catch (err) {
     status.className = 'modal-status is-error';

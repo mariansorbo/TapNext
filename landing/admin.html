@@ -91,6 +91,32 @@
         <button type="button" class="btn-primary modal-submit" id="create-batch-button">Crear lote</button>
         <p class="modal-status" id="batch-status"></p>
       </details>
+
+      <details class="tyc-details" style="margin-top:14px;">
+        <summary>Alta individual desde el taller (chip real)</summary>
+        <p class="section-lead" style="margin:14px 0;">Para cuando programás un chip físico de verdad: pegás el UID que leíste del chip, y te devuelve la clave de escritura derivada para cargar en tu software de programación — no se guarda en ningún lado, copiala ahora.</p>
+        <div class="modal-form">
+          <label>
+            <span>UID del chip (leído del taller)</span>
+            <input type="text" id="individual-uid" placeholder="04a2b3c4d5e6">
+          </label>
+          <label>
+            <span>Modelo</span>
+            <select id="individual-modelo">
+              <option value="llavero">Llavero</option>
+              <option value="tarjeta">Tarjeta</option>
+              <option value="placa">Placa</option>
+            </select>
+          </label>
+          <label>
+            <span>Asignar a vendedor (opcional)</span>
+            <select id="individual-vendedor"><option value="">Sin asignar</option></select>
+          </label>
+        </div>
+        <button type="button" class="btn-primary modal-submit" id="create-individual-button">Generar</button>
+        <p class="modal-status" id="individual-status"></p>
+        <div class="wizard-summary" id="individual-result" hidden></div>
+      </details>
     </div>
 
     <!-- Ventas -->

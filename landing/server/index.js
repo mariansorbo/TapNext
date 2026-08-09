@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHmac } from 'node:crypto';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken } from './otp.js';
 
@@ -26,6 +26,21 @@ const googleStates = new Map(); // state -> expira (ms) — CSRF del flujo OAuth
 // inaccesible (no hay contraseña default).
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_SESSION_TTL_MINUTES = 60;
+
+// Programación de chips en el taller (RS-01/RS-02): la clave de escritura de
+// cada chip se DERIVA de secreto_maestro + uid_nfc — nunca se guarda en la
+// base por chip. El único dato sensible a proteger es este secreto único.
+const CHIP_MASTER_SECRET = process.env.CHIP_MASTER_SECRET || '';
+// URL pública del router (este mismo backend) — es lo que se graba en el chip.
+const PUBLIC_ROUTER_BASE = process.env.PUBLIC_ROUTER_BASE || `http://localhost:${process.env.PORT || 3001}`;
+
+function deriveChipPassword(uidNfc) {
+  // Hex de 8 bytes — el software de programación del chip suele necesitar
+  // recortar/adaptar esto al tamaño exacto que pida su PWD_AUTH (ej. NTAG
+  // 213/215/216 usa PWD de 4 bytes). La fórmula es lo que importa: siempre
+  // reproducible a partir del secreto maestro + el UID, nunca almacenada.
+  return createHmac('sha256', CHIP_MASTER_SECRET).update(uidNfc).digest('hex').slice(0, 16);
+}
 
 const app = express();
 app.use(cors());
@@ -431,6 +446,43 @@ app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
   res.status(201).json({ creados });
 });
 
+// Alta individual "de taller": partís de un uid_nfc real (leído del chip físico)
+// en vez de generarlo al azar. Devuelve la clave de escritura derivada UNA
+// SOLA VEZ, para programar el chip en el momento — no se guarda en ningún lado.
+app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
+  if (!CHIP_MASTER_SECRET) {
+    return res.status(503).json({ error: 'Configurá CHIP_MASTER_SECRET antes de dar de alta chips reales.' });
+  }
+  const uidNfc = String(req.body?.uidNfc || '').trim();
+  const modelo = String(req.body?.modelo || '').trim();
+  const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
+
+  if (!uidNfc) return res.status(400).json({ error: 'Falta el UID del chip.' });
+  if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (vendedorId) {
+    const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+    if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  }
+
+  const existente = await get('SELECT id FROM stickers WHERE uid_nfc = ?', [uidNfc]);
+  if (existente) return res.status(409).json({ error: 'Ese UID ya está registrado.' });
+
+  const codigoPublico = generateCodigoPublico();
+  const writePassword = deriveChipPassword(uidNfc);
+  const result = await run(
+    'INSERT INTO stickers (codigo_publico, uid_nfc, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?)',
+    [codigoPublico, uidNfc, vendedorId, 'en_stock', modelo]
+  );
+
+  res.status(201).json({
+    id: result.lastInsertRowid,
+    codigoPublico,
+    uidNfc,
+    url: `${PUBLIC_ROUTER_BASE}/v/${codigoPublico}`,
+    writePassword,
+  });
+});
+
 app.patch('/api/admin/stickers/:id/asignar', requireAdmin, async (req, res) => {
   const stickerId = Number(req.params.id);
   const vendedorId = Number(req.body?.vendedorId);
@@ -519,6 +571,44 @@ app.patch('/api/admin/ventas/:id/liquidar', requireAdmin, async (req, res) => {
   if (!venta) return res.status(404).json({ error: 'Venta no encontrada.' });
   await run('UPDATE ventas SET comision_liquidada = 1 WHERE id = ?', [ventaId]);
   res.json({ ok: true });
+});
+
+// --- Router público: acá redirige el chip al ser tapeado (RF-14). ---
+// Siempre va al destino configurado, nunca abre el panel de edición.
+
+app.set('trust proxy', true);
+
+const ROUTER_RATE_LIMIT = 60; // por IP, por minuto — RS-05, evita scraping masivo del inventario
+const ROUTER_RATE_WINDOW_MS = 60_000;
+const routerHits = new Map(); // ip -> { count, resetAt }
+
+function routerThrottle(req, res, next) {
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const entry = routerHits.get(ip);
+  if (!entry || entry.resetAt < now) {
+    routerHits.set(ip, { count: 1, resetAt: now + ROUTER_RATE_WINDOW_MS });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > ROUTER_RATE_LIMIT) {
+    return res.status(429).send('Demasiados intentos. Probá de nuevo en un rato.');
+  }
+  next();
+}
+
+app.get('/v/:codigo', routerThrottle, async (req, res) => {
+  const sticker = await get('SELECT * FROM stickers WHERE codigo_publico = ?', [req.params.codigo]);
+
+  if (sticker && sticker.estado === 'activo') {
+    const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);
+    if (destino) return res.redirect(302, destino.valor);
+  }
+
+  // Sticker inexistente, todavía no activado, o sin destino cargado — no hay
+  // pantalla de activación construida todavía (RF-08/09), así que por ahora
+  // cae a la landing en vez de mostrar un error crudo.
+  res.redirect(302, FRONTEND_URL);
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
