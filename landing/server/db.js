@@ -62,7 +62,35 @@ db.exec(`
 `);
 
 // Migración: mail de respaldo opcional, agregado después de la tabla original.
-const compradorColumns = db.prepare('PRAGMA table_info(compradores)').all();
+let compradorColumns = db.prepare('PRAGMA table_info(compradores)').all();
 if (!compradorColumns.some((col) => col.name === 'email')) {
   db.exec('ALTER TABLE compradores ADD COLUMN email TEXT');
+  compradorColumns = db.prepare('PRAGMA table_info(compradores)').all();
 }
+
+// Migración: login opcional con Google — una cuenta ya no depende únicamente
+// del WhatsApp, así que ese campo pasa a ser opcional (SQLite no permite
+// aflojar un NOT NULL con ALTER, hay que reconstruir la tabla).
+const whatsappCol = compradorColumns.find((col) => col.name === 'whatsapp');
+if (whatsappCol?.notnull) {
+  db.exec(`
+    PRAGMA foreign_keys = OFF;
+    CREATE TABLE compradores_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      whatsapp TEXT UNIQUE,
+      nombre TEXT,
+      email TEXT,
+      creado_en TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO compradores_new (id, whatsapp, nombre, email, creado_en)
+      SELECT id, whatsapp, nombre, email, creado_en FROM compradores;
+    DROP TABLE compradores;
+    ALTER TABLE compradores_new RENAME TO compradores;
+    PRAGMA foreign_keys = ON;
+  `);
+  compradorColumns = db.prepare('PRAGMA table_info(compradores)').all();
+}
+if (!compradorColumns.some((col) => col.name === 'google_id')) {
+  db.exec('ALTER TABLE compradores ADD COLUMN google_id TEXT');
+}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id)');

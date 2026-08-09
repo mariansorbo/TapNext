@@ -30,8 +30,15 @@ nav{
   display:flex; align-items:center; justify-content:space-between;
   padding:26px 28px; max-width:1120px; margin:0 auto;
 }
-.logo{font-family:var(--display); font-weight:700; font-size:1.3rem; letter-spacing:-0.02em;}
-.logo .dot{color:var(--violet);}
+.logo{
+  font-family:var(--display); font-weight:700; font-size:1.3rem; letter-spacing:-0.02em;
+  display:inline-flex; align-items:center; gap:3px;
+}
+.logo [data-brand]{
+  background:var(--violet); color:var(--ink);
+  padding:2px 9px 3px; border-radius:7px; line-height:1.35;
+}
+.logo .dot{color:var(--amber);}
 .nav-actions{display:flex; align-items:center; gap:20px;}
 .nav-link{font-family:var(--mono); font-size:0.82rem; color:var(--paper-dim); transition:color .2s ease;}
 .nav-link:hover{color:var(--paper);}
@@ -310,6 +317,11 @@ body.modal-open{overflow:hidden;}
 .panel-login-form{max-width:360px;}
 .panel-btn{margin-top:16px;}
 #login-otp-field{max-width:360px;}
+.panel-divider{
+  display:flex; align-items:center; gap:12px; margin:24px 0 0; max-width:360px;
+  font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim);
+}
+.panel-divider::before, .panel-divider::after{content:''; flex:1; height:1px; background:var(--line);}
 .account-email{margin-top:32px; max-width:360px; padding-top:24px; border-top:1px solid var(--line);}
 .account-email .btn-ghost{margin-top:14px;}
 .sticker-list{margin-top:32px; display:flex; flex-direction:column; gap:16px; max-width:560px;}
@@ -332,6 +344,7 @@ body.modal-open{overflow:hidden;}
 @media (max-width:600px){
   nav{padding:16px 16px;}
   .logo{font-size:1.1rem;}
+  .logo [data-brand]{padding:1px 7px 2px; border-radius:6px;}
   .nav-actions{gap:10px;}
   .nav-link{font-size:0.7rem;}
   .nav-cta{padding:8px 12px; font-size:0.68rem;}

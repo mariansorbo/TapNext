@@ -36,6 +36,8 @@ const logoutButton = document.getElementById('logout-button');
 const accountEmailInput = document.getElementById('account-email');
 const saveEmailButton = document.getElementById('save-email');
 const emailStatus = document.getElementById('email-status');
+const googleDivider = document.getElementById('google-divider');
+const googleButton = document.getElementById('google-login-button');
 
 function getToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -258,7 +260,42 @@ function renderStickers(stickers) {
   });
 }
 
-// Si ya había una sesión activa (misma pestaña), entramos directo al dashboard.
+// Login con Google — opcional, se muestra solo si el backend tiene credenciales cargadas.
+async function checkGoogleLogin() {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/config`);
+    const data = await res.json();
+    googleButton.hidden = !data.googleEnabled;
+    googleDivider.hidden = !data.googleEnabled;
+  } catch {
+    googleButton.hidden = true;
+    googleDivider.hidden = true;
+  }
+}
+googleButton.addEventListener('click', () => {
+  window.location.href = `${API_BASE}/api/auth/google/start`;
+});
+
+// Google nos redirige de vuelta acá con ?token=... (login ok) o ?google_error=....
+const params = new URLSearchParams(window.location.search);
+const googleToken = params.get('token');
+const googleError = params.get('google_error');
+if (googleToken || googleError) {
+  window.history.replaceState({}, '', window.location.pathname);
+}
+if (googleToken) {
+  setToken(googleToken);
+} else if (googleError) {
+  loginStatus.className = 'modal-status is-error';
+  loginStatus.textContent =
+    googleError === 'not_configured'
+      ? 'Login con Google todavía no está configurado.'
+      : 'No se pudo iniciar sesión con Google. Probá de nuevo.';
+}
+
+checkGoogleLogin();
+
+// Si ya había una sesión activa (misma pestaña) o Google nos acaba de loguear, entramos directo.
 if (getToken()) {
   showDashboard().catch(() => showLogin());
 } else {

@@ -9,6 +9,16 @@ const OTP_THROTTLE_SECONDS = 30;
 const SESSION_TTL_MINUTES = 30;
 const DESTINO_TIPOS = ['whatsapp', 'instagram', 'pago', 'menu', 'review', 'web', 'agenda', 'linktree'];
 
+// Login con Google — opcional, alternativo al WhatsApp+OTP (no lo reemplaza).
+// Queda invisible hasta que se carguen estas tres variables de entorno.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const GOOGLE_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI);
+const GOOGLE_STATE_TTL_MS = 5 * 60_000;
+const googleStates = new Map(); // state -> expira (ms) — CSRF del flujo OAuth, en memoria alcanza para esta escala
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -84,6 +94,88 @@ app.post('/api/auth/otp/verify', (req, res) => {
     token,
     comprador: { id: comprador.id, whatsapp: comprador.whatsapp, nombre: comprador.nombre, email: comprador.email },
   });
+});
+
+app.get('/api/auth/config', (req, res) => {
+  res.json({ googleEnabled: GOOGLE_ENABLED });
+});
+
+app.get('/api/auth/google/start', (req, res) => {
+  if (!GOOGLE_ENABLED) {
+    return res.redirect(`${FRONTEND_URL}/mi-panel.html?google_error=not_configured`);
+  }
+  const state = generateToken();
+  googleStates.set(state, Date.now() + GOOGLE_STATE_TTL_MS);
+
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+  url.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid email');
+  url.searchParams.set('state', state);
+  url.searchParams.set('prompt', 'select_account');
+  res.redirect(url.toString());
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+  const stateExpira = googleStates.get(state);
+  googleStates.delete(state);
+
+  if (!GOOGLE_ENABLED || !code || !stateExpira || stateExpira < Date.now()) {
+    return res.redirect(`${FRONTEND_URL}/mi-panel.html?google_error=invalid_state`);
+  }
+
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: String(code),
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code',
+      }),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) throw new Error(tokenData.error || 'No se pudo canjear el código de Google.');
+
+    const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const profile = await profileRes.json();
+    if (!profileRes.ok || !profile.sub) throw new Error('No se pudo leer el perfil de Google.');
+
+    // Si ya existe un comprador con ese google_id, es ese. Si no, pero hay uno
+    // con el mismo mail (ej. cargado como mail de respaldo), lo vinculamos en
+    // vez de crear una cuenta duplicada. Si tampoco, se crea uno nuevo.
+    let comprador = db.prepare('SELECT * FROM compradores WHERE google_id = ?').get(profile.sub);
+    if (!comprador && profile.email) {
+      comprador = db.prepare('SELECT * FROM compradores WHERE email = ?').get(profile.email);
+      if (comprador) {
+        db.prepare('UPDATE compradores SET google_id = ? WHERE id = ?').run(profile.sub, comprador.id);
+      }
+    }
+    if (!comprador) {
+      const result = db
+        .prepare('INSERT INTO compradores (google_id, email, nombre) VALUES (?, ?, ?)')
+        .run(profile.sub, profile.email || null, profile.name || null);
+      comprador = db.prepare('SELECT * FROM compradores WHERE id = ?').get(Number(result.lastInsertRowid));
+    }
+
+    const token = generateToken();
+    db.prepare('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)').run(
+      comprador.id,
+      hashValue(token),
+      isoInMinutes(SESSION_TTL_MINUTES)
+    );
+
+    res.redirect(`${FRONTEND_URL}/mi-panel.html?token=${token}`);
+  } catch (err) {
+    console.error('[Google OAuth] error:', err.message);
+    res.redirect(`${FRONTEND_URL}/mi-panel.html?google_error=server_error`);
+  }
 });
 
 app.delete('/api/auth/session', (req, res) => {
