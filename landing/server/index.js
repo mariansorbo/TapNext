@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { randomBytes, createHmac } from 'node:crypto';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken } from './otp.js';
 
@@ -33,6 +34,18 @@ const ADMIN_SESSION_TTL_MINUTES = 60;
 const CHIP_MASTER_SECRET = process.env.CHIP_MASTER_SECRET || '';
 // URL pública del router (este mismo backend) — es lo que se graba en el chip.
 const PUBLIC_ROUTER_BASE = process.env.PUBLIC_ROUTER_BASE || `http://localhost:${process.env.PORT || 3001}`;
+
+// Pagos — Mercado Pago Checkout Pro. Sin MP_ACCESS_TOKEN configurada, los
+// endpoints de venta/pago quedan inactivos (mismo patrón que Google Sign-In).
+const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
+const MP_ENABLED = Boolean(MP_ACCESS_TOKEN);
+const mpClient = MP_ENABLED ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOKEN }) : null;
+// 'suelto' = sticker NFC sin impreso 3D (sin case) — se representa con
+// modelo = NULL en la tabla stickers, tanto para stock todavía sin asignar
+// como, una vez con vendedor, para stock deliberadamente destinado a
+// venderse suelto (no hay forma de distinguir ambos casos en el inventario;
+// la distinción solo importa al momento de la venta). Los precios de cada
+// combinación función+modelo viven en la tabla `precios` (ver /api/admin/precios).
 
 function deriveChipPassword(uidNfc) {
   // Hex de 8 bytes — el software de programación del chip suele necesitar
@@ -68,7 +81,56 @@ async function all(sql, args = []) {
 }
 async function run(sql, args = []) {
   const res = await db.execute({ sql, args });
-  return { lastInsertRowid: Number(res.lastInsertRowid || 0), rowsAffected: res.rowsAffected };
+  return { lastInsertRowid: res.rows[0]?.id ?? null, rowsAffected: res.rowsAffected };
+}
+
+// --- Ciclo de vida del sticker (SCD tipo 2, ver server/db.js) ---
+// El estado "actual" de un sticker nunca se pisa con UPDATE: se cierra la
+// fila vigente en sticker_estados y se inserta una nueva con los campos
+// mergeados. `stickers_actual` (vista) expone siempre la fila vigente.
+
+function derivarEtapa({ comprador_id, vendedor_id, modelo }) {
+  if (comprador_id) return 'vendido';
+  if (vendedor_id) return 'en_vendedor';
+  if (modelo) return 'con_modelo';
+  return 'en_lote';
+}
+
+// Crea la primera fila de estado de un sticker recién registrado (alta de UID).
+async function crearEstadoInicial(stickerId, { modelo = null, funcion = null, vendedorId = null } = {}) {
+  const etapa = derivarEtapa({ comprador_id: null, vendedor_id: vendedorId, modelo });
+  const estado = 'en_stock';
+  await run(
+    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado)
+     VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+    [stickerId, etapa, modelo, funcion, vendedorId, estado]
+  );
+}
+
+// Cierra la fila vigente de un sticker y abre una nueva con los campos de
+// `patch` mergeados sobre el estado actual (lo no especificado se conserva).
+async function transicionarSticker(stickerId, patch) {
+  const actual = await get('SELECT * FROM stickers_actual WHERE id = ?', [stickerId]);
+  if (!actual) throw new Error(`Sticker ${stickerId} no encontrado.`);
+
+  const siguiente = {
+    modelo: 'modelo' in patch ? patch.modelo : actual.modelo,
+    funcion: 'funcion' in patch ? patch.funcion : actual.funcion,
+    vendedor_id: 'vendedor_id' in patch ? patch.vendedor_id : actual.vendedor_id,
+    comprador_id: 'comprador_id' in patch ? patch.comprador_id : actual.comprador_id,
+    estado: 'estado' in patch ? patch.estado : actual.estado,
+  };
+  siguiente.etapa = derivarEtapa(siguiente);
+
+  await run('UPDATE sticker_estados SET vigente_hasta = NOW() WHERE sticker_id = ? AND vigente_hasta IS NULL', [
+    stickerId,
+  ]);
+  await run(
+    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [stickerId, siguiente.etapa, siguiente.modelo, siguiente.funcion, siguiente.vendedor_id, siguiente.comprador_id, siguiente.estado]
+  );
+  return siguiente;
 }
 
 // --- Auth: WhatsApp + OTP, no passwords (RF-12/RF-13) ---
@@ -77,9 +139,10 @@ app.post('/api/auth/otp/request', async (req, res) => {
   const whatsapp = String(req.body?.whatsapp || '').trim();
   if (!whatsapp) return res.status(400).json({ error: 'Falta el WhatsApp.' });
 
+  const throttleCutoff = new Date(Date.now() - OTP_THROTTLE_SECONDS * 1000).toISOString();
   const recent = await get(
-    `SELECT id FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND creado_en > datetime('now', ?) ORDER BY id DESC LIMIT 1`,
-    [whatsapp, `-${OTP_THROTTLE_SECONDS} seconds`]
+    `SELECT id FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND creado_en > ? ORDER BY id DESC LIMIT 1`,
+    [whatsapp, throttleCutoff]
   );
   if (recent) {
     return res.status(429).json({ error: 'Esperá unos segundos antes de pedir otro código.' });
@@ -106,7 +169,7 @@ app.post('/api/auth/otp/verify', async (req, res) => {
   if (!whatsapp || !code) return res.status(400).json({ error: 'Faltan datos.' });
 
   const otp = await get(
-    `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > datetime('now') ORDER BY id DESC LIMIT 1`,
+    `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > NOW() ORDER BY id DESC LIMIT 1`,
     [whatsapp]
   );
 
@@ -228,7 +291,7 @@ async function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Falta autenticación.' });
 
   const tokenHash = hashValue(token);
-  const sesion = await get(`SELECT * FROM sesiones WHERE token_hash = ? AND expira > datetime('now')`, [tokenHash]);
+  const sesion = await get(`SELECT * FROM sesiones WHERE token_hash = ? AND expira > NOW()`, [tokenHash]);
   if (!sesion) return res.status(401).json({ error: 'Sesión inválida o expirada.' });
 
   await run('UPDATE sesiones SET expira = ? WHERE id = ?', [isoInMinutes(SESSION_TTL_MINUTES), sesion.id]);
@@ -261,7 +324,7 @@ app.patch('/api/me', requireAuth, async (req, res) => {
 app.get('/api/me/stickers', requireAuth, async (req, res) => {
   const rows = await all(
     `SELECT s.id, s.codigo_publico, s.estado, s.modelo, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
-       FROM stickers s
+       FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        WHERE s.comprador_id = ?
        ORDER BY s.id`,
@@ -287,7 +350,7 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
   if (!valor) return res.status(400).json({ error: 'Falta el valor del destino.' });
 
-  const sticker = await get('SELECT * FROM stickers WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
   if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
   if (sticker.estado !== 'activo') {
     return res.status(400).json({ error: 'Este sticker todavía no está activado.' });
@@ -296,8 +359,8 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   const anterior = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
 
   await db.execute({
-    sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = datetime('now')`,
+    sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
+     ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
     args: [stickerId, tipo, valor],
   });
 
@@ -316,6 +379,240 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
 
   const actualizado = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
   res.json({ tipo: actualizado.tipo, valor: actualizado.valor, actualizadoEn: actualizado.actualizado_en });
+});
+
+// --- Ventas y pagos (wizard de compra → Mercado Pago Checkout Pro) ---
+
+// Crea la venta (reserva un sticker en stock + registra el destino elegido, a la
+// espera de pago) y devuelve el link de Checkout Pro. El destino recién se aplica
+// de verdad al sticker cuando el webhook confirma el pago (ver /api/pagos/webhook).
+// Stock disponible de un vendedor puntual — lo usa el wizard de compra presencial
+// para mostrar solo los modelos que ese vendedor tiene físicamente consigo (con
+// su NFC ya adentro), en vez del catálogo completo.
+app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
+  const ref = String(req.params.ref || '').trim().toLowerCase();
+  const vendedor = await get('SELECT id, nombre FROM vendedores WHERE codigo_ref = ?', [ref]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  const rows = await all(
+    'SELECT modelo, COUNT(*) AS cantidad FROM stickers_actual WHERE vendedor_id = ? AND estado = ? GROUP BY modelo',
+    [vendedor.id, 'en_stock']
+  );
+  // modelo NULL = sticker sin impreso 3D ("suelto") — se agrupa como su propio bucket.
+  res.json({
+    vendedor: vendedor.nombre,
+    modelos: rows.map((r) => ({ modelo: r.modelo || 'suelto', cantidad: r.cantidad })),
+  });
+});
+
+// Matriz de precios función+modelo — la usa el wizard de compra para calcular
+// el total real de cada combinación (ya no es un precio fijo por modelo).
+app.get('/api/public/precios', async (req, res) => {
+  const rows = await all('SELECT funcion, modelo, precio FROM precios');
+  res.json(rows);
+});
+
+// Una venta = un pago (una preferencia de Mercado Pago) que puede cubrir
+// varios stickers a la vez. El body espera `items`: un array de
+// {modelo, destinoTipo, destinoValor} — uno por sticker que se quiere
+// comprar en esta misma transacción. El envío (si aplica) es único por
+// venta, no por item.
+app.post('/api/ventas', requireAuth, async (req, res) => {
+  if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
+
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const vendedorRef = String(req.body?.vendedorRef || '').trim().toLowerCase();
+  const envio = req.body?.envio && Number(req.body.envio.price) > 0 ? req.body.envio : null;
+
+  if (!items.length) return res.status(400).json({ error: 'No hay productos en la compra.' });
+  for (const item of items) {
+    const modelo = String(item?.modelo || '').trim();
+    const destinoTipo = String(item?.destinoTipo || '').trim();
+    // 'suelto' = sticker sin impreso 3D — es una opción válida de compra, no un modelo real.
+    if (modelo !== 'suelto' && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+    if (!DESTINO_TIPOS.includes(destinoTipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
+    // El valor del destino (el link/handle real) es opcional acá a propósito:
+    // el comprador puede pagar y activar el NFC ahora, y configurar recién
+    // desde su panel a dónde redirige — no hace falta decidirlo antes de pagar.
+  }
+
+  let vendedor = null;
+  if (vendedorRef) vendedor = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [vendedorRef]);
+
+  // Reservamos un sticker en_stock por cada item pedido, antes de crear nada,
+  // para no dejar una venta a medio armar si se corta el stock a mitad de camino.
+  const reservados = [];
+  for (const item of items) {
+    const modelo = String(item.modelo).trim();
+    const esSuelto = modelo === 'suelto';
+    const modeloClause = esSuelto ? 'modelo IS NULL' : 'modelo = ?';
+    const modeloArgs = esSuelto ? [] : [modelo];
+    const sticker =
+      (vendedor &&
+        (await get(`SELECT * FROM stickers_actual WHERE estado = ? AND ${modeloClause} AND vendedor_id = ? LIMIT 1`, [
+          'en_stock',
+          ...modeloArgs,
+          vendedor.id,
+        ]))) ||
+      (await get(`SELECT * FROM stickers_actual WHERE estado = ? AND ${modeloClause} LIMIT 1`, ['en_stock', ...modeloArgs]));
+
+    if (!sticker || reservados.some((r) => r.sticker.id === sticker.id)) {
+      return res.status(409).json({ error: `No hay stock disponible de ${modelo} en este momento.` });
+    }
+    // El precio depende de la combinación función+modelo, no solo del modelo.
+    const precioRow = await get('SELECT precio FROM precios WHERE funcion = ? AND modelo = ?', [
+      String(item.destinoTipo).trim(),
+      modelo,
+    ]);
+    if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${item.destinoTipo} + ${modelo}.` });
+    reservados.push({ sticker, item, precio: precioRow.precio });
+  }
+
+  let vendedorIdVenta = vendedor?.id || null;
+  const montoItems = reservados.reduce((sum, r) => sum + r.precio, 0);
+  const monto = montoItems + (envio ? Number(envio.price) : 0);
+
+  for (const { sticker } of reservados) {
+    await transicionarSticker(sticker.id, { comprador_id: req.comprador.id, estado: 'vendido_pendiente' });
+    if (!vendedorIdVenta && sticker.vendedor_id) vendedorIdVenta = sticker.vendedor_id;
+  }
+
+  const ventaResult = await run(
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago) VALUES (?, ?, ?, 'pendiente')`,
+    [vendedorIdVenta, req.comprador.id, monto]
+  );
+  const ventaId = ventaResult.lastInsertRowid;
+
+  for (const { sticker, item, precio } of reservados) {
+    await run('INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, ?, ?)', [
+      ventaId,
+      sticker.id,
+      precio,
+      String(item.destinoTipo).trim(),
+      String(item.destinoValor || '').trim() || null,
+    ]);
+  }
+
+  try {
+    const mpItems = reservados.map(({ item, precio }) => ({
+      title: `Sticker AltoqueTap — ${item.modelo}`,
+      quantity: 1,
+      unit_price: precio,
+      currency_id: 'ARS',
+    }));
+    if (envio) {
+      mpItems.push({ title: 'Envío', quantity: 1, unit_price: Number(envio.price), currency_id: 'ARS' });
+    }
+    const preference = await new Preference(mpClient).create({
+      body: {
+        items: mpItems,
+        external_reference: String(ventaId),
+        back_urls: {
+          success: `${FRONTEND_URL}/pedido.html?venta=${ventaId}&pago=exito`,
+          failure: `${FRONTEND_URL}/pedido.html?venta=${ventaId}&pago=error`,
+          pending: `${FRONTEND_URL}/pedido.html?venta=${ventaId}&pago=pendiente`,
+        },
+        auto_return: 'approved',
+        notification_url: `${PUBLIC_ROUTER_BASE}/api/pagos/webhook`,
+      },
+    });
+    res.status(201).json({ ventaId, initPoint: preference.init_point });
+  } catch (err) {
+    console.error('[Mercado Pago] error creando preferencia:', err.message);
+    // Si no se pudo iniciar el pago, no dejamos nada reservado a medias:
+    // liberamos los stickers reservados y borramos la venta que recién armamos.
+    await run('DELETE FROM venta_items WHERE venta_id = ?', [ventaId]);
+    await run('DELETE FROM ventas WHERE id = ?', [ventaId]);
+    for (const { sticker } of reservados) {
+      await transicionarSticker(sticker.id, { comprador_id: null, estado: 'en_stock' });
+    }
+    res.status(502).json({ error: 'No se pudo iniciar el pago. Probá de nuevo.' });
+  }
+});
+
+app.get('/api/ventas/:id', requireAuth, async (req, res) => {
+  const venta = await get('SELECT * FROM ventas WHERE id = ? AND comprador_id = ?', [
+    Number(req.params.id),
+    req.comprador.id,
+  ]);
+  if (!venta) return res.status(404).json({ error: 'Venta no encontrada.' });
+
+  const items = await all(
+    `SELECT vi.*, s.codigo_publico, s.modelo FROM venta_items vi JOIN stickers_actual s ON s.id = vi.sticker_id
+     WHERE vi.venta_id = ?`,
+    [venta.id]
+  );
+
+  res.json({
+    id: venta.id,
+    estadoPago: venta.estado_pago,
+    monto: venta.monto,
+    items: items.map((it) => ({
+      stickerCodigo: it.codigo_publico,
+      modelo: it.modelo || 'suelto',
+      destinoTipo: it.destino_tipo,
+      destinoValor: it.destino_valor,
+    })),
+  });
+});
+
+// Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
+// usuario en este request). Confirmamos el estado real contra la API de MP en
+// vez de confiar en el payload de la notificación (evita pagos falsificados).
+app.post('/api/pagos/webhook', async (req, res) => {
+  if (!MP_ENABLED) return res.sendStatus(200);
+
+  const type = req.query.type || req.body?.type || req.body?.topic;
+  const paymentId = req.query['data.id'] || req.body?.data?.id;
+  if (type !== 'payment' || !paymentId) return res.sendStatus(200);
+
+  try {
+    const payment = await new Payment(mpClient).get({ id: paymentId });
+    const ventaId = Number(payment.external_reference);
+    const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+    if (!venta || venta.estado_pago === 'confirmado') return res.sendStatus(200);
+
+    const items = await all('SELECT * FROM venta_items WHERE venta_id = ?', [ventaId]);
+
+    if (payment.status === 'approved') {
+      await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
+        'confirmado',
+        String(payment.id),
+        ventaId,
+      ]);
+      // Activamos cada sticker de la venta — una venta con varios items activa
+      // varios stickers a la vez. El destino es opcional: si el comprador no
+      // lo cargó al pagar, el sticker igual queda "activo" y disponible para
+      // usar/editar desde su panel apenas quiera (ver mi-panel.js).
+      for (const item of items) {
+        if (item.destino_valor) {
+          await db.execute({
+            sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
+             ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
+            args: [item.sticker_id, item.destino_tipo, item.destino_valor],
+          });
+        }
+        await transicionarSticker(item.sticker_id, { estado: 'activo' });
+      }
+    } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
+      await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
+        'rechazado',
+        String(payment.id),
+        ventaId,
+      ]);
+      // Liberamos todos los stickers reservados de esta venta para que vuelvan a estar disponibles.
+      for (const item of items) {
+        const actual = await get('SELECT estado FROM stickers_actual WHERE id = ?', [item.sticker_id]);
+        if (actual?.estado === 'vendido_pendiente') {
+          await transicionarSticker(item.sticker_id, { comprador_id: null, estado: 'en_stock' });
+        }
+      }
+    }
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('[Mercado Pago] error procesando webhook:', err.message);
+    res.sendStatus(200); // devolvemos 200 igual — si no, MP reintenta agresivamente
+  }
 });
 
 // --- Admin (/admin) — inventario, vendedores, ventas, comisiones ---
@@ -346,7 +643,7 @@ async function requireAdmin(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Falta autenticación.' });
 
   const tokenHash = hashValue(token);
-  const sesion = await get(`SELECT * FROM admin_sesiones WHERE token_hash = ? AND expira > datetime('now')`, [
+  const sesion = await get(`SELECT * FROM admin_sesiones WHERE token_hash = ? AND expira > NOW()`, [
     tokenHash,
   ]);
   if (!sesion) return res.status(401).json({ error: 'Sesión inválida o expirada.' });
@@ -358,8 +655,8 @@ async function requireAdmin(req, res, next) {
 app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const vendedores = await all(`
     SELECT v.*,
-      (SELECT COUNT(*) FROM stickers s WHERE s.vendedor_id = v.id) AS stock_total,
-      (SELECT COUNT(*) FROM stickers s WHERE s.vendedor_id = v.id AND s.estado = 'en_stock') AS stock_disponible
+      (SELECT COUNT(*) FROM stickers_actual s WHERE s.vendedor_id = v.id) AS stock_total,
+      (SELECT COUNT(*) FROM stickers_actual s WHERE s.vendedor_id = v.id AND s.estado = 'en_stock') AS stock_disponible
     FROM vendedores v ORDER BY v.id
   `);
   res.json(
@@ -426,7 +723,7 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
   if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
 
-  const stock = await get('SELECT id FROM stickers WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
+  const stock = await get('SELECT id FROM stickers_actual WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
   if (stock) return res.status(409).json({ error: 'Tiene stock asignado — reasigná o eliminá esos stickers primero.' });
   const venta = await get('SELECT id FROM ventas WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
   if (venta) return res.status(409).json({ error: 'Tiene ventas registradas — no se puede eliminar un vendedor con historial.' });
@@ -437,10 +734,11 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.modelo, s.creado_en,
+    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.creado_en, l.nombre AS lote_nombre,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
       c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
-    FROM stickers s
+    FROM stickers_actual s
+    LEFT JOIN lotes l ON l.id = s.lote_id
     LEFT JOIN vendedores v ON v.id = s.vendedor_id
     LEFT JOIN compradores c ON c.id = s.comprador_id
     ORDER BY s.id DESC
@@ -451,8 +749,10 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       codigoPublico: r.codigo_publico,
       uidNfc: r.uid_nfc,
       estado: r.estado,
+      funcion: r.funcion,
       modelo: r.modelo,
       creadoEn: r.creado_en,
+      lote: r.lote_nombre,
       vendedor: r.vendedor_nombre ? { nombre: r.vendedor_nombre, codigoRef: r.vendedor_ref } : null,
       comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
     }))
@@ -464,26 +764,39 @@ const MODELOS = ['llavero', 'tarjeta', 'placa'];
 app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
   const cantidad = Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
   const modelo = String(req.body?.modelo || '').trim();
+  const funcion = String(req.body?.funcion || '').trim();
   const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
 
   if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
   if (vendedorId) {
     const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
     if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
   }
 
+  // El lote se registra primero — agrupa los UID que se dan de alta juntos
+  // en esta misma tanda, antes de asignarlos a un vendedor o comprador.
+  const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [
+    `Lote ${new Date().toISOString().slice(0, 10)} — ${modelo} x${cantidad}`,
+    cantidad,
+  ]);
+  const loteId = loteResult.lastInsertRowid;
+
   const creados = [];
   for (let i = 0; i < cantidad; i++) {
     const codigoPublico = generateCodigoPublico();
     const uidNfc = generateUidNfc();
-    const result = await run(
-      'INSERT INTO stickers (codigo_publico, uid_nfc, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?)',
-      [codigoPublico, uidNfc, vendedorId, 'en_stock', modelo]
-    );
-    creados.push({ id: result.lastInsertRowid, codigoPublico, uidNfc });
+    const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
+      codigoPublico,
+      uidNfc,
+      loteId,
+    ]);
+    const stickerId = result.lastInsertRowid;
+    await crearEstadoInicial(stickerId, { modelo, funcion: funcion || null, vendedorId });
+    creados.push({ id: stickerId, codigoPublico, uidNfc });
   }
 
-  res.status(201).json({ creados });
+  res.status(201).json({ loteId, creados });
 });
 
 // Alta individual "de taller": partís de un uid_nfc real (leído del chip físico)
@@ -494,25 +807,50 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Configurá CHIP_MASTER_SECRET antes de dar de alta chips reales.' });
   }
   const uidNfc = String(req.body?.uidNfc || '').trim();
+  // Función, modelo y vendedor son opcionales acá a propósito: el alta de un
+  // chip NFC, la asignación de función/modelo (según qué impreso 3D lo lleva
+  // adentro) y la asignación de vendedor no siempre pasan en el mismo
+  // momento ni en ese orden — cada una se puede completar después, por
+  // separado (ver PATCH /stickers/:id/funcion, /modelo y /asignar).
+  const funcion = String(req.body?.funcion || '').trim();
   const modelo = String(req.body?.modelo || '').trim();
   const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
+  // ID de imprimible: el mismo código que se graba en el NFC, para que el
+  // impreso 3D y el chip que lleva adentro queden identificados con un único
+  // id físico. Si no se especifica, se genera uno al azar (comportamiento previo).
+  const codigoImprimible = String(req.body?.codigoImprimible || '').trim();
+  // Lote al que pertenece este UID — opcional: se puede registrar "suelto"
+  // (sin lote) o asociarlo a un lote ya existente dado de alta antes.
+  const loteId = req.body?.loteId ? Number(req.body.loteId) : null;
 
   if (!uidNfc) return res.status(400).json({ error: 'Falta el UID del chip.' });
-  if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
+  if (modelo && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
   if (vendedorId) {
     const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
     if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  }
+  if (loteId) {
+    const lote = await get('SELECT id FROM lotes WHERE id = ?', [loteId]);
+    if (!lote) return res.status(404).json({ error: 'Lote no encontrado.' });
   }
 
   const existente = await get('SELECT id FROM stickers WHERE uid_nfc = ?', [uidNfc]);
   if (existente) return res.status(409).json({ error: 'Ese UID ya está registrado.' });
 
-  const codigoPublico = generateCodigoPublico();
+  if (codigoImprimible) {
+    const codigoEnUso = await get('SELECT id FROM stickers WHERE codigo_publico = ?', [codigoImprimible]);
+    if (codigoEnUso) return res.status(409).json({ error: 'Ese ID de imprimible ya está en uso.' });
+  }
+
+  const codigoPublico = codigoImprimible || generateCodigoPublico();
   const writePassword = deriveChipPassword(uidNfc);
-  const result = await run(
-    'INSERT INTO stickers (codigo_publico, uid_nfc, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?)',
-    [codigoPublico, uidNfc, vendedorId, 'en_stock', modelo]
-  );
+  const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
+    codigoPublico,
+    uidNfc,
+    loteId,
+  ]);
+  await crearEstadoInicial(result.lastInsertRowid, { modelo: modelo || null, funcion: funcion || null, vendedorId });
 
   res.status(201).json({
     id: result.lastInsertRowid,
@@ -523,29 +861,94 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
   });
 });
 
+// Asignar (o quitar, mandando vendedorId vacío) el vendedor de un NFC en stock —
+// independiente de si ya tiene modelo definido o no.
 app.patch('/api/admin/stickers/:id/asignar', requireAdmin, async (req, res) => {
   const stickerId = Number(req.params.id);
-  const vendedorId = Number(req.body?.vendedorId);
+  const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
 
-  const sticker = await get('SELECT * FROM stickers WHERE id = ?', [stickerId]);
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ?', [stickerId]);
   if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
   if (sticker.estado !== 'en_stock') {
     return res.status(400).json({ error: 'Solo se puede reasignar stock que todavía no fue vendido.' });
   }
-  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
-  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  if (vendedorId) {
+    const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+    if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  }
 
-  await run('UPDATE stickers SET vendedor_id = ? WHERE id = ?', [vendedorId, stickerId]);
+  await transicionarSticker(stickerId, { vendedor_id: vendedorId });
+  res.json({ ok: true });
+});
+
+// Asignar (o quitar) la función (tipo de destino previsto para el impreso) de
+// un NFC en stock — mismo patrón que modelo: independiente, opcional, y solo
+// editable mientras siga sin vendedor asignado.
+app.patch('/api/admin/stickers/:id/funcion', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const funcion = String(req.body?.funcion || '').trim();
+
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.estado !== 'en_stock') {
+    return res.status(400).json({ error: 'Solo se puede editar la función de stock que todavía no fue vendido.' });
+  }
+  if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
+
+  await transicionarSticker(stickerId, { funcion: funcion || null });
+  res.json({ ok: true });
+});
+
+// Asignar (o quitar) el modelo de un NFC en stock — independiente de si ya
+// tiene vendedor asignado o no. Así el UID se puede registrar "crudo" apenas
+// se lee el chip, y el modelo/vendedor se completan después, en cualquier orden.
+app.patch('/api/admin/stickers/:id/modelo', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const modelo = String(req.body?.modelo || '').trim();
+
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.estado !== 'en_stock') {
+    return res.status(400).json({ error: 'Solo se puede editar el modelo de stock que todavía no fue vendido.' });
+  }
+  if (modelo && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+
+  await transicionarSticker(stickerId, { modelo: modelo || null });
+  res.json({ ok: true });
+});
+
+// Matriz de precios: cada combinación función+modelo imprimible tiene su
+// propio precio, editable desde el panel — ya no es un valor fijo por modelo.
+app.get('/api/admin/precios', requireAdmin, async (req, res) => {
+  const rows = await all('SELECT funcion, modelo, precio FROM precios ORDER BY funcion, modelo');
+  res.json(rows);
+});
+
+app.patch('/api/admin/precios', requireAdmin, async (req, res) => {
+  const funcion = String(req.body?.funcion || '').trim();
+  const modelo = String(req.body?.modelo || '').trim();
+  const precio = Number(req.body?.precio);
+
+  if (!DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
+  if (!MODELOS.includes(modelo) && modelo !== 'suelto') return res.status(400).json({ error: 'Modelo inválido.' });
+  if (!Number.isFinite(precio) || precio < 0) return res.status(400).json({ error: 'Precio inválido.' });
+
+  await run(
+    `INSERT INTO precios (funcion, modelo, precio) VALUES (?, ?, ?)
+     ON CONFLICT(funcion, modelo) DO UPDATE SET precio = excluded.precio`,
+    [funcion, modelo, precio]
+  );
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/stickers/:id', requireAdmin, async (req, res) => {
   const stickerId = Number(req.params.id);
-  const sticker = await get('SELECT * FROM stickers WHERE id = ?', [stickerId]);
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ?', [stickerId]);
   if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
   if (sticker.estado !== 'en_stock') {
     return res.status(409).json({ error: 'Solo se puede eliminar stock que todavía no fue vendido.' });
   }
+  // sticker_estados tiene ON DELETE CASCADE — se lleva puesto todo el historial de estados.
   await run('DELETE FROM stickers WHERE id = ?', [stickerId]);
   res.status(204).end();
 });
@@ -569,9 +972,8 @@ app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
 
   const rows = await all(
     `
-    SELECT ve.*, s.codigo_publico, v.nombre AS vendedor_nombre
+    SELECT ve.*, v.nombre AS vendedor_nombre
     FROM ventas ve
-    LEFT JOIN stickers s ON s.id = ve.sticker_id
     LEFT JOIN vendedores v ON v.id = ve.vendedor_id
     ${where}
     ORDER BY ve.fecha DESC
@@ -579,10 +981,26 @@ app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
     args
   );
 
+  // Una venta puede tener varios stickers — traemos los códigos de todas de
+  // una sola consulta y los agrupamos en memoria en vez de hacer N+1.
+  const itemRows = rows.length
+    ? await all(
+        `SELECT vi.venta_id, s.codigo_publico, s.modelo FROM venta_items vi
+         JOIN stickers_actual s ON s.id = vi.sticker_id
+         WHERE vi.venta_id IN (${rows.map(() => '?').join(',')})`,
+        rows.map((r) => r.id)
+      )
+    : [];
+  const itemsPorVenta = new Map();
+  for (const it of itemRows) {
+    if (!itemsPorVenta.has(it.venta_id)) itemsPorVenta.set(it.venta_id, []);
+    itemsPorVenta.get(it.venta_id).push({ stickerCodigo: it.codigo_publico, modelo: it.modelo || 'suelto' });
+  }
+
   res.json(
     rows.map((r) => ({
       id: r.id,
-      stickerCodigo: r.codigo_publico,
+      items: itemsPorVenta.get(r.id) || [],
       vendedorNombre: r.vendedor_nombre,
       monto: r.monto,
       estadoPago: r.estado_pago,
@@ -649,7 +1067,7 @@ function routerThrottle(req, res, next) {
 }
 
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
-  const sticker = await get('SELECT * FROM stickers WHERE codigo_publico = ?', [req.params.codigo]);
+  const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
 
   if (sticker && sticker.estado === 'activo') {
     const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);

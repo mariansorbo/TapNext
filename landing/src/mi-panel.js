@@ -120,7 +120,12 @@ sendOtpButton.addEventListener('click', async () => {
     otpField.hidden = false;
     sendOtpButton.textContent = 'Reenviar código';
     loginStatus.className = 'modal-status is-success';
-    loginStatus.textContent = `Código enviado (demo, no hay WhatsApp real conectado): ${data.debug_otp}`;
+    if (data.debug_otp) {
+      otpInput.value = data.debug_otp;
+      loginStatus.textContent = 'Código autocompletado (demo, no hay WhatsApp real conectado).';
+    } else {
+      loginStatus.textContent = 'Código enviado.';
+    }
   } catch (err) {
     loginStatus.className = 'modal-status is-error';
     loginStatus.textContent = err.message;
@@ -195,7 +200,9 @@ function renderStickers(stickers) {
       ${
         sticker.destino
           ? `<div class="sticker-destino"><b>${destinoTipo ? destinoTipo.label : sticker.destino.tipo}:</b> ${sticker.destino.valor}</div>`
-          : '<div class="sticker-destino sticker-destino-empty">Todavía no está activado — no tiene destino configurado.</div>'
+          : sticker.estado === 'activo'
+            ? '<div class="sticker-destino sticker-destino-empty">Todavía no configuraste a dónde redirige — elegí un destino con "Editar".</div>'
+            : '<div class="sticker-destino sticker-destino-empty">Todavía no está activado — no tiene destino configurado.</div>'
       }
       <div class="sticker-edit-form modal-form" hidden></div>
     `;

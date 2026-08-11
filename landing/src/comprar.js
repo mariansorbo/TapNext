@@ -1,12 +1,18 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
+import { BRAND_ICONS } from './brand-icons.js';
 
-// comprar.html (presencial): el vendedor entrega el sticker en mano, sin envío.
-// pedido.html (compra regular por la web): hay que despachar el sticker, así que suma el paso de delivery.
+// Ambos flujos (comprar.html presencial y pedido.html online) comparten el
+// mismo carrito: el comprador elige un primer producto (función+modelo) y,
+// en un paso aparte, se le pregunta si quiere sumar más — ahí aparece un
+// mini formulario tipo carrito (función+modelo+cantidad) para agregar
+// cuantos quiera, en la misma compra/pago.
+// En ambos casos el destino (a dónde redirige el NFC) NO se pide acá — se
+// configura después, desde el panel del comprador, una vez que pagó.
 const isPresencial = document.body.dataset.flow === 'presencial';
 
-applyBrand(isPresencial ? 'Creá tu sticker' : 'Pedí tu sticker');
+applyBrand(isPresencial ? 'Comprá tu sticker' : 'Pedí tu sticker');
 initFaqAccordion();
 
 // Attribute this visit to a vendor's demo sticker, if present (?ref=nacho) — solo aplica en comprar.html.
@@ -17,35 +23,71 @@ if (ref) {
 }
 
 const PAY_STEP = 6;
-const STEP_SEQUENCE = isPresencial ? [1, 2, 3, 4, PAY_STEP] : [1, 2, 3, 4, 5, PAY_STEP];
+const STEP_SEQUENCE = [1, 2, 'cart', 3, 4, PAY_STEP];
+
+// Mismo patrón que mi-panel.js: en local pasa por el proxy de Vite, en producción
+// apunta a la URL pública de la API (Render).
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+
+async function api(path, options = {}) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Error de conexión con el servidor.');
+  return data;
+}
 
 const FUNCTIONS = [
-  { id: 'whatsapp', label: 'WhatsApp', desc: 'Abre un chat directo', fieldLabel: 'Tu link de WhatsApp', placeholder: 'wa.me/5491112345678' },
-  { id: 'instagram', label: 'Instagram', desc: 'Lleva a tu perfil', fieldLabel: 'Tu usuario de Instagram', placeholder: 'instagram.com/tunegocio' },
-  { id: 'pago', label: 'Pago', desc: 'Cobrá al instante', fieldLabel: 'Tu link de pago', placeholder: 'link.mercadopago.com.ar/...' },
-  { id: 'menu', label: 'Menú', desc: 'Tu carta digital', fieldLabel: 'Link a tu menú', placeholder: 'tunegocio.com/menu' },
-  { id: 'review', label: 'Reseña', desc: 'Sumá reseñas en Google', fieldLabel: 'Tu link de reseñas de Google', placeholder: 'g.page/r/...' },
-  { id: 'web', label: 'Web propia', desc: 'Tu sitio', fieldLabel: 'Tu sitio web', placeholder: 'tunegocio.com' },
-  { id: 'agenda', label: 'Agenda', desc: 'Reservas y turnos', fieldLabel: 'Tu link de reservas', placeholder: 'calendly.com/tunegocio' },
-  { id: 'linktree', label: 'LinkTree', desc: 'Todos tus links', fieldLabel: 'Tus links (los armamos juntos)', placeholder: 'Contanos qué links querés incluir' },
+  { id: 'whatsapp', icon: BRAND_ICONS.whatsapp, label: 'WhatsApp', desc: 'Abre un chat directo' },
+  { id: 'instagram', icon: BRAND_ICONS.instagram, label: 'Instagram', desc: 'Lleva a tu perfil' },
+  { id: 'pago', icon: BRAND_ICONS.mercadopago, label: 'Pago', desc: 'Cobrá al instante' },
+  { id: 'menu', icon: BRAND_ICONS.menu, label: 'Menú', desc: 'Tu carta digital' },
+  { id: 'review', icon: BRAND_ICONS.googleMaps, label: 'Reseña', desc: 'Sumá reseñas en Google' },
+  { id: 'web', icon: BRAND_ICONS.web, label: 'Web propia', desc: 'Tu sitio' },
+  { id: 'agenda', icon: BRAND_ICONS.googleCalendar, label: 'Agenda', desc: 'Reservas y turnos' },
+  { id: 'linktree', icon: BRAND_ICONS.linktree, label: 'LinkTree', desc: 'Todos tus links' },
 ];
 
 const MODELS = [
   { id: 'llavero', label: 'Llavero', desc: 'Para llevar encima', price: 8500 },
   { id: 'tarjeta', label: 'Tarjeta', desc: 'Para dejar en el mostrador', price: 7500 },
-  { id: 'placa', label: 'Placa', desc: 'Para pegar fija', price: 11000 },
+  { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000 },
+  { id: 'suelto', label: 'Suelto', desc: 'Solo el sticker, sin impresión 3D', price: 4500 },
 ];
+
+// Precio real por combinación función+modelo, cargado desde el panel de Admin
+// (ver /api/public/precios). Hasta que resuelva, usamos el price de MODELS
+// como fallback (mismo precio para todas las funciones).
+let PRECIOS_MAP = {};
+function getPrecio(funcionId, modeloId) {
+  const key = `${funcionId}|${modeloId}`;
+  if (key in PRECIOS_MAP) return PRECIOS_MAP[key];
+  return MODELS.find((m) => m.id === modeloId)?.price || 0;
+}
+api('/public/precios')
+  .then((rows) => {
+    PRECIOS_MAP = Object.fromEntries(rows.map((r) => [`${r.funcion}|${r.modelo}`, r.precio]));
+  })
+  .catch(() => {
+    // si falla, seguimos con el fallback de MODELS.price
+  });
 
 const state = {
   functionId: null,
   modelId: null,
-  destination: '',
+  cart: [], // presencial: [{ functionId, modelId }] — un item por producto en el carrito
   whatsapp: '',
   otpVerified: false,
-  deliveryCp: '',
-  deliveryPrice: null,
-  deliveryPlazo: null,
+  authToken: null,
 };
+
+// Modelos realmente disponibles para este vendedor (se recorta cuando llega
+// la respuesta de stock) — se usa tanto para la grilla de opciones como para
+// el select de "agregar otro" en el paso carrito.
+let availableModels = MODELS;
 
 function renderOptions(container, items, key) {
   container.innerHTML = '';
@@ -54,7 +96,13 @@ function renderOptions(container, items, key) {
     card.type = 'button';
     card.className = 'option-card';
     card.dataset.id = item.id;
-    card.innerHTML = `<div class="option-label">${item.label}</div><div class="option-desc">${item.desc}</div>`;
+    card.innerHTML = `
+      <div class="option-text">
+        <div class="option-label">${item.label}</div>
+        <div class="option-desc">${item.desc}</div>
+      </div>
+      ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
+    `;
     card.addEventListener('click', () => {
       state[key] = item.id;
       container.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
@@ -70,6 +118,39 @@ const modelOptions = document.getElementById('model-options');
 renderOptions(functionOptions, FUNCTIONS, 'functionId');
 renderOptions(modelOptions, MODELS, 'modelId');
 
+const cartAddFuncionSelect = document.getElementById('cart-add-funcion');
+const cartAddModeloSelect = document.getElementById('cart-add-modelo');
+const cartAddQtyInput = document.getElementById('cart-add-qty');
+
+function populateCartAddSelects() {
+  if (!cartAddFuncionSelect) return;
+  cartAddFuncionSelect.innerHTML =
+    '<option value="">Sin asignar</option>' + FUNCTIONS.map((f) => `<option value="${f.id}">${f.label}</option>`).join('');
+  cartAddModeloSelect.innerHTML =
+    '<option value="">Sin asignar</option>' + availableModels.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+}
+populateCartAddSelects();
+
+// Venta presencial: el vendedor solo tiene consigo los impresos 3D (con su NFC
+// ya adentro) que el admin le cargó a él — el comprador no puede elegir un
+// modelo que ese vendedor no tenga físicamente en mano.
+if (isPresencial && ref) {
+  api(`/public/vendedores/${ref}/stock`)
+    .then((data) => {
+      const disponibles = MODELS.filter((m) => data.modelos.some((s) => s.modelo === m.id && s.cantidad > 0));
+      if (!disponibles.length) {
+        modelOptions.innerHTML = '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
+        return;
+      }
+      availableModels = disponibles;
+      renderOptions(modelOptions, disponibles, 'modelId');
+      populateCartAddSelects();
+    })
+    .catch(() => {
+      // si falla la consulta, dejamos el catálogo completo como fallback
+    });
+}
+
 const modal = document.getElementById('wizard-modal');
 const startButton = document.getElementById('start-wizard');
 const closeButton = document.getElementById('wizard-close');
@@ -80,8 +161,6 @@ const doneButton = document.getElementById('wizard-done');
 const wizardNav = document.getElementById('wizard-nav');
 const progressEl = document.getElementById('wizard-progress');
 const steps = [...document.querySelectorAll('.wizard-step')];
-const destinationLabel = document.getElementById('destination-label');
-const destinationInput = document.getElementById('destination-value');
 const tycCheckbox = document.getElementById('wizard-tyc');
 const whatsappInput = document.getElementById('wizard-whatsapp');
 const sendOtpButton = document.getElementById('send-otp');
@@ -89,17 +168,77 @@ const otpCodeField = document.getElementById('otp-code-field');
 const otpInput = document.getElementById('wizard-otp');
 const confirmOtpButton = document.getElementById('confirm-otp');
 const otpStatus = document.getElementById('otp-status');
-const deliveryCpInput = document.getElementById('delivery-cp');
-const calcDeliveryButton = document.getElementById('calc-delivery');
-const deliveryResult = document.getElementById('delivery-result');
 const summaryBox = document.getElementById('wizard-summary');
 const successSummary = document.getElementById('wizard-success-summary');
+const cartSummaryEl = document.getElementById('cart-summary');
+const cartSummaryStepEl = document.getElementById('cart-summary-step');
+const cartAddConfirmButton = document.getElementById('cart-add-confirm');
 
-// Dots: uno por paso de la secuencia activa (5 en presencial, 6 con delivery).
 progressEl.innerHTML = STEP_SEQUENCE.map(() => '<span class="wizard-dot"></span>').join('');
 const dots = [...progressEl.querySelectorAll('.wizard-dot')];
 
 let currentStep = STEP_SEQUENCE[0];
+
+// Carrito (solo presencial): agrega la función+modelo elegidos como un nuevo
+// producto y limpia la selección actual.
+function addCurrentItemToCart() {
+  if (!state.functionId || !state.modelId) return false;
+  state.cart.push({ functionId: state.functionId, modelId: state.modelId });
+  state.functionId = null;
+  state.modelId = null;
+  functionOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+  modelOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+  renderCart();
+  return true;
+}
+
+function cartItemRowHtml(item, i) {
+  const fn = FUNCTIONS.find((f) => f.id === item.functionId);
+  const model = MODELS.find((m) => m.id === item.modelId);
+  return `<div class="cart-item">
+    <span><span class="inline-icon">${fn.icon}</span> ${model.label} · ${fn.label}</span>
+    <button type="button" class="cart-item-remove" data-index="${i}" aria-label="Quitar">✕</button>
+  </div>`;
+}
+
+function renderCart() {
+  const cartText = state.cart.length
+    ? `<div class="cart-summary-title">Tu carrito (${state.cart.length})</div>${state.cart.map(cartItemRowHtml).join('')}`
+    : '';
+
+  if (cartSummaryEl) {
+    const showTop = state.cart.length > 0 && (currentStep === 1 || currentStep === 2);
+    cartSummaryEl.hidden = !showTop;
+    if (showTop) cartSummaryEl.innerHTML = cartText;
+  }
+  if (cartSummaryStepEl) {
+    const showStep = currentStep === 'cart' && state.cart.length > 0;
+    cartSummaryStepEl.hidden = !showStep;
+    if (showStep) cartSummaryStepEl.innerHTML = cartText;
+  }
+  document.querySelectorAll('.cart-item-remove').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.cart.splice(Number(btn.dataset.index), 1);
+      renderCart();
+      updateNextButton();
+    });
+  });
+}
+
+cartAddConfirmButton?.addEventListener('click', () => {
+  const functionId = cartAddFuncionSelect.value;
+  const modelId = cartAddModeloSelect.value;
+  if (!functionId || !modelId) return;
+  const qty = Math.min(Math.max(Number(cartAddQtyInput.value) || 1, 1), 20);
+  for (let i = 0; i < qty; i++) {
+    state.cart.push({ functionId, modelId });
+  }
+  cartAddFuncionSelect.value = '';
+  cartAddModeloSelect.value = '';
+  cartAddQtyInput.value = '1';
+  renderCart();
+  updateNextButton();
+});
 
 function showStep(step) {
   currentStep = step;
@@ -117,134 +256,127 @@ function showStep(step) {
 
   const isFormStep = step !== PAY_STEP && step !== 'success';
   wizardNav.hidden = !isFormStep;
-  backButton.disabled = seqIndex === 0;
+  backButton.disabled = seqIndex <= 0;
 
-  if (step === 3) {
-    const fn = FUNCTIONS.find((f) => f.id === state.functionId);
-    destinationLabel.textContent = fn.fieldLabel;
-    destinationInput.placeholder = fn.placeholder;
-  }
   if (step === PAY_STEP) {
     renderSummary();
   }
+  renderCart();
   updateNextButton();
 }
 
 function updateNextButton() {
   if (currentStep === 1) nextButton.disabled = !state.functionId;
   else if (currentStep === 2) nextButton.disabled = !state.modelId;
-  else if (currentStep === 3) nextButton.disabled = !(destinationInput.value.trim() && tycCheckbox.checked);
+  else if (currentStep === 'cart') nextButton.disabled = state.cart.length === 0;
+  else if (currentStep === 3) nextButton.disabled = !tycCheckbox.checked;
   else if (currentStep === 4) nextButton.disabled = !state.otpVerified;
-  else if (currentStep === 5) nextButton.disabled = state.deliveryPrice === null;
   else nextButton.disabled = false;
 }
 
-destinationInput.addEventListener('input', updateNextButton);
 tycCheckbox.addEventListener('change', updateNextButton);
 whatsappInput.addEventListener('input', () => {
   sendOtpButton.disabled = !whatsappInput.value.trim();
 });
 
-// OTP is simulated client-side — no real WhatsApp/SMS is sent, this is UI-only.
-sendOtpButton.addEventListener('click', () => {
-  if (!whatsappInput.value.trim()) return;
-  otpCodeField.hidden = false;
-  otpStatus.textContent = '';
-  otpStatus.className = 'modal-status';
-  sendOtpButton.textContent = 'Reenviar código';
+sendOtpButton.addEventListener('click', async () => {
+  const whatsapp = whatsappInput.value.trim();
+  if (!whatsapp) return;
+  sendOtpButton.disabled = true;
+  try {
+    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ whatsapp }) });
+    otpCodeField.hidden = false;
+    otpStatus.className = 'modal-status';
+    otpStatus.textContent = data.debug_otp
+      ? 'Código autocompletado (demo, no hay WhatsApp real conectado).'
+      : 'Código enviado.';
+    if (data.debug_otp) otpInput.value = data.debug_otp;
+    sendOtpButton.textContent = '📲 Reenviar código';
+  } catch (err) {
+    otpStatus.className = 'modal-status is-error';
+    otpStatus.textContent = err.message;
+  } finally {
+    sendOtpButton.disabled = false;
+  }
 });
 
-confirmOtpButton.addEventListener('click', () => {
-  if (!otpInput.value.trim()) {
+confirmOtpButton.addEventListener('click', async () => {
+  const whatsapp = whatsappInput.value.trim();
+  const code = otpInput.value.trim();
+  if (!code) {
     otpStatus.textContent = 'Ingresá el código.';
     otpStatus.className = 'modal-status is-error';
     return;
   }
-  state.otpVerified = true;
-  otpStatus.textContent = '✓ Número verificado.';
-  otpStatus.className = 'modal-status is-success';
-  whatsappInput.disabled = true;
-  sendOtpButton.disabled = true;
-  otpInput.disabled = true;
   confirmOtpButton.disabled = true;
-  updateNextButton();
-});
-
-// Delivery es simulado — no hay integración real con un correo/courier todavía.
-calcDeliveryButton.addEventListener('click', () => {
-  const cp = deliveryCpInput.value.trim();
-  if (!cp) return;
-  calcDeliveryButton.disabled = true;
-  calcDeliveryButton.textContent = 'Calculando...';
-
-  setTimeout(() => {
-    const digitSum = (cp.match(/\d/g) || []).reduce((sum, d) => sum + Number(d), 0) || 1;
-    const price = Math.round((1200 + digitSum * 45) / 50) * 50;
-    const plazoOptions = ['2-3 días hábiles', '3-5 días hábiles', '5-7 días hábiles'];
-    const plazo = plazoOptions[digitSum % plazoOptions.length];
-
-    state.deliveryCp = cp;
-    state.deliveryPrice = price;
-    state.deliveryPlazo = plazo;
-
-    deliveryResult.hidden = false;
-    deliveryResult.innerHTML = `<div><b>Envío a CP ${cp}:</b> $${price.toLocaleString('es-AR')} · Llega en ${plazo}.</div>`;
-    calcDeliveryButton.disabled = false;
-    calcDeliveryButton.textContent = 'Recalcular';
+  try {
+    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ whatsapp, code }) });
+    state.otpVerified = true;
+    state.authToken = data.token;
+    sessionStorage.setItem('tap_panel_token', data.token);
+    otpStatus.textContent = '✓ Número verificado.';
+    otpStatus.className = 'modal-status is-success';
+    whatsappInput.disabled = true;
+    sendOtpButton.disabled = true;
+    otpInput.disabled = true;
     updateNextButton();
-  }, 700);
+    // Confirmado el código, avanza solo al siguiente paso — no hace falta
+    // que el usuario toque "Siguiente" a mano.
+    const i = STEP_SEQUENCE.indexOf(currentStep);
+    if (i < STEP_SEQUENCE.length - 1) showStep(STEP_SEQUENCE[i + 1]);
+  } catch (err) {
+    otpStatus.textContent = err.message;
+    otpStatus.className = 'modal-status is-error';
+    confirmOtpButton.disabled = false;
+    updateNextButton();
+  }
 });
 
 function renderSummary() {
-  const fn = FUNCTIONS.find((f) => f.id === state.functionId);
-  const model = MODELS.find((m) => m.id === state.modelId);
-  state.destination = destinationInput.value.trim();
   state.whatsapp = whatsappInput.value.trim();
 
-  const hasDelivery = !isPresencial && state.deliveryPrice !== null;
-  const total = model.price + (hasDelivery ? state.deliveryPrice : 0);
-
+  const total = state.cart.reduce((sum, item) => sum + getPrecio(item.functionId, item.modelId), 0);
   summaryBox.innerHTML = `
-    <div><b>Función:</b> ${fn.label}</div>
-    <div><b>Modelo:</b> ${model.label}</div>
-    <div><b>Destino:</b> ${state.destination}</div>
+    <div class="cart-summary-title">Tu compra (${state.cart.length} producto${state.cart.length === 1 ? '' : 's'})</div>
+    ${state.cart
+      .map((item) => {
+        const fn = FUNCTIONS.find((f) => f.id === item.functionId);
+        const model = MODELS.find((m) => m.id === item.modelId);
+        const precio = getPrecio(item.functionId, item.modelId);
+        return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label}</b> · ${fn.label} — $${precio.toLocaleString('es-AR')}</div>`;
+      })
+      .join('')}
     <div><b>WhatsApp:</b> ${state.whatsapp}</div>
-    ${hasDelivery ? `<div><b>Envío a CP ${state.deliveryCp}:</b> $${state.deliveryPrice.toLocaleString('es-AR')} · ${state.deliveryPlazo}</div>` : ''}
+    <div class="wizard-pay-note">Pagás y ya podés empezar a usar tu NFC. El destino de cada uno (a dónde redirige) lo vas a poder configurar y editar cuando quieras, desde tu panel.</div>
   `;
-  payButton.textContent = `Pagar $${total.toLocaleString('es-AR')}`;
-  payButton.disabled = false;
+  payButton.textContent = `Pagar $${total.toLocaleString('es-AR')} y empezar a usar mi NFC`;
+  payButton.disabled = state.cart.length === 0;
 }
 
 function openWizard() {
   Object.assign(state, {
     functionId: null,
     modelId: null,
-    destination: '',
+    cart: [],
     whatsapp: '',
     otpVerified: false,
-    deliveryCp: '',
-    deliveryPrice: null,
-    deliveryPlazo: null,
   });
   functionOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
   modelOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-  destinationInput.value = '';
   tycCheckbox.checked = false;
   whatsappInput.value = '';
   whatsappInput.disabled = false;
   sendOtpButton.disabled = true;
-  sendOtpButton.textContent = 'Enviar código por WhatsApp';
+  sendOtpButton.textContent = '📲 Enviar código por WhatsApp';
   otpCodeField.hidden = true;
   otpInput.value = '';
   otpInput.disabled = false;
   confirmOtpButton.disabled = false;
   otpStatus.textContent = '';
   otpStatus.className = 'modal-status';
-  deliveryCpInput.value = '';
-  deliveryResult.hidden = true;
-  deliveryResult.innerHTML = '';
-  calcDeliveryButton.disabled = false;
-  calcDeliveryButton.textContent = 'Calcular envío';
+  if (cartAddFuncionSelect) cartAddFuncionSelect.value = '';
+  if (cartAddModeloSelect) cartAddModeloSelect.value = '';
+  if (cartAddQtyInput) cartAddQtyInput.value = '1';
   payButton.disabled = false;
   payButton.textContent = 'Pagar';
   closeTyc();
@@ -292,6 +424,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 nextButton.addEventListener('click', () => {
+  if (currentStep === 2) addCurrentItemToCart();
   const i = STEP_SEQUENCE.indexOf(currentStep);
   if (i < STEP_SEQUENCE.length - 1) showStep(STEP_SEQUENCE[i + 1]);
 });
@@ -300,19 +433,70 @@ backButton.addEventListener('click', () => {
   if (i > 0) showStep(STEP_SEQUENCE[i - 1]);
 });
 
-// No real payment processor connected yet — this simulates the wait and outcome.
-payButton.addEventListener('click', () => {
+payButton.addEventListener('click', async () => {
   payButton.disabled = true;
-  payButton.textContent = 'Procesando pago...';
-  setTimeout(() => {
-    const fn = FUNCTIONS.find((f) => f.id === state.functionId);
-    const model = MODELS.find((m) => m.id === state.modelId);
-    const deliveryNote = !isPresencial && state.deliveryPrice !== null
-      ? ` Lo enviamos a CP ${state.deliveryCp}, llega en ${state.deliveryPlazo}.`
-      : '';
-    successSummary.textContent = `Sticker ${model.label} configurado para ${fn.label} → ${state.destination}.${deliveryNote}`;
-    showStep('success');
-  }, 1800);
+  payButton.textContent = 'Redirigiendo a Mercado Pago...';
+  try {
+    const items = state.cart.map((item) => ({ modelo: item.modelId, destinoTipo: item.functionId, destinoValor: '' }));
+    const data = await api('/ventas', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${state.authToken}` },
+      body: JSON.stringify({ items, vendedorRef: ref || '' }),
+    });
+    // Mercado Pago se encarga del cobro real — al volver, back_urls trae ?venta=&pago=.
+    window.location.href = data.initPoint;
+  } catch (err) {
+    payButton.disabled = false;
+    payButton.textContent = 'Pagar';
+    alert(err.message);
+  }
 });
 
 doneButton.addEventListener('click', closeWizard);
+
+// Vuelta desde Mercado Pago (back_urls de la preferencia) — el pago en sí ya se
+// resolvió allá; acá solo mostramos el resultado. La confirmación real (activar
+// el/los sticker/s) la hace el webhook server-to-server, no esta vista.
+async function checkReturnFromMercadoPago() {
+  const params = new URLSearchParams(window.location.search);
+  const ventaId = params.get('venta');
+  const pago = params.get('pago');
+  if (!ventaId || !pago) return;
+
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+  wizardNav.hidden = true;
+  showStep('success');
+
+  if (pago === 'error') {
+    successSummary.textContent = 'El pago no se pudo completar. No te cobramos nada — podés intentar de nuevo.';
+    return;
+  }
+
+  successSummary.textContent = 'Confirmando tu pago con Mercado Pago...';
+  // El webhook puede tardar unos segundos más que el redirect del usuario — reintentamos brevemente.
+  for (let i = 0; i < 6; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const token = state.authToken || sessionStorage.getItem('tap_panel_token');
+      if (!token) break;
+      const venta = await api(`/ventas/${ventaId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (venta.estadoPago === 'confirmado') {
+        successSummary.textContent = `${venta.items.length > 1 ? 'Tus stickers ya están activos' : 'Tu sticker ya está activo'}. Te llevamos a tu panel para que configures el destino cuando quieras...`;
+        setTimeout(() => {
+          window.location.href = '/mi-panel.html';
+        }, 1400);
+        return;
+      }
+      if (venta.estadoPago === 'rechazado') {
+        successSummary.textContent = 'El pago fue rechazado. No te cobramos nada — podés intentar de nuevo.';
+        return;
+      }
+    } catch {
+      break;
+    }
+  }
+  successSummary.textContent = 'Tu pago está en revisión. Te avisamos por WhatsApp apenas se confirme.';
+}
+checkReturnFromMercadoPago();

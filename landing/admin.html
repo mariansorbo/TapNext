@@ -37,13 +37,49 @@
     <h2>Panel de administración.</h2>
     <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
 
-    <!-- Vendedores -->
+    <!-- Flujo de vida del producto -->
+    <div class="admin-flow" id="admin-flow"></div>
+
+    <!-- Inventario: registro de NFC crudo, asignación de modelo (pasos 1 y 3 del flujo) -->
     <div class="admin-section">
-      <h3>Vendedores</h3>
+      <div class="admin-section-head">
+        <h3>Inventario de stickers</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="toggle-add-batch" title="Crear varios NFC de una, ya con modelo definido — para cuando programás un lote entero de chips iguales.">
+            <span class="add-icon">+</span> Lote
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-add-individual" title="Registrar un solo NFC leyendo su UID real desde el taller — sin definir modelo ni vendedor todavía, se asignan después por separado.">
+            <span class="add-icon">+</span> NFC crudo
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-filter-toggle" id="stock-filter-toggle">
+        <button type="button" class="admin-filter-btn" data-filter="asignados">Asignados</button>
+        <button type="button" class="admin-filter-btn" data-filter="todos">Todos</button>
+      </div>
+
+      <div class="admin-table" id="stickers-table"></div>
+    </div>
+
+    <!-- Precios: cuánto cobrar por cada combinación función+modelo -->
+    <div class="admin-section">
+      <h3>Precios por combinación función + modelo</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Cada función (WhatsApp, Instagram, etc.) puede tener un precio distinto según el modelo — tocá un valor para editarlo.</p>
+      <div class="admin-table" id="precios-table"></div>
+    </div>
+
+    <!-- Vendedores: a quién se le asigna el stock (paso 4 del flujo) -->
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Vendedores</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="toggle-add-vendedor"><span class="add-icon">+</span> Agregar vendedor</button>
+        </div>
+      </div>
       <div class="admin-table" id="vendedores-table"></div>
 
-      <details class="tyc-details" style="margin-top:18px;">
-        <summary><span class="add-icon">+</span> Agregar vendedor</summary>
+      <div class="admin-collapsible" id="add-vendedor-panel" hidden>
         <div class="modal-form" style="margin-top:16px;">
           <label>
             <span>Nombre</span>
@@ -60,66 +96,10 @@
         </div>
         <button type="button" class="btn-primary modal-submit" id="create-vendedor-button">Crear vendedor</button>
         <p class="modal-status" id="vendedor-status"></p>
-      </details>
+      </div>
     </div>
 
-    <!-- Inventario -->
-    <div class="admin-section">
-      <h3>Inventario de stickers</h3>
-      <div class="admin-table" id="stickers-table"></div>
-
-      <details class="tyc-details" style="margin-top:18px;">
-        <summary><span class="add-icon">+</span> Dar de alta un lote</summary>
-        <div class="modal-form" style="margin-top:16px;">
-          <label>
-            <span>Cantidad</span>
-            <input type="number" id="batch-cantidad" value="5" min="1" max="100">
-          </label>
-          <label>
-            <span>Modelo</span>
-            <select id="batch-modelo">
-              <option value="llavero">Llavero</option>
-              <option value="tarjeta">Tarjeta</option>
-              <option value="placa">Placa</option>
-            </select>
-          </label>
-          <label>
-            <span>Asignar a vendedor (opcional)</span>
-            <select id="batch-vendedor"><option value="">Sin asignar</option></select>
-          </label>
-        </div>
-        <button type="button" class="btn-primary modal-submit" id="create-batch-button">Crear lote</button>
-        <p class="modal-status" id="batch-status"></p>
-      </details>
-
-      <details class="tyc-details" style="margin-top:14px;">
-        <summary><span class="add-icon">+</span> Alta individual desde el taller (chip real)</summary>
-        <p class="section-lead" style="margin:14px 0;">Para cuando programás un chip físico de verdad: pegás el UID que leíste del chip, y te devuelve la clave de escritura derivada para cargar en tu software de programación — no se guarda en ningún lado, copiala ahora.</p>
-        <div class="modal-form">
-          <label>
-            <span>UID del chip (leído del taller)</span>
-            <input type="text" id="individual-uid" placeholder="04a2b3c4d5e6">
-          </label>
-          <label>
-            <span>Modelo</span>
-            <select id="individual-modelo">
-              <option value="llavero">Llavero</option>
-              <option value="tarjeta">Tarjeta</option>
-              <option value="placa">Placa</option>
-            </select>
-          </label>
-          <label>
-            <span>Asignar a vendedor (opcional)</span>
-            <select id="individual-vendedor"><option value="">Sin asignar</option></select>
-          </label>
-        </div>
-        <button type="button" class="btn-primary modal-submit" id="create-individual-button">Generar</button>
-        <p class="modal-status" id="individual-status"></p>
-        <div class="wizard-summary" id="individual-result" hidden></div>
-      </details>
-    </div>
-
-    <!-- Ventas -->
+    <!-- Ventas: venta y activación (paso 5) -->
     <div class="admin-section">
       <h3>Ventas</h3>
       <div class="admin-table" id="ventas-table"></div>
@@ -132,6 +112,144 @@
     </div>
   </div>
 </section>
+
+<!-- Modal: dar de alta un lote -->
+<div class="modal-overlay" id="batch-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="batch-modal-close">✕</button>
+    <h3>Dar de alta un lote</h3>
+    <p class="modal-sub">Crea varios NFC de una, todos con el mismo modelo.</p>
+    <div class="modal-form">
+      <label>
+        <span>Cantidad</span>
+        <input type="number" id="batch-cantidad" value="5" min="1" max="100">
+      </label>
+      <label>
+        <span>Función (opcional)</span>
+        <select id="batch-funcion">
+          <option value="">Sin definir</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="pago">Pago</option>
+          <option value="menu">Menú</option>
+          <option value="review">Reseña</option>
+          <option value="web">Web propia</option>
+          <option value="agenda">Agenda</option>
+          <option value="linktree">LinkTree</option>
+        </select>
+      </label>
+      <label>
+        <span>Modelo</span>
+        <select id="batch-modelo">
+          <option value="llavero">Llavero</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="placa">Placa</option>
+        </select>
+      </label>
+      <label>
+        <span>Asignar a vendedor (opcional)</span>
+        <select id="batch-vendedor"><option value="">Sin asignar</option></select>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="create-batch-button">Crear lote</button>
+    <p class="modal-status" id="batch-status"></p>
+  </div>
+</div>
+
+<!-- Modal: registrar NFC crudo (chip real, desde el taller) -->
+<div class="modal-overlay" id="individual-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="individual-modal-close">✕</button>
+    <h3>Registrar NFC crudo</h3>
+    <p class="modal-sub">Para cuando programás un chip físico de verdad: pegás el UID que leíste del chip, y te devuelve la clave de escritura derivada para cargar en tu software de programación — no se guarda en ningún lado, copiala ahora. Modelo y vendedor quedan sin asignar por defecto — los podés completar después, por separado, desde la tabla de inventario (no siempre pasa todo en el mismo momento).</p>
+    <div class="modal-form">
+      <label>
+        <span>UID del chip (leído del taller)</span>
+        <input type="text" id="individual-uid" placeholder="04a2b3c4d5e6">
+      </label>
+      <label>
+        <span>Función</span>
+        <select id="individual-funcion">
+          <option value="" selected>Sin asignar</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="pago">Pago</option>
+          <option value="menu">Menú</option>
+          <option value="review">Reseña</option>
+          <option value="web">Web propia</option>
+          <option value="agenda">Agenda</option>
+          <option value="linktree">LinkTree</option>
+        </select>
+      </label>
+      <label>
+        <span>Modelo</span>
+        <select id="individual-modelo">
+          <option value="" selected>Sin asignar</option>
+          <option value="llavero">Llavero</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="placa">Placa</option>
+        </select>
+      </label>
+      <label>
+        <span>Vendedor</span>
+        <select id="individual-vendedor"><option value="" selected>Sin asignar</option></select>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="create-individual-button">Registrar NFC</button>
+    <p class="modal-status" id="individual-status"></p>
+    <div class="wizard-summary" id="individual-result" hidden></div>
+  </div>
+</div>
+
+<!-- Modal: editar modelo/vendedor de un NFC en stock (solo mientras no tenga vendedor asignado) -->
+<div class="modal-overlay" id="edit-stock-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="edit-stock-modal-close">✕</button>
+    <h3>Editar NFC <span id="edit-stock-codigo"></span></h3>
+    <p class="modal-sub">Función, modelo y vendedor se pueden cambiar mientras el NFC no esté asignado a un vendedor — una vez asignado, quedan fijos.</p>
+    <div class="modal-form">
+      <label>
+        <span>Función</span>
+        <select id="edit-stock-funcion">
+          <option value="">Sin asignar</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="pago">Pago</option>
+          <option value="menu">Menú</option>
+          <option value="review">Reseña</option>
+          <option value="web">Web propia</option>
+          <option value="agenda">Agenda</option>
+          <option value="linktree">LinkTree</option>
+        </select>
+      </label>
+      <label>
+        <span>Modelo</span>
+        <select id="edit-stock-modelo">
+          <option value="">Sin asignar</option>
+          <option value="llavero">Llavero</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="placa">Placa</option>
+        </select>
+      </label>
+      <label>
+        <span>Vendedor</span>
+        <select id="edit-stock-vendedor"><option value="">Sin asignar</option></select>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="edit-stock-save-button">Guardar</button>
+    <p class="modal-status" id="edit-stock-status"></p>
+  </div>
+</div>
+
+<!-- Modal: stock asignado a un vendedor -->
+<div class="modal-overlay" id="stock-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="stock-modal-close">✕</button>
+    <h3 id="stock-modal-title">Stock asignado</h3>
+    <p class="modal-sub" id="stock-modal-sub"></p>
+    <div class="admin-table" id="stock-modal-table"></div>
+  </div>
+</div>
 
 <footer>
   <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>

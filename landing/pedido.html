@@ -18,8 +18,8 @@
   <div class="wrap">
     <div class="kicker" id="buy-ref-kicker">Compra online</div>
     <h2>Pedí tu sticker <span data-brand>tap</span>.</h2>
-    <p class="lead">Elegís la función, el modelo y a dónde lo enviamos — todo en un par de pasos. Pagás y en un rato te llega a tu casa o a tu local.</p>
-    <button type="button" class="btn-primary" id="start-wizard">Empezar a personalizar</button>
+    <p class="lead">Elegís la función y el modelo, validamos tu WhatsApp y pagás. Empezás a usar tu NFC al toque — el destino lo configurás cuando quieras, desde tu panel.</p>
+    <button type="button" class="btn-primary" id="start-wizard">Iniciar</button>
   </div>
 </section>
 
@@ -61,7 +61,13 @@
   <div class="modal wizard-modal" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
     <button type="button" class="modal-close" id="wizard-close" aria-label="Cerrar">✕</button>
 
-    <div class="wizard-progress" id="wizard-progress"></div>
+    <div class="wizard-topbar">
+      <button type="button" class="wizard-back-btn" id="wizard-back" aria-label="Atrás">←</button>
+      <div class="wizard-progress" id="wizard-progress"></div>
+      <span class="wizard-forward-hint" aria-hidden="true">→</span>
+    </div>
+
+    <div class="cart-summary" id="cart-summary" hidden></div>
 
     <div class="wizard-step" data-step="1">
       <div class="kicker step-kicker"></div>
@@ -72,18 +78,37 @@
     <div class="wizard-step" data-step="2">
       <div class="kicker step-kicker"></div>
       <h3>Elegí el modelo</h3>
-      <div class="option-grid" id="model-options"></div>
+      <div class="option-grid option-grid-4" id="model-options"></div>
+    </div>
+
+    <div class="wizard-step" data-step="cart">
+      <div class="kicker step-kicker"></div>
+      <h3>¿Querés comprar más?</h3>
+      <p class="modal-sub">Sumá otro producto a esta misma compra, o seguí si con esto ya estás.</p>
+      <div class="cart-summary" id="cart-summary-step" hidden></div>
+      <div class="cart-add-row">
+        <div class="modal-form cart-add-form">
+          <label>
+            <span>Función</span>
+            <select id="cart-add-funcion"></select>
+          </label>
+          <label>
+            <span>Modelo</span>
+            <select id="cart-add-modelo"></select>
+          </label>
+          <label>
+            <span>Cantidad</span>
+            <input type="number" id="cart-add-qty" min="1" value="1">
+          </label>
+        </div>
+        <button type="button" class="btn-ghost cart-add-more" id="cart-add-confirm">+ Agregar al carrito</button>
+      </div>
     </div>
 
     <div class="wizard-step" data-step="3">
       <div class="kicker step-kicker"></div>
-      <h3>Los datos de tu sticker</h3>
-      <div class="modal-form">
-        <label>
-          <span id="destination-label">Destino</span>
-          <input type="text" id="destination-value" placeholder="">
-        </label>
-      </div>
+      <h3>Términos y Condiciones</h3>
+      <p class="modal-sub">El destino de tu sticker lo configurás después, desde tu panel — acá solo falta que aceptes los términos.</p>
       <button type="button" class="btn-ghost tyc-open" id="open-tyc">Ver Términos y Condiciones completos</button>
       <label class="tyc-check">
         <input type="checkbox" id="wizard-tyc">
@@ -101,7 +126,7 @@
           <input type="tel" id="wizard-whatsapp" placeholder="+54 9 11 1234 5678">
         </label>
       </div>
-      <button type="button" class="btn-ghost wizard-otp-send" id="send-otp">Enviar código por WhatsApp</button>
+      <button type="button" class="btn-ghost wizard-otp-send" id="send-otp">📲 Enviar código por WhatsApp</button>
 
       <div class="modal-form wizard-otp-code" id="otp-code-field" hidden>
         <label>
@@ -112,20 +137,6 @@
         <button type="button" class="btn-primary modal-submit" id="confirm-otp">Confirmar código</button>
       </div>
       <p class="modal-status is-success" id="otp-status"></p>
-    </div>
-
-    <div class="wizard-step" data-step="5">
-      <div class="kicker step-kicker"></div>
-      <h3>¿A dónde lo enviamos?</h3>
-      <p class="modal-sub">Decinos tu código postal para calcular el envío.</p>
-      <div class="modal-form">
-        <label>
-          <span>Código postal</span>
-          <input type="text" id="delivery-cp" placeholder="1425">
-        </label>
-      </div>
-      <button type="button" class="btn-ghost" id="calc-delivery">Calcular envío</button>
-      <div class="wizard-summary" id="delivery-result" hidden></div>
     </div>
 
     <div class="wizard-step" data-step="6">
@@ -139,12 +150,10 @@
       <div class="wizard-check">✓</div>
       <h3>¡Listo! Tu sticker ya es tuyo.</h3>
       <p id="wizard-success-summary"></p>
-      <p class="section-lead" style="margin-top:16px;">Tu cuenta tap ya está creada. Te llega la confirmación y el código de tu sticker por WhatsApp.</p>
       <button type="button" class="btn-primary modal-submit" id="wizard-done">Entendido</button>
     </div>
 
     <div class="wizard-nav" id="wizard-nav">
-      <button type="button" class="btn-ghost" id="wizard-back">Atrás</button>
       <button type="button" class="btn-primary" id="wizard-next">Siguiente</button>
     </div>
   </div>

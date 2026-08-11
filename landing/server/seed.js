@@ -4,7 +4,8 @@ const DEMO_WHATSAPP = '+5491122334455';
 const DEMO_VENDOR_REF = 'nacho';
 
 async function run(sql, args = []) {
-  return db.execute({ sql, args });
+  const res = await db.execute({ sql, args });
+  return { ...res, lastInsertRowid: res.rows[0]?.id ?? null };
 }
 
 let vendedor = (await run('SELECT id FROM vendedores WHERE codigo_ref = ?', [DEMO_VENDOR_REF])).rows[0];
@@ -31,56 +32,76 @@ if (existingComprador) {
   ]);
   const compradorId = Number(compradorResult.lastInsertRowid);
 
-  const stickerA = Number(
-    (
-      await run(
-        'INSERT INTO stickers (codigo_publico, uid_nfc, comprador_id, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?, ?)',
-        ['k7f2m9', 'demo-uid-1', compradorId, vendedor.id, 'activo', 'tarjeta']
-      )
-    ).lastInsertRowid
-  );
+  async function altaSticker(codigoPublico, uidNfc, { modelo, vendedorId, compradorId, estado }) {
+    const stickerId = Number(
+      (await run('INSERT INTO stickers (codigo_publico, uid_nfc) VALUES (?, ?)', [codigoPublico, uidNfc]))
+        .lastInsertRowid
+    );
+    const etapa = compradorId ? 'vendido' : vendedorId ? 'en_vendedor' : modelo ? 'con_modelo' : 'en_lote';
+    await run(
+      `INSERT INTO sticker_estados (sticker_id, etapa, modelo, vendedor_id, comprador_id, estado)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [stickerId, etapa, modelo || null, vendedorId || null, compradorId || null, estado]
+    );
+    return stickerId;
+  }
+
+  const stickerA = await altaSticker('k7f2m9', 'demo-uid-1', {
+    modelo: 'tarjeta',
+    vendedorId: vendedor.id,
+    compradorId,
+    estado: 'activo',
+  });
   await run('INSERT INTO destinos (sticker_id, tipo, valor) VALUES (?, ?, ?)', [
     stickerA,
     'whatsapp',
     'https://wa.me/5491122334455',
   ]);
-  await run(
-    'INSERT INTO ventas (sticker_id, vendedor_id, comprador_id, monto, payment_id, estado_pago) VALUES (?, ?, ?, ?, ?, ?)',
-    [stickerA, vendedor.id, compradorId, 8500, 'demo-payment-1', 'confirmado']
-  );
 
-  const stickerB = Number(
-    (
-      await run(
-        'INSERT INTO stickers (codigo_publico, uid_nfc, comprador_id, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?, ?)',
-        ['x3q8p1', 'demo-uid-2', compradorId, vendedor.id, 'activo', 'placa']
-      )
-    ).lastInsertRowid
-  );
+  const stickerB = await altaSticker('x3q8p1', 'demo-uid-2', {
+    modelo: 'placa',
+    vendedorId: vendedor.id,
+    compradorId,
+    estado: 'activo',
+  });
   await run('INSERT INTO destinos (sticker_id, tipo, valor) VALUES (?, ?, ?)', [
     stickerB,
     'menu',
     'https://cafemaria.com.ar/menu',
   ]);
-  await run(
-    'INSERT INTO ventas (sticker_id, vendedor_id, comprador_id, monto, payment_id, estado_pago) VALUES (?, ?, ?, ?, ?, ?)',
-    [stickerB, vendedor.id, compradorId, 11000, 'demo-payment-2', 'confirmado']
+
+  // Una sola venta (un pago) con dos stickers adentro — demuestra que una
+  // compra puede cubrir más de un producto a la vez.
+  const ventaResult = await run(
+    'INSERT INTO ventas (vendedor_id, comprador_id, monto, payment_id, estado_pago) VALUES (?, ?, ?, ?, ?)',
+    [vendedor.id, compradorId, 8500 + 11000, 'demo-payment-1', 'confirmado']
   );
+  const ventaId = Number(ventaResult.lastInsertRowid);
+  await run('INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, ?, ?)', [
+    ventaId,
+    stickerA,
+    8500,
+    'whatsapp',
+    'https://wa.me/5491122334455',
+  ]);
+  await run('INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, ?, ?)', [
+    ventaId,
+    stickerB,
+    11000,
+    'menu',
+    'https://cafemaria.com.ar/menu',
+  ]);
 
   // Vendido pero todavía no activado — sin destino configurado aún.
-  await run(
-    'INSERT INTO stickers (codigo_publico, uid_nfc, comprador_id, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?, ?)',
-    ['r9t4w2', 'demo-uid-3', compradorId, vendedor.id, 'vendido_pendiente', 'llavero']
-  );
+  await altaSticker('r9t4w2', 'demo-uid-3', {
+    modelo: 'llavero',
+    vendedorId: vendedor.id,
+    compradorId,
+    estado: 'vendido_pendiente',
+  });
 
   // Stock sin vender, para ver inventario en el panel Admin.
-  await run('INSERT INTO stickers (codigo_publico, uid_nfc, vendedor_id, estado, modelo) VALUES (?, ?, ?, ?, ?)', [
-    'p5j8k1',
-    'demo-uid-4',
-    vendedor.id,
-    'en_stock',
-    'tarjeta',
-  ]);
+  await altaSticker('p5j8k1', 'demo-uid-4', { modelo: 'tarjeta', vendedorId: vendedor.id, estado: 'en_stock' });
 
   console.log(`Comprador demo creado (id ${compradorId}, ${DEMO_WHATSAPP}) con 4 stickers y 2 ventas.`);
 }

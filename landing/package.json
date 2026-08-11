@@ -7,18 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js",
+    "server": "cross-env PORT=3001 node --env-file-if-exists=.env server/index.js",
     "seed": "node server/seed.js",
     "start": "node server/seed.js && node server/index.js",
     "dev:full": "concurrently -n API,VITE -c green,blue \"npm:server\" \"npm:dev\""
   },
   "devDependencies": {
     "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
     "vite": "^5.4.11"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.4",
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "mercadopago": "^3.3.0",
+    "pg": "^8.23.0"
   }
 }
