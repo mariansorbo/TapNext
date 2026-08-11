@@ -257,6 +257,7 @@ body.modal-open{overflow:hidden;}
 .wizard-step{display:none;}
 .wizard-step.is-active{display:block;}
 .wizard-step h3{font-family:var(--display); font-weight:600; font-size:1.25rem; margin-bottom:18px;}
+.cart-more-question{font-family:var(--display); font-weight:600; font-size:1.05rem; margin-top:4px;}
 .option-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
 .option-grid.option-grid-3{grid-template-columns:repeat(3,1fr);}
 .option-grid.option-grid-4{grid-template-columns:repeat(4,1fr);}
