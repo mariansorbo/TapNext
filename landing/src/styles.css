@@ -242,7 +242,7 @@ body.modal-open{overflow:hidden;}
 /* WIZARD (comprar.html) */
 .lead{font-size:1.05rem; color:var(--paper-dim); max-width:48ch;}
 .buy-hero .btn-primary{margin-top:28px;}
-.wizard-modal{max-width:640px;}
+.wizard-modal{max-width:640px; max-height:88vh; overflow-y:auto;}
 .wizard-topbar{display:flex; align-items:center; gap:14px; margin-bottom:26px; padding-right:40px;}
 .wizard-back-btn{
   flex-shrink:0; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
