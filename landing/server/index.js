@@ -419,10 +419,18 @@ app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
     'SELECT modelo, COUNT(*) AS cantidad FROM stickers_actual WHERE vendedor_id = ? AND estado = ? GROUP BY modelo',
     [vendedor.id, 'en_stock']
   );
+  // Funciones que este vendedor tiene físicamente asignadas (independiente del
+  // modelo) — el wizard usa esto para deshabilitar en el paso 1 las funciones
+  // que no tiene consigo, igual que ya hace con los modelos en el paso 2.
+  const funcionRows = await all(
+    'SELECT DISTINCT funcion FROM stickers_actual WHERE vendedor_id = ? AND estado = ? AND funcion IS NOT NULL',
+    [vendedor.id, 'en_stock']
+  );
   // modelo NULL = sticker sin impreso 3D ("suelto") — se agrupa como su propio bucket.
   res.json({
     vendedor: vendedor.nombre,
     modelos: rows.map((r) => ({ modelo: r.modelo || 'suelto', cantidad: r.cantidad })),
+    funciones: funcionRows.map((r) => r.funcion),
   });
 });
 

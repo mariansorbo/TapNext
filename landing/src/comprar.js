@@ -113,7 +113,7 @@ const state = {
 let availableModels = MODELS;
 
 // disabledIds: opciones que se muestran igual (no se sacan de la grilla) pero
-// no se pueden elegir — ej. un modelo sin stock para el vendedor presencial.
+// no se pueden elegir — ej. un modelo o función sin stock para el vendedor presencial.
 function renderOptions(container, items, key, disabledIds = new Set()) {
   container.innerHTML = '';
   items.forEach((item) => {
@@ -126,7 +126,7 @@ function renderOptions(container, items, key, disabledIds = new Set()) {
     card.innerHTML = `
       <div class="option-text">
         <div class="option-label">${item.label}</div>
-        <div class="option-desc">${isDisabled ? 'Sin stock por ahora' : item.desc}</div>
+        <div class="option-desc">${item.desc}</div>
       </div>
       ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
     `;
@@ -236,6 +236,12 @@ if (isPresencial && vendorToken) {
       availableModels = disponibles;
       renderOptions(modelOptions, MODELS, 'modelId', sinStockIds);
       populateCartAddSelects();
+
+      // Mismo criterio para el paso 1: solo se puede elegir una función que
+      // este vendedor realmente tenga asignada en su stock físico.
+      const funcionesDisponibles = new Set(data.funciones || []);
+      const funcionesSinStockIds = new Set(FUNCTIONS.filter((f) => !funcionesDisponibles.has(f.id)).map((f) => f.id));
+      renderOptions(functionOptions, FUNCTIONS, 'functionId', funcionesSinStockIds);
     })
     .catch(() => {
       // si falla la consulta, dejamos el catálogo completo como fallback
