@@ -118,6 +118,7 @@ section{padding:80px 0; border-top:1px solid var(--line);}
   font-family:var(--mono); font-size:0.75rem; color:var(--violet);
   letter-spacing:0.08em; text-transform:uppercase; margin-bottom:14px;
 }
+#buy-ref-kicker{font-size:1.05rem;}
 h2{
   font-family:var(--display); font-weight:600; font-size:clamp(1.6rem,3vw,2.3rem);
   letter-spacing:-0.02em; margin-bottom:44px; max-width:24ch;
