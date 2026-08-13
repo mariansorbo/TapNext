@@ -76,9 +76,9 @@ const FUNCTIONS = [
 ];
 
 const MODELS = [
-  { id: 'llavero', label: 'Llavero', desc: 'Para llevar encima', price: 8500 },
-  { id: 'tarjeta', label: 'Tarjeta', desc: 'Para dejar en el mostrador', price: 7500 },
-  { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000 },
+  { id: 'llavero', label: 'Llavero', desc: 'Para llevar encima', price: 8500, icon: `<img src="/images/modelo-llavero.png" alt="Llavero" loading="lazy">` },
+  { id: 'tarjeta', label: 'Tarjeta', desc: 'Para dejar en el mostrador', price: 7500, icon: `<img src="/images/modelo-tarjeta.png" alt="Tarjeta" loading="lazy">` },
+  { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000, icon: `<img src="/images/modelo-placa.png" alt="Placa" loading="lazy">` },
   { id: 'suelto', label: 'Suelto', desc: 'Solo el sticker, sin impresión 3D', price: 4500 },
 ];
 
