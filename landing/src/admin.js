@@ -170,6 +170,7 @@ async function loadVendedores() {
             <td><b>${v.nombre}</b></td>
             <td>${v.codigoRef}</td>
             <td>${v.comisionPct}%</td>
+            <td>${v.whatsapp ? (v.tieneLogin ? `${v.whatsapp} ✓ panel` : `${v.whatsapp} (sin contraseña)`) : '—'}</td>
             <td>${v.stockDisponible} / ${v.stockTotal}</td>
             <td>
               <button type="button" class="row-btn ver-stock-btn" data-id="${v.id}">Ver stock asignado</button>
@@ -178,12 +179,14 @@ async function loadVendedores() {
             </td>
           </tr>
           <tr class="vendedor-edit-row" data-vendedor-edit="${v.id}" hidden>
-            <td colspan="5">
+            <td colspan="6">
               <div class="vendedor-edit-form">
                 <div class="modal-form">
                   <label><span>Nombre</span><input type="text" class="edit-v-nombre" value="${v.nombre}"></label>
                   <label><span>Código ref.</span><input type="text" class="edit-v-ref" value="${v.codigoRef}"></label>
                   <label><span>Comisión (%)</span><input type="number" class="edit-v-comision" value="${v.comisionPct}" min="0" max="100"></label>
+                  <label><span>WhatsApp (para su panel)</span><input type="tel" class="edit-v-whatsapp" value="${v.whatsapp || ''}"></label>
+                  <label><span>Nueva contraseña (dejar vacío para no cambiarla)</span><input type="password" class="edit-v-password" placeholder="••••••••"></label>
                 </div>
                 <div>
                   <button type="button" class="btn-primary modal-submit save-vendedor-btn" data-id="${v.id}" style="width:auto; display:inline-block;">Guardar</button>
@@ -196,7 +199,7 @@ async function loadVendedores() {
         )
         .join('');
 
-      container.innerHTML = `<table><thead><tr><th>Nombre</th><th>Código ref.</th><th>Comisión</th><th>Stock disponible / total</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      container.innerHTML = `<table><thead><tr><th>Nombre</th><th>Código ref.</th><th>Comisión</th><th>WhatsApp / panel</th><th>Stock disponible / total</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
       container.querySelectorAll('.ver-stock-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -221,13 +224,15 @@ async function loadVendedores() {
           const nombre = editRow.querySelector('.edit-v-nombre').value.trim();
           const codigoRef = editRow.querySelector('.edit-v-ref').value.trim();
           const comisionPct = Number(editRow.querySelector('.edit-v-comision').value);
+          const whatsapp = editRow.querySelector('.edit-v-whatsapp').value.trim();
+          const password = editRow.querySelector('.edit-v-password').value;
           const status = editRow.querySelector('.edit-v-status');
           status.className = 'modal-status';
           status.textContent = 'Guardando...';
           try {
             await api(`/vendedores/${btn.dataset.id}`, {
               method: 'PATCH',
-              body: JSON.stringify({ nombre, codigoRef, comisionPct }),
+              body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, ...(password ? { password } : {}) }),
             });
             await loadVendedores();
           } catch (err) {
@@ -266,6 +271,8 @@ document.getElementById('create-vendedor-button').addEventListener('click', asyn
   const nombre = document.getElementById('new-vendedor-nombre').value.trim();
   const codigoRef = document.getElementById('new-vendedor-ref').value.trim();
   const comisionPct = Number(document.getElementById('new-vendedor-comision').value);
+  const whatsapp = document.getElementById('new-vendedor-whatsapp').value.trim();
+  const password = document.getElementById('new-vendedor-password').value;
   const status = document.getElementById('vendedor-status');
 
   if (!nombre || !codigoRef) {
@@ -273,14 +280,21 @@ document.getElementById('create-vendedor-button').addEventListener('click', asyn
     status.textContent = 'Completá nombre y código de referencia.';
     return;
   }
+  if (whatsapp && !password) {
+    status.className = 'modal-status is-error';
+    status.textContent = 'Si cargás un WhatsApp, definí también una contraseña.';
+    return;
+  }
   status.className = 'modal-status';
   status.textContent = 'Creando...';
   try {
-    await api('/vendedores', { method: 'POST', body: JSON.stringify({ nombre, codigoRef, comisionPct }) });
+    await api('/vendedores', { method: 'POST', body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, password }) });
     status.className = 'modal-status is-success';
     status.textContent = 'Vendedor creado.';
     document.getElementById('new-vendedor-nombre').value = '';
     document.getElementById('new-vendedor-ref').value = '';
+    document.getElementById('new-vendedor-whatsapp').value = '';
+    document.getElementById('new-vendedor-password').value = '';
     await loadVendedores();
   } catch (err) {
     status.className = 'modal-status is-error';

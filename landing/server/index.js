@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import bcrypt from 'bcryptjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken } from './otp.js';
+import { WHATSAPP_ENABLED, enviarOtpWhatsapp } from './whatsapp.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -27,6 +29,12 @@ const googleStates = new Map(); // state -> expira (ms) — CSRF del flujo OAuth
 // inaccesible (no hay contraseña default).
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const ADMIN_SESSION_TTL_MINUTES = 60;
+
+// Vendedor — login con WhatsApp + contraseña (a diferencia del comprador, que
+// entra con OTP: el vendedor necesita entrar rápido y repetidas veces durante
+// una jornada de venta, sin depender de recibir un WhatsApp cada vez). La
+// contraseña la define/resetea el admin al cargar o editar el vendedor.
+const VENDEDOR_SESSION_TTL_MINUTES = 60 * 12;
 
 // Programación de chips en el taller (RS-01/RS-02): la clave de escritura de
 // cada chip se DERIVA de secreto_maestro + uid_nfc — nunca se guarda en la
@@ -119,6 +127,7 @@ async function transicionarSticker(stickerId, patch) {
     vendedor_id: 'vendedor_id' in patch ? patch.vendedor_id : actual.vendedor_id,
     comprador_id: 'comprador_id' in patch ? patch.comprador_id : actual.comprador_id,
     estado: 'estado' in patch ? patch.estado : actual.estado,
+    entregado_en: 'entregado_en' in patch ? patch.entregado_en : actual.entregado_en,
   };
   siguiente.etapa = derivarEtapa(siguiente);
 
@@ -126,9 +135,18 @@ async function transicionarSticker(stickerId, patch) {
     stickerId,
   ]);
   await run(
-    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [stickerId, siguiente.etapa, siguiente.modelo, siguiente.funcion, siguiente.vendedor_id, siguiente.comprador_id, siguiente.estado]
+    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado, entregado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      stickerId,
+      siguiente.etapa,
+      siguiente.modelo,
+      siguiente.funcion,
+      siguiente.vendedor_id,
+      siguiente.comprador_id,
+      siguiente.estado,
+      siguiente.entregado_en,
+    ]
   );
   return siguiente;
 }
@@ -155,7 +173,17 @@ app.post('/api/auth/otp/request', async (req, res) => {
     isoInMinutes(OTP_TTL_MINUTES),
   ]);
 
-  // No hay integración real con WhatsApp Business API todavía — simulamos el envío.
+  if (WHATSAPP_ENABLED) {
+    try {
+      await enviarOtpWhatsapp(whatsapp, code);
+    } catch (err) {
+      console.error('[OTP] Falló el envío por WhatsApp:', err.message);
+      return res.status(502).json({ error: 'No se pudo enviar el código por WhatsApp. Probá de nuevo.' });
+    }
+    return res.json({ ok: true });
+  }
+
+  // Sin credenciales de WhatsApp Business API configuradas: modo demo.
   console.log(`[OTP demo] Código para ${whatsapp}: ${code} (expira en ${OTP_TTL_MINUTES} min)`);
 
   // DEV ONLY: nunca devolver el código en la respuesta en producción — acá reemplaza
@@ -652,6 +680,105 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
+// --- Panel del vendedor (/vendedor) — login WhatsApp+contraseña, ver qué
+// stickers vendidos todavía tiene que entregar (RS-06: verificación de
+// entrega física por codigo_publico). ---
+
+app.post('/api/vendedor/login', async (req, res) => {
+  const whatsapp = String(req.body?.whatsapp || '').trim();
+  const password = String(req.body?.password || '');
+  if (!whatsapp || !password) return res.status(400).json({ error: 'Faltan datos.' });
+
+  const vendedor = await get('SELECT * FROM vendedores WHERE whatsapp = ?', [whatsapp]);
+  if (!vendedor || !vendedor.password_hash) {
+    return res.status(401).json({ error: 'WhatsApp o contraseña incorrectos.' });
+  }
+  const ok = await bcrypt.compare(password, vendedor.password_hash);
+  if (!ok) return res.status(401).json({ error: 'WhatsApp o contraseña incorrectos.' });
+
+  const token = generateToken();
+  await run('INSERT INTO vendedor_sesiones (vendedor_id, token_hash, expira) VALUES (?, ?, ?)', [
+    vendedor.id,
+    hashValue(token),
+    isoInMinutes(VENDEDOR_SESSION_TTL_MINUTES),
+  ]);
+  res.json({ token, vendedor: { id: vendedor.id, nombre: vendedor.nombre, codigoRef: vendedor.codigo_ref } });
+});
+
+app.delete('/api/vendedor/session', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (token) await run('DELETE FROM vendedor_sesiones WHERE token_hash = ?', [hashValue(token)]);
+  res.status(204).end();
+});
+
+async function requireVendedor(req, res, next) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ error: 'Falta autenticación.' });
+
+  const tokenHash = hashValue(token);
+  const sesion = await get(`SELECT * FROM vendedor_sesiones WHERE token_hash = ? AND expira > NOW()`, [tokenHash]);
+  if (!sesion) return res.status(401).json({ error: 'Sesión inválida o expirada.' });
+
+  await run('UPDATE vendedor_sesiones SET expira = ? WHERE id = ?', [
+    isoInMinutes(VENDEDOR_SESSION_TTL_MINUTES),
+    sesion.id,
+  ]);
+
+  req.vendedor = await get('SELECT id, nombre, codigo_ref, comision_pct, whatsapp FROM vendedores WHERE id = ?', [
+    sesion.vendedor_id,
+  ]);
+  next();
+}
+
+app.get('/api/vendedor/me', requireVendedor, (req, res) => {
+  const { id, nombre, codigo_ref, comision_pct } = req.vendedor;
+  res.json({ id, nombre, codigoRef: codigo_ref, comisionPct: comision_pct });
+});
+
+// Stickers ya vendidos (etapa 'vendido') de este vendedor que todavía no se
+// marcaron como entregados — es la lista que el vendedor usa para saber qué
+// imprimible buscar y entregarle al comprador (ver mecanismo de verificación
+// por codigo_publico, RS-06).
+app.get('/api/vendedor/pendientes', requireVendedor, async (req, res) => {
+  const rows = await all(
+    `SELECT s.id, s.codigo_publico, s.modelo, s.funcion, s.vigente_desde, c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
+       FROM stickers_actual s
+       LEFT JOIN compradores c ON c.id = s.comprador_id
+       WHERE s.vendedor_id = ? AND s.etapa = 'vendido' AND s.estado = 'activo' AND s.entregado_en IS NULL
+       ORDER BY s.vigente_desde DESC`,
+    [req.vendedor.id]
+  );
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      codigoPublico: r.codigo_publico,
+      modelo: r.modelo || 'suelto',
+      funcion: r.funcion,
+      vendidoEn: r.vigente_desde,
+      comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
+    }))
+  );
+});
+
+// El vendedor marca el sticker como entregado una vez que le dio el
+// imprimible físico al comprador — no pisa `estado`, abre una nueva fila
+// versionada (mismo mecanismo SCD2 que el resto del ciclo de vida).
+app.patch('/api/vendedor/pendientes/:id/entregar', requireVendedor, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND vendedor_id = ?', [
+    stickerId,
+    req.vendedor.id,
+  ]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.etapa !== 'vendido') {
+    return res.status(400).json({ error: 'Este sticker todavía no está vendido.' });
+  }
+  if (sticker.entregado_en) return res.status(400).json({ error: 'Este sticker ya fue marcado como entregado.' });
+
+  await transicionarSticker(stickerId, { entregado_en: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
 app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const vendedores = await all(`
     SELECT v.*,
@@ -665,31 +792,42 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       nombre: v.nombre,
       codigoRef: v.codigo_ref,
       comisionPct: v.comision_pct,
+      whatsapp: v.whatsapp,
+      tieneLogin: Boolean(v.password_hash),
       stockTotal: v.stock_total,
       stockDisponible: v.stock_disponible,
     }))
   );
 });
 
+const BCRYPT_ROUNDS = 10;
+
 app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
   const codigoRef = String(req.body?.codigoRef || '').trim().toLowerCase();
   const comisionPct = Number(req.body?.comisionPct ?? 50);
+  const whatsapp = String(req.body?.whatsapp || '').trim();
+  const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
   if (!/^[a-z0-9-]+$/.test(codigoRef)) {
     return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
   }
+  if (whatsapp && !password) return res.status(400).json({ error: 'Si cargás un WhatsApp, definí también una contraseña para su login.' });
 
   const existe = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [codigoRef]);
   if (existe) return res.status(409).json({ error: 'Ya existe un vendedor con ese código de referencia.' });
+  if (whatsapp) {
+    const otroWa = await get('SELECT id FROM vendedores WHERE whatsapp = ?', [whatsapp]);
+    if (otroWa) return res.status(409).json({ error: 'Ya existe un vendedor con ese WhatsApp.' });
+  }
 
-  const result = await run('INSERT INTO vendedores (nombre, codigo_ref, comision_pct) VALUES (?, ?, ?)', [
-    nombre,
-    codigoRef,
-    comisionPct,
-  ]);
-  res.status(201).json({ id: result.lastInsertRowid, nombre, codigoRef, comisionPct });
+  const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
+  const result = await run(
+    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, password_hash) VALUES (?, ?, ?, ?, ?)',
+    [nombre, codigoRef, comisionPct, whatsapp || null, passwordHash]
+  );
+  res.status(201).json({ id: result.lastInsertRowid, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null });
 });
 
 app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
@@ -700,22 +838,36 @@ app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim();
   const codigoRef = String(req.body?.codigoRef || '').trim().toLowerCase();
   const comisionPct = Number(req.body?.comisionPct ?? vendedor.comision_pct);
+  // whatsapp/password son opcionales en el PATCH: si no vienen en el body, se
+  // conservan; si vienen vacíos explícitamente, se limpian (permite "sacarle" el login).
+  const whatsapp = 'whatsapp' in (req.body || {}) ? String(req.body.whatsapp || '').trim() : vendedor.whatsapp;
+  const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
   if (!/^[a-z0-9-]+$/.test(codigoRef)) {
     return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
   }
+  if (whatsapp && !password && !vendedor.password_hash) {
+    return res.status(400).json({ error: 'Si cargás un WhatsApp, definí también una contraseña para su login.' });
+  }
 
   const otro = await get('SELECT id FROM vendedores WHERE codigo_ref = ? AND id != ?', [codigoRef, vendedorId]);
   if (otro) return res.status(409).json({ error: 'Ya existe otro vendedor con ese código de referencia.' });
+  if (whatsapp) {
+    const otroWa = await get('SELECT id FROM vendedores WHERE whatsapp = ? AND id != ?', [whatsapp, vendedorId]);
+    if (otroWa) return res.status(409).json({ error: 'Ya existe otro vendedor con ese WhatsApp.' });
+  }
 
-  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ? WHERE id = ?', [
+  const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : vendedor.password_hash;
+  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ?, whatsapp = ?, password_hash = ? WHERE id = ?', [
     nombre,
     codigoRef,
     comisionPct,
+    whatsapp || null,
+    whatsapp ? passwordHash : null,
     vendedorId,
   ]);
-  res.json({ id: vendedorId, nombre, codigoRef, comisionPct });
+  res.json({ id: vendedorId, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null });
 });
 
 app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {

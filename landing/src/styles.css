@@ -95,31 +95,22 @@ h1 em{font-style:normal; color:var(--violet);}
 .tag-stage{
   position:relative; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
 }
-.ring{
-  position:absolute; border-radius:50%; border:1.5px solid var(--violet);
-  opacity:0; animation:ping 2.6s cubic-bezier(.2,.6,.35,1) infinite;
-}
-.ring:nth-child(1){width:120px; height:120px; animation-delay:0s;}
-.ring:nth-child(2){width:120px; height:120px; animation-delay:.65s;}
-.ring:nth-child(3){width:120px; height:120px; animation-delay:1.3s;}
-@keyframes ping{
-  0%{width:120px; height:120px; opacity:.55;}
-  100%{width:340px; height:340px; opacity:0;}
-}
-@media (prefers-reduced-motion: reduce){ .ring{animation:none; display:none;} }
 .tag{
   position:relative; width:150px; height:190px; border-radius:22px;
   background:linear-gradient(155deg, var(--surface-2), var(--surface));
   border:1px solid var(--line);
   box-shadow:0 30px 60px -20px rgba(0,0,0,0.6);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
 }
-.tag-code{font-family:var(--mono); font-size:0.7rem; color:var(--paper-dim); letter-spacing:0.05em;}
 .tag-dest{
   font-family:var(--mono); font-size:0.78rem; color:var(--amber); height:18px;
   transition:opacity .3s ease;
 }
-.tag-icon{width:30px; height:30px; border-radius:8px; background:var(--violet); opacity:.9;}
+.tag-icon{
+  width:64px; height:64px; border-radius:14px;
+  background:linear-gradient(155deg, var(--violet), var(--amber));
+  box-shadow:0 0 40px -6px var(--violet);
+}
 
 /* SECTIONS shared */
 section{padding:80px 0; border-top:1px solid var(--line);}
@@ -310,6 +301,10 @@ body.modal-open{overflow:hidden;}
   width:56px; height:56px; border-radius:50%; background:rgba(123,92,255,0.15);
   color:var(--violet); font-size:1.6rem; display:flex; align-items:center; justify-content:center;
   margin:0 auto 20px;
+}
+.pickup-id{
+  font-family:var(--mono); font-size:1.05rem; font-weight:700; color:var(--amber);
+  background:rgba(242,184,75,0.12); padding:2px 8px; border-radius:6px; letter-spacing:0.03em;
 }
 .tyc-open{margin-top:16px;}
 .tyc-check{

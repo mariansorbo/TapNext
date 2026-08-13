@@ -72,6 +72,8 @@ await db.executeMultiple(`
     codigo_ref TEXT UNIQUE NOT NULL,
     comision_pct REAL NOT NULL DEFAULT 50,
     telegram_chat_id TEXT,
+    whatsapp TEXT UNIQUE,
+    password_hash TEXT,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
@@ -109,6 +111,7 @@ await db.executeMultiple(`
     vendedor_id INTEGER REFERENCES vendedores(id),
     comprador_id INTEGER REFERENCES compradores(id),
     estado TEXT NOT NULL,
+    entregado_en TIMESTAMPTZ,
     vigente_desde TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     vigente_hasta TIMESTAMPTZ
   );
@@ -200,12 +203,26 @@ await db.executeMultiple(`
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  -- Login del vendedor: WhatsApp + contraseña (a diferencia del comprador, que
+  -- entra con OTP). Mismo patrón de tabla de sesión que sesiones/admin_sesiones.
+  CREATE TABLE IF NOT EXISTS vendedor_sesiones (
+    id SERIAL PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL REFERENCES vendedores(id),
+    token_hash TEXT NOT NULL UNIQUE,
+    expira TIMESTAMPTZ NOT NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
   -- Migraciones defensivas — Postgres soporta "IF NOT EXISTS" nativo en ADD
   -- COLUMN, así que no hace falta inspeccionar el schema a mano como con SQLite.
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS lote_id INTEGER REFERENCES lotes(id);
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS email TEXT;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS google_id TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id);
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS password_hash TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_whatsapp ON vendedores(whatsapp);
+  ALTER TABLE sticker_estados ADD COLUMN IF NOT EXISTS entregado_en TIMESTAMPTZ;
 `);
 
 // Migración de datos: si `stickers` todavía tiene las columnas viejas
@@ -250,7 +267,7 @@ if (columnasViejas.length > 0) {
 await db.executeMultiple(`
   CREATE OR REPLACE VIEW stickers_actual AS
   SELECT st.id, st.codigo_publico, st.uid_nfc, st.lote_id, st.creado_en,
-         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde
+         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde, se.entregado_en
   FROM stickers st
   JOIN sticker_estados se ON se.sticker_id = st.id AND se.vigente_hasta IS NULL;
 `);

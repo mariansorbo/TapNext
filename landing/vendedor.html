@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Panel de vendedor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <div class="logo" data-brand-logo></div>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero" id="login-view">
+  <div class="wrap">
+    <div class="kicker">Panel de vendedor</div>
+    <h2>Entrá con tu WhatsApp y contraseña.</h2>
+    <p class="lead">Acá vas a ver qué stickers vendidos todavía te falta entregar.</p>
+
+    <div class="modal-form panel-login-form">
+      <label>
+        <span>Tu WhatsApp</span>
+        <input type="tel" id="login-whatsapp" placeholder="+54 9 11 1234 5678">
+      </label>
+      <label>
+        <span>Contraseña</span>
+        <input type="password" id="login-password" placeholder="Contraseña">
+      </label>
+    </div>
+    <button type="button" class="btn-primary panel-btn" id="login-button">Ingresar</button>
+    <p class="modal-status" id="login-status"></p>
+  </div>
+</section>
+
+<section class="buy-hero" id="dashboard-view" hidden>
+  <div class="wrap">
+    <div class="kicker">Panel de vendedor</div>
+    <h2 id="dashboard-title">Pendientes de entrega</h2>
+    <p class="lead">Estos son los stickers que ya se vendieron y pagaron, pero todavía no marcaste como entregados. Buscá el imprimible con ese ID y entregáselo al comprador.</p>
+    <button type="button" class="btn-ghost" id="logout-button">Cerrar sesión</button>
+
+    <h3 class="sticker-list-title">Por entregar</h3>
+    <div class="sticker-list" id="pendientes-list"></div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+<script type="module" src="/src/vendedor.js"></script>
+</body>
+</html>
