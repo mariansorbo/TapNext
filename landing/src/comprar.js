@@ -112,26 +112,32 @@ const state = {
 // el select de "agregar otro" en el paso carrito.
 let availableModels = MODELS;
 
-function renderOptions(container, items, key) {
+// disabledIds: opciones que se muestran igual (no se sacan de la grilla) pero
+// no se pueden elegir — ej. un modelo sin stock para el vendedor presencial.
+function renderOptions(container, items, key, disabledIds = new Set()) {
   container.innerHTML = '';
   items.forEach((item) => {
+    const isDisabled = disabledIds.has(item.id);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'option-card';
+    card.className = 'option-card' + (isDisabled ? ' is-disabled' : '');
     card.dataset.id = item.id;
+    card.disabled = isDisabled;
     card.innerHTML = `
       <div class="option-text">
         <div class="option-label">${item.label}</div>
-        <div class="option-desc">${item.desc}</div>
+        <div class="option-desc">${isDisabled ? 'Sin stock por ahora' : item.desc}</div>
       </div>
       ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
     `;
-    card.addEventListener('click', () => {
-      state[key] = item.id;
-      container.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
-      updateNextButton();
-    });
+    if (!isDisabled) {
+      card.addEventListener('click', () => {
+        state[key] = item.id;
+        container.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+        card.classList.add('is-selected');
+        updateNextButton();
+      });
+    }
     container.appendChild(card);
   });
 }
@@ -162,12 +168,15 @@ if (isPresencial && vendorToken) {
     .then((data) => {
       refKicker.textContent = `Recomendado por ${data.vendedor}`;
       const disponibles = MODELS.filter((m) => data.modelos.some((s) => s.modelo === m.id && s.cantidad > 0));
+      const sinStockIds = new Set(MODELS.filter((m) => !disponibles.includes(m)).map((m) => m.id));
       if (!disponibles.length) {
         modelOptions.innerHTML = '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
         return;
       }
+      // El carrito ("agregar otro") sí solo ofrece lo disponible — ahí no hay
+      // affordance para "deshabilitado", es un <select>.
       availableModels = disponibles;
-      renderOptions(modelOptions, disponibles, 'modelId');
+      renderOptions(modelOptions, MODELS, 'modelId', sinStockIds);
       populateCartAddSelects();
     })
     .catch(() => {

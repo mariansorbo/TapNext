@@ -22,7 +22,15 @@ async function api(path, options = {}) {
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Error de conexión con el servidor.');
+  if (!res.ok) {
+    if (res.status === 401 && !dashboardView.hidden) {
+      clearToken();
+      showLogin();
+      loginStatus.className = 'modal-status is-error';
+      loginStatus.textContent = 'Tu sesión expiró — entrá de nuevo.';
+    }
+    throw new Error(data.error || 'Error de conexión con el servidor.');
+  }
   return data;
 }
 

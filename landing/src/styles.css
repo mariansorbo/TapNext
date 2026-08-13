@@ -259,6 +259,8 @@ body.modal-open{overflow:hidden;}
 }
 .option-card:hover{border-color:var(--violet);}
 .option-card.is-selected{border-color:var(--violet); background:rgba(123,92,255,0.12);}
+.option-card.is-disabled{opacity:0.45; cursor:not-allowed;}
+.option-card.is-disabled:hover{border-color:var(--line);}
 .option-text{min-width:0;}
 .option-label{font-family:var(--display); font-weight:600; font-size:0.95rem; margin-bottom:4px; white-space:nowrap;}
 .option-desc{font-size:0.8rem; color:var(--paper-dim);}
