@@ -10,7 +10,7 @@
 <body>
 
 <nav>
-  <div class="logo" data-brand-logo></div>
+  <a href="/" class="logo" data-brand-logo></a>
   <div class="nav-actions">
     <a href="/faqs.html#faqs" class="nav-link">FAQs</a>
     <a href="/quienes-somos.html" target="_blank" class="nav-link">Nosotros</a>
@@ -23,13 +23,15 @@
   <div>
     <div class="eyebrow">Un toque y listo</div>
     <h1>Un toque conecta<br>vos y tu <em>negocio</em> con el mundo.</h1>
-    <p class="lead">Gracias a tecnología NFC, con un tap compartís fácilmente WhatsApp, Instagram, web, menú, pagos, reseñas y más. Sin cámaras, sin apps.</p>
+    <p class="lead">Gracias a tecnología NFC, con un tap compartís fácilmente WhatsApp, Instagram, web, menú, pagos, reseñas y más. Sin cámaras, sin apps. <a href="#funciona" class="btn-ghost">Ver cómo funciona</a></p>
     <div class="cta-row">
       <a href="/pedido.html" class="btn-primary">¡Hacé Tap!</a>
-      <a href="#funciona" class="btn-ghost">Ver cómo funciona</a>
     </div>
   </div>
   <div class="tag-stage">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
     <div class="tag">
       <div class="tag-icon"></div>
       <div class="tag-dest" id="tagdest"></div>
@@ -174,15 +176,26 @@
 
 <section class="cta-final" id="pedir">
   <div class="wrap">
-    <div class="kicker">¿Listo?</div>
     <h2>Empezá a conectar con tus clientes hoy.</h2>
     <a href="/pedido.html" class="btn-primary">Pedí el tuyo</a>
   </div>
 </section>
 
 <footer>
-  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
-  <span><a href="https://wa.me/5491122334455" target="_blank" rel="noopener">WhatsApp</a> · <a href="/mi-panel.html">Mi panel</a> · Buenos Aires, Argentina</span>
+  <div class="footer-main">
+    <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+    <nav class="footer-links">
+      <a href="/faqs.html">FAQs</a>
+      <a href="/quienes-somos.html">Nosotros</a>
+      <a href="https://wa.me/5491122334455" target="_blank" rel="noopener">WhatsApp</a>
+      <a href="/mi-panel.html">Mi panel</a>
+    </nav>
+  </div>
+  <div class="footer-bottom">
+    <span>Pagos con Mercado Pago</span>
+    <span>Buenos Aires, Argentina</span>
+    <span><a href="/terminos-de-uso.html">Términos de uso</a> · © 2026 NextTap</span>
+  </div>
 </footer>
 
 <script type="module" src="/src/main.js"></script>
