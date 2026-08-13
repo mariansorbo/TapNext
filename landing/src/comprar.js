@@ -160,6 +160,64 @@ function populateCartAddSelects() {
 }
 populateCartAddSelects();
 
+// Dropdown de función con ícono por opción, para el paso "carrito" — un
+// <select> nativo no puede mostrar SVGs en sus <option>. El <select> real
+// sigue en el DOM (oculto) como fuente de verdad de .value, así el resto del
+// código (leer/resetear el valor elegido) no cambia.
+function setupIconSelect(selectEl, triggerEl, menuEl, items) {
+  if (!selectEl || !triggerEl || !menuEl) return null;
+
+  function currentItem() {
+    return items.find((it) => it.id === selectEl.value) || null;
+  }
+  function renderTrigger() {
+    const item = currentItem();
+    triggerEl.innerHTML = `
+      ${item?.icon ? `<span class="icon-select-icon">${item.icon}</span>` : ''}
+      <span class="icon-select-label">${item ? item.label : 'Sin asignar'}</span>
+    `;
+  }
+  function renderMenu() {
+    menuEl.innerHTML =
+      `<button type="button" class="icon-select-option" data-id="">Sin asignar</button>` +
+      items
+        .map(
+          (it) => `
+        <button type="button" class="icon-select-option" data-id="${it.id}">
+          ${it.icon ? `<span class="icon-select-icon">${it.icon}</span>` : ''}
+          <span>${it.label}</span>
+        </button>`
+        )
+        .join('');
+    menuEl.querySelectorAll('.icon-select-option').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        selectEl.value = btn.dataset.id;
+        selectEl.dispatchEvent(new Event('change'));
+        renderTrigger();
+        menuEl.hidden = true;
+      });
+    });
+  }
+
+  triggerEl.addEventListener('click', () => {
+    menuEl.hidden = !menuEl.hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (!menuEl.hidden && !triggerEl.contains(e.target) && !menuEl.contains(e.target)) menuEl.hidden = true;
+  });
+
+  renderMenu();
+  renderTrigger();
+  return { renderTrigger };
+}
+
+const cartAddFuncionIconSelect = setupIconSelect(
+  cartAddFuncionSelect,
+  document.getElementById('cart-add-funcion-trigger'),
+  document.getElementById('cart-add-funcion-menu'),
+  FUNCTIONS
+);
+
 // Venta presencial: el vendedor solo tiene consigo los impresos 3D (con su NFC
 // ya adentro) que el admin le cargó a él — el comprador no puede elegir un
 // modelo que ese vendedor no tenga físicamente en mano.
@@ -268,6 +326,7 @@ cartAddConfirmButton?.addEventListener('click', () => {
   }
   cartAddFuncionSelect.value = '';
   cartAddModeloSelect.value = '';
+  cartAddFuncionIconSelect?.renderTrigger();
   cartAddQtyInput.value = '1';
   renderCart();
   updateNextButton();
@@ -408,6 +467,7 @@ function openWizard() {
   otpStatus.textContent = '';
   otpStatus.className = 'modal-status';
   if (cartAddFuncionSelect) cartAddFuncionSelect.value = '';
+  cartAddFuncionIconSelect?.renderTrigger();
   if (cartAddModeloSelect) cartAddModeloSelect.value = '';
   if (cartAddQtyInput) cartAddQtyInput.value = '1';
   payButton.disabled = false;
