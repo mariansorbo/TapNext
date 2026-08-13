@@ -405,11 +405,13 @@ body.modal-open{overflow:hidden;}
 .admin-filter-btn.is-active{border-color:var(--violet); background:rgba(123,92,255,0.12); color:var(--paper);}
 .admin-table{overflow-x:auto; border:1px solid var(--line); border-radius:12px;}
 .admin-table table{width:100%; border-collapse:collapse; font-size:0.85rem; white-space:nowrap;}
+.admin-table--scroll{max-height:492px; overflow-y:auto;}
 .admin-table th{
   text-align:left; font-family:var(--mono); font-size:0.7rem; text-transform:uppercase;
   letter-spacing:0.05em; color:var(--paper-dim); padding:12px 14px; border-bottom:1px solid var(--line);
   background:var(--surface);
 }
+.admin-table--scroll th{position:sticky; top:0; z-index:1;}
 .admin-table td{padding:10px 14px; border-bottom:1px solid var(--line); color:var(--paper-dim);}
 .admin-table tr:last-child td{border-bottom:none;}
 .admin-table td b{color:var(--paper);}
@@ -428,6 +430,15 @@ body.modal-open{overflow:hidden;}
 }
 .precio-input:focus{outline:none; border-color:var(--violet);}
 .admin-empty{padding:20px 14px; color:var(--paper-dim); font-size:0.85rem;}
+.admin-bulk-assign{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin-top:12px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface);
+}
+.admin-bulk-assign select{
+  font:inherit; font-size:0.8rem; color:var(--paper); background:var(--surface-2);
+  border:1px solid var(--line); border-radius:6px; padding:6px 8px;
+}
+.admin-bulk-assign .modal-status{margin:0;}
 .add-icon{
   display:inline-flex; align-items:center; justify-content:center;
   width:18px; height:18px; border-radius:50%; margin-right:6px;

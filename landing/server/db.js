@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { randomBytes } from 'node:crypto';
 
 const { Pool } = pg;
 
@@ -111,7 +112,6 @@ await db.executeMultiple(`
     vendedor_id INTEGER REFERENCES vendedores(id),
     comprador_id INTEGER REFERENCES compradores(id),
     estado TEXT NOT NULL,
-    entregado_en TIMESTAMPTZ,
     vigente_desde TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     vigente_hasta TIMESTAMPTZ
   );
@@ -169,14 +169,11 @@ await db.executeMultiple(`
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
-  -- Precio de cada combinación función+modelo imprimible (ej. WhatsApp+Llavero).
-  -- El precio ya no es fijo por modelo — cada combinación se puede tarifar
-  -- distinto desde el panel de Admin.
+  -- Precio por modelo imprimible (llavero/tarjeta/placa/suelto) — el mismo
+  -- precio para cualquier función, editable desde el panel de Admin.
   CREATE TABLE IF NOT EXISTS precios (
-    funcion TEXT NOT NULL,
-    modelo TEXT NOT NULL,
-    precio REAL NOT NULL,
-    PRIMARY KEY (funcion, modelo)
+    modelo TEXT PRIMARY KEY,
+    precio REAL NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS otp_sessions (
@@ -222,7 +219,27 @@ await db.executeMultiple(`
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS whatsapp TEXT;
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS password_hash TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_whatsapp ON vendedores(whatsapp);
-  ALTER TABLE sticker_estados ADD COLUMN IF NOT EXISTS entregado_en TIMESTAMPTZ;
+  ALTER TABLE sticker_estados DROP COLUMN IF EXISTS entregado_en CASCADE;
+  -- Token opaco para el link público del vendedor (?s=...), separado del
+  -- codigo_ref legible que usa para loguearse/identificarse en su panel —
+  -- así no se puede enumerar vendedores cambiando el parámetro en la URL.
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token TEXT;
+`);
+
+// Backfill: todo vendedor que no tenga link_token (altas previas a este
+// cambio) recibe uno random antes de crear el índice único de abajo.
+const vendedoresSinToken = (
+  await db.execute('SELECT id FROM vendedores WHERE link_token IS NULL')
+).rows;
+for (const v of vendedoresSinToken) {
+  await db.execute({
+    sql: 'UPDATE vendedores SET link_token = ? WHERE id = ?',
+    args: [randomBytes(6).toString('hex'), v.id],
+  });
+}
+
+await db.executeMultiple(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_link_token ON vendedores(link_token);
 `);
 
 // Migración de datos: si `stickers` todavía tiene las columnas viejas
@@ -260,6 +277,30 @@ if (columnasViejas.length > 0) {
   console.log(`[migración SCD] ${filas.length} sticker(s) migrados de columnas mutables a sticker_estados.`);
 }
 
+// Migración de datos: `precios` pasó de un valor por función+modelo a un
+// valor único por modelo — si la tabla todavía tiene la columna `funcion`,
+// colapsamos a una fila por modelo (privilegiando el precio de whatsapp, que
+// hoy siempre coincide con el resto) antes de tirar la columna vieja.
+const preciosConFuncion = (
+  await db.execute(
+    `SELECT column_name FROM information_schema.columns WHERE table_name = 'precios' AND column_name = 'funcion'`
+  )
+).rows;
+if (preciosConFuncion.length > 0) {
+  const filas = (
+    await db.execute(`SELECT DISTINCT ON (modelo) modelo, precio FROM precios ORDER BY modelo, (funcion = 'whatsapp') DESC`)
+  ).rows;
+  await db.executeMultiple('CREATE TABLE IF NOT EXISTS tmp_precios_migracion (modelo TEXT PRIMARY KEY, precio REAL NOT NULL);');
+  for (const f of filas) {
+    await db.execute({
+      sql: 'INSERT INTO tmp_precios_migracion (modelo, precio) VALUES (?, ?) ON CONFLICT (modelo) DO NOTHING RETURNING modelo',
+      args: [f.modelo, f.precio],
+    });
+  }
+  await db.executeMultiple('DROP TABLE precios; ALTER TABLE tmp_precios_migracion RENAME TO precios;');
+  console.log(`[migración precios] tabla precios pasó de función+modelo a un precio único por modelo (${filas.length} modelos).`);
+}
+
 // Vista de lectura: expone el estado ACTUAL de cada sticker (identidad +
 // última fila vigente de sticker_estados) con los mismos nombres de columna
 // que tenía la tabla `stickers` antes de la migración — así casi todo el
@@ -267,24 +308,16 @@ if (columnasViejas.length > 0) {
 await db.executeMultiple(`
   CREATE OR REPLACE VIEW stickers_actual AS
   SELECT st.id, st.codigo_publico, st.uid_nfc, st.lote_id, st.creado_en,
-         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde, se.entregado_en
+         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde
   FROM stickers st
   JOIN sticker_estados se ON se.sticker_id = st.id AND se.vigente_hasta IS NULL;
 `);
 
-// Precarga la matriz función×modelo con los precios que había fijos por
-// modelo (mismo valor para las 8 funciones) — el admin los puede editar
-// después, combinación por combinación, desde el panel.
-const FUNCIONES_DEFAULT = ['whatsapp', 'instagram', 'pago', 'menu', 'review', 'web', 'agenda', 'linktree'];
+// Precarga un precio por modelo — el admin lo puede editar después desde el panel.
 const PRECIOS_DEFAULT_POR_MODELO = { llavero: 8500, tarjeta: 7500, placa: 11000, suelto: 4500 };
 const preciosExistentes = (await db.execute('SELECT COUNT(*) AS n FROM precios')).rows[0].n;
 if (Number(preciosExistentes) === 0) {
-  for (const funcion of FUNCIONES_DEFAULT) {
-    for (const [modelo, precio] of Object.entries(PRECIOS_DEFAULT_POR_MODELO)) {
-      await db.execute({
-        sql: 'INSERT INTO precios (funcion, modelo, precio) VALUES (?, ?, ?)',
-        args: [funcion, modelo, precio],
-      });
-    }
+  for (const [modelo, precio] of Object.entries(PRECIOS_DEFAULT_POR_MODELO)) {
+    await db.execute({ sql: 'INSERT INTO precios (modelo, precio) VALUES (?, ?)', args: [modelo, precio] });
   }
 }

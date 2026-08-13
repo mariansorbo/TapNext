@@ -150,10 +150,10 @@ function wireModal(triggerId, overlayId, closeId) {
 }
 wireModal('toggle-add-batch', 'batch-modal-overlay', 'batch-modal-close');
 wireModal('toggle-add-individual', 'individual-modal-overlay', 'individual-modal-close');
+wireModal('toggle-precios', 'precios-modal-overlay', 'precios-modal-close');
 
 let vendedoresCache = [];
 let stickersCache = [];
-let stockFilter = 'asignados';
 
 async function loadVendedores() {
   const container = document.getElementById('vendedores-table');
@@ -173,6 +173,7 @@ async function loadVendedores() {
             <td>${v.whatsapp ? (v.tieneLogin ? `${v.whatsapp} ✓ panel` : `${v.whatsapp} (sin contraseña)`) : '—'}</td>
             <td>${v.stockDisponible} / ${v.stockTotal}</td>
             <td>
+              <button type="button" class="row-btn copy-link-btn" data-link="${v.linkCompra}">Copiar link</button>
               <button type="button" class="row-btn ver-stock-btn" data-id="${v.id}">Ver stock asignado</button>
               <button type="button" class="row-btn edit-vendedor-btn" data-id="${v.id}">Editar</button>
               <button type="button" class="row-btn danger delete-vendedor-btn" data-id="${v.id}">Eliminar</button>
@@ -201,6 +202,18 @@ async function loadVendedores() {
 
       container.innerHTML = `<table><thead><tr><th>Nombre</th><th>Código ref.</th><th>Comisión</th><th>WhatsApp / panel</th><th>Stock disponible / total</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
+      container.querySelectorAll('.copy-link-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(btn.dataset.link);
+            const original = btn.textContent;
+            btn.textContent = 'Copiado ✓';
+            setTimeout(() => (btn.textContent = original), 1500);
+          } catch {
+            window.prompt('Copiá el link:', btn.dataset.link);
+          }
+        });
+      });
       container.querySelectorAll('.ver-stock-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           const vendedor = vendedoresCache.find((v) => String(v.id) === btn.dataset.id);
@@ -296,6 +309,9 @@ document.getElementById('create-vendedor-button').addEventListener('click', asyn
     document.getElementById('new-vendedor-whatsapp').value = '';
     document.getElementById('new-vendedor-password').value = '';
     await loadVendedores();
+    const panel = document.getElementById('add-vendedor-panel');
+    panel.hidden = true;
+    document.getElementById('toggle-add-vendedor').classList.remove('is-open');
   } catch (err) {
     status.className = 'modal-status is-error';
     status.textContent = err.message;
@@ -334,126 +350,192 @@ function closeStockModal() {
   stockModalOverlay.classList.remove('is-open');
 }
 
-// Modal "Editar NFC" — solo se ofrece mientras el NFC está en stock y sin
-// vendedor asignado. Una vez que tiene vendedor, código+función+modelo quedan
-// fijos (ya es el input que le entregaste a esa persona para vender).
-const editStockModalOverlay = document.getElementById('edit-stock-modal-overlay');
-const editStockCodigo = document.getElementById('edit-stock-codigo');
-const editStockFuncionSelect = document.getElementById('edit-stock-funcion');
-const editStockModeloSelect = document.getElementById('edit-stock-modelo');
-const editStockVendedorSelect = document.getElementById('edit-stock-vendedor');
-const editStockStatus = document.getElementById('edit-stock-status');
-let editingStickerId = null;
-
-document.getElementById('edit-stock-modal-close').addEventListener('click', closeEditStockModal);
-editStockModalOverlay.addEventListener('click', (e) => {
-  if (e.target === editStockModalOverlay) closeEditStockModal();
-});
-
-function openEditStockModal(sticker) {
-  editingStickerId = sticker.id;
-  editStockCodigo.textContent = sticker.codigoPublico;
-  editStockFuncionSelect.value = sticker.funcion || '';
-  editStockModeloSelect.value = sticker.modelo || '';
-  editStockVendedorSelect.innerHTML =
-    '<option value="">Sin asignar</option>' +
-    vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
-  editStockVendedorSelect.value = '';
-  editStockStatus.textContent = '';
-  editStockStatus.className = 'modal-status';
-  editStockModalOverlay.classList.add('is-open');
-}
-function closeEditStockModal() {
-  editStockModalOverlay.classList.remove('is-open');
-  editingStickerId = null;
-}
-
-document.getElementById('edit-stock-save-button').addEventListener('click', async () => {
-  if (!editingStickerId) return;
-  editStockStatus.className = 'modal-status';
-  editStockStatus.textContent = 'Guardando...';
-  try {
-    await api(`/stickers/${editingStickerId}/funcion`, {
-      method: 'PATCH',
-      body: JSON.stringify({ funcion: editStockFuncionSelect.value }),
-    });
-    await api(`/stickers/${editingStickerId}/modelo`, {
-      method: 'PATCH',
-      body: JSON.stringify({ modelo: editStockModeloSelect.value }),
-    });
-    if (editStockVendedorSelect.value) {
-      await api(`/stickers/${editingStickerId}/asignar`, {
-        method: 'PATCH',
-        body: JSON.stringify({ vendedorId: editStockVendedorSelect.value }),
-      });
-    }
-    closeEditStockModal();
-    await Promise.all([loadVendedores(), loadStickers()]);
-  } catch (err) {
-    editStockStatus.className = 'modal-status is-error';
-    editStockStatus.textContent = err.message;
-  }
-});
-
-document.querySelectorAll('.admin-filter-btn').forEach((btn) => {
-  btn.classList.toggle('is-active', btn.dataset.filter === stockFilter);
-  btn.addEventListener('click', () => {
-    stockFilter = btn.dataset.filter;
-    document.querySelectorAll('.admin-filter-btn').forEach((b) => b.classList.toggle('is-active', b === btn));
-    renderStickersTable();
-  });
-});
-
+// Inventario en 3 tablas, según en qué paso del flujo está cada NFC:
+//   1. Crudos: falta función y/o modelo (todavía editable acá mismo).
+//   2. Productos: ya tiene función+modelo, sin vendedor — se le asigna uno.
+//   3. Asignados: ya tiene vendedor, todavía sin vender.
+// Lo vendido no aparece acá — se ve en la sección Ventas.
 async function loadStickers() {
   try {
     stickersCache = await api('/stickers');
-    renderStickersTable();
+    renderCrudosTable();
+    renderProductosTable();
+    renderAsignadosTable();
   } catch (err) {
-    document.getElementById('stickers-table').innerHTML = `<p class="admin-empty">${err.message}</p>`;
+    const msg = `<p class="admin-empty">${err.message}</p>`;
+    document.getElementById('crudos-table').innerHTML = msg;
+    document.getElementById('productos-table').innerHTML = msg;
+    document.getElementById('asignados-table').innerHTML = msg;
   }
 }
 
-function renderStickersTable() {
-  const container = document.getElementById('stickers-table');
-  const stickers = stockFilter === 'asignados' ? stickersCache.filter((s) => s.vendedor) : stickersCache;
+const FUNCION_OPTIONS = Object.entries(FUNCION_LABELS)
+  .map(([id, label]) => `<option value="${id}">${label}</option>`)
+  .join('');
+const MODELO_OPTIONS_INV = ['llavero', 'tarjeta', 'placa']
+  .map((id) => `<option value="${id}">${id[0].toUpperCase()}${id.slice(1)}</option>`)
+  .join('');
 
-  if (!stickers.length) {
+function renderCrudosTable() {
+  const container = document.getElementById('crudos-table');
+  const crudos = stickersCache.filter((s) => s.estado === 'en_stock' && !s.vendedor && (!s.funcion || !s.modelo));
+
+  if (!crudos.length) {
     container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
     return;
   }
 
-  // Modelo y vendedor son de solo lectura acá una vez asignados. Mientras el
-  // NFC esté en stock y SIN vendedor, se puede editar vía el botón "Editar"
-  // (abre un modal) — apenas tiene vendedor, código+función+modelo quedan
-  // fijos (ya es el input que se le entregó a esa persona para vender).
-  const rowsHtml = stickers
-    .map((s) => {
-      const isStock = s.estado === 'en_stock';
-      const isLocked = Boolean(s.vendedor);
-      const acciones = [];
-      if (isStock && !isLocked) acciones.push(`<button type="button" class="row-btn edit-stock-btn" data-id="${s.id}">Editar</button>`);
-      if (isStock) acciones.push(`<button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>`);
-
-      return `<tr>
+  const rowsHtml = crudos
+    .map(
+      (s) => `<tr>
         <td><b>${s.codigoPublico}</b></td>
-        <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
-        <td>${s.modelo || '—'}</td>
-        <td>${ESTADO_LABELS[s.estado] || s.estado}</td>
-        <td>${s.vendedor ? `${s.vendedor.nombre} (${s.vendedor.codigoRef})` : '—'}</td>
-        <td>${s.comprador ? s.comprador.whatsapp : '—'}</td>
-        <td>${acciones.join(' ')}</td>
-      </tr>`;
-    })
+        <td>
+          <select class="row-funcion-select" data-id="${s.id}">
+            <option value="">Sin asignar</option>
+            ${FUNCION_OPTIONS}
+          </select>
+        </td>
+        <td>
+          <select class="row-modelo-select" data-id="${s.id}">
+            <option value="">Sin asignar</option>
+            ${MODELO_OPTIONS_INV}
+          </select>
+        </td>
+        <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
+      </tr>`
+    )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Estado</th><th>Vendedor</th><th>Comprador</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
-  container.querySelectorAll('.edit-stock-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const sticker = stickersCache.find((s) => String(s.id) === btn.dataset.id);
-      openEditStockModal(sticker);
+  container.querySelectorAll('.row-funcion-select').forEach((select) => {
+    const s = crudos.find((c) => String(c.id) === select.dataset.id);
+    select.value = s.funcion || '';
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      try {
+        await api(`/stickers/${select.dataset.id}/funcion`, {
+          method: 'PATCH',
+          body: JSON.stringify({ funcion: select.value }),
+        });
+        await loadStickers();
+      } catch (err) {
+        select.disabled = false;
+        alert(err.message);
+      }
     });
   });
+  container.querySelectorAll('.row-modelo-select').forEach((select) => {
+    const s = crudos.find((c) => String(c.id) === select.dataset.id);
+    select.value = s.modelo || '';
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      try {
+        await api(`/stickers/${select.dataset.id}/modelo`, {
+          method: 'PATCH',
+          body: JSON.stringify({ modelo: select.value }),
+        });
+        await loadStickers();
+      } catch (err) {
+        select.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+  wireDeleteButtons(container);
+}
+
+function renderProductosTable() {
+  const container = document.getElementById('productos-table');
+  const productos = stickersCache.filter((s) => s.estado === 'en_stock' && !s.vendedor && s.funcion && s.modelo);
+
+  if (!productos.length) {
+    container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
+    return;
+  }
+
+  const rowsHtml = productos
+    .map(
+      (s) => `<tr>
+        <td><b>${s.codigoPublico}</b></td>
+        <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
+        <td>${s.modelo}</td>
+        <td>
+          <select class="row-vendedor-select" data-id="${s.id}">
+            <option value="">Sin asignar</option>
+            ${vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('')}
+          </select>
+        </td>
+        <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
+      </tr>`
+    )
+    .join('');
+
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+  container.querySelectorAll('.row-vendedor-select').forEach((select) => {
+    select.addEventListener('change', async () => {
+      if (!select.value) return;
+      select.disabled = true;
+      try {
+        await api(`/stickers/${select.dataset.id}/asignar`, {
+          method: 'PATCH',
+          body: JSON.stringify({ vendedorId: select.value }),
+        });
+        await Promise.all([loadStickers(), loadVendedores()]);
+      } catch (err) {
+        select.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+  wireDeleteButtons(container);
+}
+
+function renderAsignadosTable() {
+  const container = document.getElementById('asignados-table');
+  const asignados = stickersCache.filter((s) => s.estado === 'en_stock' && s.vendedor);
+
+  if (!asignados.length) {
+    container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
+    return;
+  }
+
+  const rowsHtml = asignados
+    .map(
+      (s) => `<tr>
+        <td><b>${s.codigoPublico}</b></td>
+        <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
+        <td>${s.modelo}</td>
+        <td>${s.vendedor.nombre} (${s.vendedor.codigoRef})</td>
+        <td>Asignado, sin vender</td>
+        <td>${s.asignadoEn ? new Date(s.asignadoEn).toLocaleDateString('es-AR') : '—'}</td>
+        <td>
+          <button type="button" class="row-btn quitar-vendedor-btn" data-id="${s.id}">Quitar vendedor</button>
+          <button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>
+        </td>
+      </tr>`
+    )
+    .join('');
+
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+  container.querySelectorAll('.quitar-vendedor-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await api(`/stickers/${btn.dataset.id}/asignar`, { method: 'PATCH', body: JSON.stringify({ vendedorId: null }) });
+        await Promise.all([loadStickers(), loadVendedores()]);
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+  wireDeleteButtons(container);
+}
+
+function wireDeleteButtons(container) {
   container.querySelectorAll('.delete-sticker-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!confirm('¿Eliminar este sticker sin vender?')) return;
@@ -531,33 +613,19 @@ const MODELO_LABELS = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', 
 const MODELO_ORDEN = ['llavero', 'tarjeta', 'placa', 'suelto'];
 
 async function loadPrecios() {
-  const container = document.getElementById('precios-table');
+  const container = document.getElementById('precios-form');
+  const status = document.getElementById('precios-status');
   try {
     const precios = await api('/precios');
-    const porFuncion = {};
-    precios.forEach((p) => {
-      porFuncion[p.funcion] = porFuncion[p.funcion] || {};
-      porFuncion[p.funcion][p.modelo] = p.precio;
-    });
-    const funciones = Object.keys(FUNCION_LABELS);
+    const porModelo = Object.fromEntries(precios.map((p) => [p.modelo, p.precio]));
 
-    const headHtml = `<tr><th>Función</th>${MODELO_ORDEN.map((m) => `<th>${MODELO_LABELS[m]}</th>`).join('')}</tr>`;
-    const rowsHtml = funciones
-      .map(
-        (funcion) => `<tr>
-          <td><b>${FUNCION_LABELS[funcion]}</b></td>
-          ${MODELO_ORDEN.map(
-            (modelo) => `<td>
-              <input type="number" class="precio-input" min="0" step="50"
-                data-funcion="${funcion}" data-modelo="${modelo}"
-                value="${porFuncion[funcion]?.[modelo] ?? ''}">
-            </td>`
-          ).join('')}
-        </tr>`
-      )
-      .join('');
-
-    container.innerHTML = `<table><thead>${headHtml}</thead><tbody>${rowsHtml}</tbody></table>`;
+    container.innerHTML = MODELO_ORDEN.map(
+      (modelo) => `
+      <label>
+        <span>${MODELO_LABELS[modelo]}</span>
+        <input type="number" class="precio-input" min="0" step="50" data-modelo="${modelo}" value="${porModelo[modelo] ?? ''}">
+      </label>`
+    ).join('');
 
     container.querySelectorAll('.precio-input').forEach((input) => {
       let lastSaved = input.value;
@@ -567,15 +635,17 @@ async function loadPrecios() {
           input.value = lastSaved;
           return;
         }
+        status.className = 'modal-status';
+        status.textContent = 'Guardando...';
         try {
-          await api('/precios', {
-            method: 'PATCH',
-            body: JSON.stringify({ funcion: input.dataset.funcion, modelo: input.dataset.modelo, precio }),
-          });
+          await api('/precios', { method: 'PATCH', body: JSON.stringify({ modelo: input.dataset.modelo, precio }) });
           lastSaved = input.value;
+          status.className = 'modal-status is-success';
+          status.textContent = 'Guardado.';
         } catch (err) {
           input.value = lastSaved;
-          alert(err.message);
+          status.className = 'modal-status is-error';
+          status.textContent = err.message;
         }
       });
     });

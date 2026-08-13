@@ -11,3 +11,9 @@ export function hashValue(value) {
 export function generateToken() {
   return randomBytes(32).toString('hex');
 }
+
+// Token corto para el link público del vendedor (?s=...) — no adivinable
+// (2^48 de espacio) pero lo bastante corto para un QR/URL prolija.
+export function generateLinkToken() {
+  return randomBytes(6).toString('hex');
+}

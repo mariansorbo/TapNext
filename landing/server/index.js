@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
-import { generateOtp, hashValue, generateToken } from './otp.js';
+import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
 import { WHATSAPP_ENABLED, enviarOtpWhatsapp } from './whatsapp.js';
 
 const PORT = process.env.PORT || 3001;
@@ -52,8 +52,8 @@ const mpClient = MP_ENABLED ? new MercadoPagoConfig({ accessToken: MP_ACCESS_TOK
 // modelo = NULL en la tabla stickers, tanto para stock todavía sin asignar
 // como, una vez con vendedor, para stock deliberadamente destinado a
 // venderse suelto (no hay forma de distinguir ambos casos en el inventario;
-// la distinción solo importa al momento de la venta). Los precios de cada
-// combinación función+modelo viven en la tabla `precios` (ver /api/admin/precios).
+// la distinción solo importa al momento de la venta). El precio de cada
+// modelo (mismo para cualquier función) vive en la tabla `precios` (ver /api/admin/precios).
 
 function deriveChipPassword(uidNfc) {
   // Hex de 8 bytes — el software de programación del chip suele necesitar
@@ -127,7 +127,6 @@ async function transicionarSticker(stickerId, patch) {
     vendedor_id: 'vendedor_id' in patch ? patch.vendedor_id : actual.vendedor_id,
     comprador_id: 'comprador_id' in patch ? patch.comprador_id : actual.comprador_id,
     estado: 'estado' in patch ? patch.estado : actual.estado,
-    entregado_en: 'entregado_en' in patch ? patch.entregado_en : actual.entregado_en,
   };
   siguiente.etapa = derivarEtapa(siguiente);
 
@@ -135,18 +134,9 @@ async function transicionarSticker(stickerId, patch) {
     stickerId,
   ]);
   await run(
-    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado, entregado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      stickerId,
-      siguiente.etapa,
-      siguiente.modelo,
-      siguiente.funcion,
-      siguiente.vendedor_id,
-      siguiente.comprador_id,
-      siguiente.estado,
-      siguiente.entregado_en,
-    ]
+    `INSERT INTO sticker_estados (sticker_id, etapa, modelo, funcion, vendedor_id, comprador_id, estado)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [stickerId, siguiente.etapa, siguiente.modelo, siguiente.funcion, siguiente.vendedor_id, siguiente.comprador_id, siguiente.estado]
   );
   return siguiente;
 }
@@ -416,10 +406,13 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
 // de verdad al sticker cuando el webhook confirma el pago (ver /api/pagos/webhook).
 // Stock disponible de un vendedor puntual — lo usa el wizard de compra presencial
 // para mostrar solo los modelos que ese vendedor tiene físicamente consigo (con
-// su NFC ya adentro), en vez del catálogo completo.
+// su NFC ya adentro), en vez del catálogo completo. Se busca primero por
+// link_token (link nuevo, no adivinable); codigo_ref queda como fallback
+// TEMPORAL mientras se reimprimen los stickers ya repartidos con el link
+// viejo (?ref=<codigo_ref>) — sacar el fallback una vez reimpresos todos.
 app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   const ref = String(req.params.ref || '').trim().toLowerCase();
-  const vendedor = await get('SELECT id, nombre FROM vendedores WHERE codigo_ref = ?', [ref]);
+  const vendedor = await get('SELECT id, nombre FROM vendedores WHERE link_token = ? OR codigo_ref = ?', [ref, ref]);
   if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
 
   const rows = await all(
@@ -433,10 +426,9 @@ app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   });
 });
 
-// Matriz de precios función+modelo — la usa el wizard de compra para calcular
-// el total real de cada combinación (ya no es un precio fijo por modelo).
+// Precio por modelo — lo usa el wizard de compra para calcular el total.
 app.get('/api/public/precios', async (req, res) => {
-  const rows = await all('SELECT funcion, modelo, precio FROM precios');
+  const rows = await all('SELECT modelo, precio FROM precios');
   res.json(rows);
 });
 
@@ -449,7 +441,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
 
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
-  const vendedorRef = String(req.body?.vendedorRef || '').trim().toLowerCase();
+  const vendedorToken = String(req.body?.vendedorToken || '').trim().toLowerCase();
   const envio = req.body?.envio && Number(req.body.envio.price) > 0 ? req.body.envio : null;
 
   if (!items.length) return res.status(400).json({ error: 'No hay productos en la compra.' });
@@ -464,8 +456,12 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     // desde su panel a dónde redirige — no hace falta decidirlo antes de pagar.
   }
 
+  // Mismo fallback temporal que el endpoint de stock: acepta el token nuevo o
+  // el codigo_ref viejo, hasta reimprimir todos los stickers repartidos.
   let vendedor = null;
-  if (vendedorRef) vendedor = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [vendedorRef]);
+  if (vendedorToken) {
+    vendedor = await get('SELECT id FROM vendedores WHERE link_token = ? OR codigo_ref = ?', [vendedorToken, vendedorToken]);
+  }
 
   // Reservamos un sticker en_stock por cada item pedido, antes de crear nada,
   // para no dejar una venta a medio armar si se corta el stock a mitad de camino.
@@ -487,12 +483,8 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     if (!sticker || reservados.some((r) => r.sticker.id === sticker.id)) {
       return res.status(409).json({ error: `No hay stock disponible de ${modelo} en este momento.` });
     }
-    // El precio depende de la combinación función+modelo, no solo del modelo.
-    const precioRow = await get('SELECT precio FROM precios WHERE funcion = ? AND modelo = ?', [
-      String(item.destinoTipo).trim(),
-      modelo,
-    ]);
-    if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${item.destinoTipo} + ${modelo}.` });
+    const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
+    if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${modelo}.` });
     reservados.push({ sticker, item, precio: precioRow.precio });
   }
 
@@ -735,16 +727,35 @@ app.get('/api/vendedor/me', requireVendedor, (req, res) => {
   res.json({ id, nombre, codigoRef: codigo_ref, comisionPct: comision_pct });
 });
 
-// Stickers ya vendidos (etapa 'vendido') de este vendedor que todavía no se
-// marcaron como entregados — es la lista que el vendedor usa para saber qué
-// imprimible buscar y entregarle al comprador (ver mecanismo de verificación
-// por codigo_publico, RS-06).
-app.get('/api/vendedor/pendientes', requireVendedor, async (req, res) => {
+// Stock que el admin le asignó a este vendedor y todavía no vendió — lo que
+// tiene físicamente consigo para vender.
+app.get('/api/vendedor/stock', requireVendedor, async (req, res) => {
+  const rows = await all(
+    `SELECT id, codigo_publico, modelo, funcion FROM stickers_actual
+       WHERE vendedor_id = ? AND etapa = 'en_vendedor'
+       ORDER BY id`,
+    [req.vendedor.id]
+  );
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      codigoPublico: r.codigo_publico,
+      modelo: r.modelo || 'suelto',
+      funcion: r.funcion,
+    }))
+  );
+});
+
+// Ventas ya confirmadas (pagadas) de este vendedor — el codigo_publico de cada
+// una es el ID que tiene que coincidir con el imprimible que le entrega al
+// comprador (mecanismo de verificación de entrega, RS-06). El admin es quien
+// después marca la entrega/liquidación desde su propio panel.
+app.get('/api/vendedor/ventas', requireVendedor, async (req, res) => {
   const rows = await all(
     `SELECT s.id, s.codigo_publico, s.modelo, s.funcion, s.vigente_desde, c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
        FROM stickers_actual s
        LEFT JOIN compradores c ON c.id = s.comprador_id
-       WHERE s.vendedor_id = ? AND s.etapa = 'vendido' AND s.estado = 'activo' AND s.entregado_en IS NULL
+       WHERE s.vendedor_id = ? AND s.etapa = 'vendido' AND s.estado = 'activo'
        ORDER BY s.vigente_desde DESC`,
     [req.vendedor.id]
   );
@@ -760,25 +771,6 @@ app.get('/api/vendedor/pendientes', requireVendedor, async (req, res) => {
   );
 });
 
-// El vendedor marca el sticker como entregado una vez que le dio el
-// imprimible físico al comprador — no pisa `estado`, abre una nueva fila
-// versionada (mismo mecanismo SCD2 que el resto del ciclo de vida).
-app.patch('/api/vendedor/pendientes/:id/entregar', requireVendedor, async (req, res) => {
-  const stickerId = Number(req.params.id);
-  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND vendedor_id = ?', [
-    stickerId,
-    req.vendedor.id,
-  ]);
-  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
-  if (sticker.etapa !== 'vendido') {
-    return res.status(400).json({ error: 'Este sticker todavía no está vendido.' });
-  }
-  if (sticker.entregado_en) return res.status(400).json({ error: 'Este sticker ya fue marcado como entregado.' });
-
-  await transicionarSticker(stickerId, { entregado_en: new Date().toISOString() });
-  res.json({ ok: true });
-});
-
 app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const vendedores = await all(`
     SELECT v.*,
@@ -791,6 +783,8 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       id: v.id,
       nombre: v.nombre,
       codigoRef: v.codigo_ref,
+      linkToken: v.link_token,
+      linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token}`,
       comisionPct: v.comision_pct,
       whatsapp: v.whatsapp,
       tieneLogin: Boolean(v.password_hash),
@@ -823,11 +817,20 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
   }
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
+  const linkToken = generateLinkToken();
   const result = await run(
-    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, password_hash) VALUES (?, ?, ?, ?, ?)',
-    [nombre, codigoRef, comisionPct, whatsapp || null, passwordHash]
+    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, password_hash, link_token) VALUES (?, ?, ?, ?, ?, ?)',
+    [nombre, codigoRef, comisionPct, whatsapp || null, passwordHash, linkToken]
   );
-  res.status(201).json({ id: result.lastInsertRowid, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null });
+  res.status(201).json({
+    id: result.lastInsertRowid,
+    nombre,
+    codigoRef,
+    linkToken,
+    linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken}`,
+    comisionPct,
+    whatsapp: whatsapp || null,
+  });
 });
 
 app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
@@ -886,7 +889,7 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.creado_en, l.nombre AS lote_nombre,
+    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.creado_en, s.vigente_desde, l.nombre AS lote_nombre,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
       c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
     FROM stickers_actual s
@@ -904,6 +907,10 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       funcion: r.funcion,
       modelo: r.modelo,
       creadoEn: r.creado_en,
+      // Fecha desde la que está vigente el estado actual — cuando el sticker
+      // tiene vendedor asignado, coincide con la fecha de esa asignación (la
+      // transición de vendedor siempre abre una fila nueva en sticker_estados).
+      asignadoEn: r.vendedor_ref ? r.vigente_desde : null,
       lote: r.lote_nombre,
       vendedor: r.vendedor_nombre ? { nombre: r.vendedor_nombre, codigoRef: r.vendedor_ref } : null,
       comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
@@ -1069,26 +1076,23 @@ app.patch('/api/admin/stickers/:id/modelo', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Matriz de precios: cada combinación función+modelo imprimible tiene su
-// propio precio, editable desde el panel — ya no es un valor fijo por modelo.
+// Precio por modelo imprimible — mismo precio para cualquier función.
 app.get('/api/admin/precios', requireAdmin, async (req, res) => {
-  const rows = await all('SELECT funcion, modelo, precio FROM precios ORDER BY funcion, modelo');
+  const rows = await all('SELECT modelo, precio FROM precios ORDER BY modelo');
   res.json(rows);
 });
 
 app.patch('/api/admin/precios', requireAdmin, async (req, res) => {
-  const funcion = String(req.body?.funcion || '').trim();
   const modelo = String(req.body?.modelo || '').trim();
   const precio = Number(req.body?.precio);
 
-  if (!DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
   if (!MODELOS.includes(modelo) && modelo !== 'suelto') return res.status(400).json({ error: 'Modelo inválido.' });
   if (!Number.isFinite(precio) || precio < 0) return res.status(400).json({ error: 'Precio inválido.' });
 
   await run(
-    `INSERT INTO precios (funcion, modelo, precio) VALUES (?, ?, ?)
-     ON CONFLICT(funcion, modelo) DO UPDATE SET precio = excluded.precio`,
-    [funcion, modelo, precio]
+    `INSERT INTO precios (modelo, precio) VALUES (?, ?)
+     ON CONFLICT(modelo) DO UPDATE SET precio = excluded.precio`,
+    [modelo, precio]
   );
   res.json({ ok: true });
 });

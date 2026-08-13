@@ -15,12 +15,36 @@ const isPresencial = document.body.dataset.flow === 'presencial';
 applyBrand(isPresencial ? 'Comprá tu sticker' : 'Pedí tu sticker');
 initFaqAccordion();
 
-// Attribute this visit to a vendor's demo sticker, if present (?ref=nacho) — solo aplica en comprar.html.
-const ref = new URLSearchParams(window.location.search).get('ref');
-const refKicker = document.getElementById('buy-ref-kicker');
-if (ref) {
-  refKicker.textContent = `Recomendado por ${ref}`;
+// Atribuye esta visita al sticker "NextTap oficial" del vendedor, si vino con
+// el link presencial (?s=<token opaco>) — solo aplica en comprar.html.
+// El token se guarda en sessionStorage con timestamp: si el comprador navega
+// un rato sin el parámetro en la URL (ej. vuelve del checkout), la atribución
+// sigue en pie mientras no pase el TTL; pasado ese tiempo se pierde a propósito
+// para no atribuirle la venta a un vendedor con el que ya no está el comprador.
+const VENDOR_TOKEN_TTL_MS = 25 * 60_000;
+const VENDOR_TOKEN_KEY = 'nexttap_vendedor_token';
+
+function readVendorToken() {
+  const params = new URLSearchParams(window.location.search);
+  // ?s= es el link nuevo (token opaco); ?ref= es el link viejo (codigo_ref
+  // legible) — se acepta como fallback TEMPORAL mientras se reimprimen los
+  // stickers ya repartidos. Sacar el fallback a ?ref= una vez reimpresos todos.
+  const fromUrl = params.get('s') || params.get('ref');
+  if (fromUrl) {
+    sessionStorage.setItem(VENDOR_TOKEN_KEY, JSON.stringify({ token: fromUrl, ts: Date.now() }));
+    return fromUrl;
+  }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(VENDOR_TOKEN_KEY) || 'null');
+    if (saved && Date.now() - saved.ts < VENDOR_TOKEN_TTL_MS) return saved.token;
+  } catch {
+    // sessionStorage corrupto/inaccesible — se ignora, sigue sin atribución
+  }
+  return null;
 }
+
+const vendorToken = readVendorToken();
+const refKicker = document.getElementById('buy-ref-kicker');
 
 const PAY_STEP = 6;
 const STEP_SEQUENCE = [1, 2, 'cart', 3, 4, PAY_STEP];
@@ -58,18 +82,17 @@ const MODELS = [
   { id: 'suelto', label: 'Suelto', desc: 'Solo el sticker, sin impresión 3D', price: 4500 },
 ];
 
-// Precio real por combinación función+modelo, cargado desde el panel de Admin
-// (ver /api/public/precios). Hasta que resuelva, usamos el price de MODELS
-// como fallback (mismo precio para todas las funciones).
+// Precio real por modelo (mismo para cualquier función), cargado desde el
+// panel de Admin (ver /api/public/precios). Hasta que resuelva, usamos el
+// price de MODELS como fallback.
 let PRECIOS_MAP = {};
-function getPrecio(funcionId, modeloId) {
-  const key = `${funcionId}|${modeloId}`;
-  if (key in PRECIOS_MAP) return PRECIOS_MAP[key];
+function getPrecio(modeloId) {
+  if (modeloId in PRECIOS_MAP) return PRECIOS_MAP[modeloId];
   return MODELS.find((m) => m.id === modeloId)?.price || 0;
 }
 api('/public/precios')
   .then((rows) => {
-    PRECIOS_MAP = Object.fromEntries(rows.map((r) => [`${r.funcion}|${r.modelo}`, r.precio]));
+    PRECIOS_MAP = Object.fromEntries(rows.map((r) => [r.modelo, r.precio]));
   })
   .catch(() => {
     // si falla, seguimos con el fallback de MODELS.price
@@ -134,9 +157,10 @@ populateCartAddSelects();
 // Venta presencial: el vendedor solo tiene consigo los impresos 3D (con su NFC
 // ya adentro) que el admin le cargó a él — el comprador no puede elegir un
 // modelo que ese vendedor no tenga físicamente en mano.
-if (isPresencial && ref) {
-  api(`/public/vendedores/${ref}/stock`)
+if (isPresencial && vendorToken) {
+  api(`/public/vendedores/${vendorToken}/stock`)
     .then((data) => {
+      refKicker.textContent = `Recomendado por ${data.vendedor}`;
       const disponibles = MODELS.filter((m) => data.modelos.some((s) => s.modelo === m.id && s.cantidad > 0));
       if (!disponibles.length) {
         modelOptions.innerHTML = '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
@@ -335,14 +359,14 @@ confirmOtpButton.addEventListener('click', async () => {
 function renderSummary() {
   state.whatsapp = whatsappInput.value.trim();
 
-  const total = state.cart.reduce((sum, item) => sum + getPrecio(item.functionId, item.modelId), 0);
+  const total = state.cart.reduce((sum, item) => sum + getPrecio(item.modelId), 0);
   summaryBox.innerHTML = `
     <div class="cart-summary-title">Tu compra (${state.cart.length} producto${state.cart.length === 1 ? '' : 's'})</div>
     ${state.cart
       .map((item) => {
         const fn = FUNCTIONS.find((f) => f.id === item.functionId);
         const model = MODELS.find((m) => m.id === item.modelId);
-        const precio = getPrecio(item.functionId, item.modelId);
+        const precio = getPrecio(item.modelId);
         return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label}</b> · ${fn.label} — $${precio.toLocaleString('es-AR')}</div>`;
       })
       .join('')}
@@ -441,7 +465,7 @@ payButton.addEventListener('click', async () => {
     const data = await api('/ventas', {
       method: 'POST',
       headers: { Authorization: `Bearer ${state.authToken}` },
-      body: JSON.stringify({ items, vendedorRef: ref || '' }),
+      body: JSON.stringify({ items, vendedorToken: vendorToken || '' }),
     });
     // Mercado Pago se encarga del cobro real — al volver, back_urls trae ?venta=&pago=.
     window.location.href = data.initPoint;

@@ -40,10 +40,10 @@
     <!-- Flujo de vida del producto -->
     <div class="admin-flow" id="admin-flow"></div>
 
-    <!-- Inventario: registro de NFC crudo, asignación de modelo (pasos 1 y 3 del flujo) -->
+    <!-- Inventario: registro de NFC crudo → producto → asignado a vendedor (pasos 1, 3 y 4 del flujo) -->
     <div class="admin-section">
       <div class="admin-section-head">
-        <h3>Inventario de stickers</h3>
+        <h3>NFC crudos</h3>
         <div class="admin-head-actions">
           <button type="button" class="admin-add-btn" id="toggle-add-batch" title="Crear varios NFC de una, ya con modelo definido — para cuando programás un lote entero de chips iguales.">
             <span class="add-icon">+</span> Lote
@@ -51,22 +51,25 @@
           <button type="button" class="admin-add-btn" id="toggle-add-individual" title="Registrar un solo NFC leyendo su UID real desde el taller — sin definir modelo ni vendedor todavía, se asignan después por separado.">
             <span class="add-icon">+</span> NFC crudo
           </button>
+          <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
+            <span class="add-icon">$</span> Precios
+          </button>
         </div>
       </div>
-
-      <div class="admin-filter-toggle" id="stock-filter-toggle">
-        <button type="button" class="admin-filter-btn" data-filter="asignados">Asignados</button>
-        <button type="button" class="admin-filter-btn" data-filter="todos">Todos</button>
-      </div>
-
-      <div class="admin-table" id="stickers-table"></div>
+      <p class="section-lead" style="margin:0 0 16px;">Todavía sin función y/o modelo — asigná los dos para que pase a "Productos".</p>
+      <div class="admin-table admin-table--scroll" id="crudos-table"></div>
     </div>
 
-    <!-- Precios: cuánto cobrar por cada combinación función+modelo -->
     <div class="admin-section">
-      <h3>Precios por combinación función + modelo</h3>
-      <p class="section-lead" style="margin:0 0 16px;">Cada función (WhatsApp, Instagram, etc.) puede tener un precio distinto según el modelo — tocá un valor para editarlo.</p>
-      <div class="admin-table" id="precios-table"></div>
+      <h3>Productos</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Ya tienen función y modelo, listos para imprimir. Asignales un vendedor para que pasen a "Productos asignados".</p>
+      <div class="admin-table admin-table--scroll" id="productos-table"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Productos asignados</h3>
+      <p class="section-lead" style="margin:0 0 16px;">En poder de un vendedor, todavía sin vender.</p>
+      <div class="admin-table admin-table--scroll" id="asignados-table"></div>
     </div>
 
     <!-- Vendedores: a quién se le asigna el stock (paso 4 del flujo) -->
@@ -86,7 +89,7 @@
             <input type="text" id="new-vendedor-nombre" placeholder="Nacho">
           </label>
           <label>
-            <span>Código de referencia (para su link, ej. ?ref=nacho)</span>
+            <span>Código de referencia (para identificarlo en el panel, no se usa en su link público)</span>
             <input type="text" id="new-vendedor-ref" placeholder="nacho">
           </label>
           <label>
@@ -110,7 +113,7 @@
     <!-- Ventas: venta y activación (paso 5) -->
     <div class="admin-section">
       <h3>Ventas</h3>
-      <div class="admin-table" id="ventas-table"></div>
+      <div class="admin-table admin-table--scroll" id="ventas-table"></div>
     </div>
 
     <!-- Comisiones -->
@@ -209,43 +212,14 @@
   </div>
 </div>
 
-<!-- Modal: editar modelo/vendedor de un NFC en stock (solo mientras no tenga vendedor asignado) -->
-<div class="modal-overlay" id="edit-stock-modal-overlay">
+<!-- Modal: precios por modelo -->
+<div class="modal-overlay" id="precios-modal-overlay">
   <div class="modal">
-    <button type="button" class="modal-close" id="edit-stock-modal-close">✕</button>
-    <h3>Editar NFC <span id="edit-stock-codigo"></span></h3>
-    <p class="modal-sub">Función, modelo y vendedor se pueden cambiar mientras el NFC no esté asignado a un vendedor — una vez asignado, quedan fijos.</p>
-    <div class="modal-form">
-      <label>
-        <span>Función</span>
-        <select id="edit-stock-funcion">
-          <option value="">Sin asignar</option>
-          <option value="whatsapp">WhatsApp</option>
-          <option value="instagram">Instagram</option>
-          <option value="pago">Pago</option>
-          <option value="menu">Menú</option>
-          <option value="review">Reseña</option>
-          <option value="web">Web propia</option>
-          <option value="agenda">Agenda</option>
-          <option value="linktree">LinkTree</option>
-        </select>
-      </label>
-      <label>
-        <span>Modelo</span>
-        <select id="edit-stock-modelo">
-          <option value="">Sin asignar</option>
-          <option value="llavero">Llavero</option>
-          <option value="tarjeta">Tarjeta</option>
-          <option value="placa">Placa</option>
-        </select>
-      </label>
-      <label>
-        <span>Vendedor</span>
-        <select id="edit-stock-vendedor"><option value="">Sin asignar</option></select>
-      </label>
-    </div>
-    <button type="button" class="btn-primary modal-submit" id="edit-stock-save-button">Guardar</button>
-    <p class="modal-status" id="edit-stock-status"></p>
+    <button type="button" class="modal-close" id="precios-modal-close">✕</button>
+    <h3>Precios por modelo</h3>
+    <p class="modal-sub">Mismo precio para cualquier función.</p>
+    <div class="modal-form" id="precios-form"></div>
+    <p class="modal-status" id="precios-status"></p>
   </div>
 </div>
 

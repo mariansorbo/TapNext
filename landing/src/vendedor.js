@@ -13,7 +13,8 @@ const loginButton = document.getElementById('login-button');
 const loginStatus = document.getElementById('login-status');
 const dashboardTitle = document.getElementById('dashboard-title');
 const logoutButton = document.getElementById('logout-button');
-const pendientesList = document.getElementById('pendientes-list');
+const stockList = document.getElementById('stock-list');
+const ventasList = document.getElementById('ventas-list');
 
 function getToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -54,7 +55,7 @@ function showLogin() {
 async function showDashboard() {
   loginView.hidden = true;
   dashboardView.hidden = false;
-  await loadPendientes();
+  await Promise.all([loadStock(), loadVentas()]);
 }
 
 loginButton.addEventListener('click', async () => {
@@ -92,57 +93,75 @@ logoutButton.addEventListener('click', async () => {
   showLogin();
 });
 
-async function loadPendientes() {
-  pendientesList.innerHTML = '<p class="section-lead">Cargando...</p>';
+async function loadStock() {
+  stockList.innerHTML = '<p class="section-lead">Cargando...</p>';
   try {
-    const pendientes = await api('/pendientes');
-    renderPendientes(pendientes);
+    const stock = await api('/stock');
+    renderStock(stock);
   } catch (err) {
     if (err.message.includes('expirada') || err.message.includes('autenticación')) {
       clearToken();
       showLogin();
       return;
     }
-    pendientesList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
+    stockList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
   }
 }
 
-function renderPendientes(pendientes) {
-  if (!pendientes.length) {
-    pendientesList.innerHTML = '<p class="section-lead">No tenés entregas pendientes.</p>';
+function renderStock(stock) {
+  if (!stock.length) {
+    stockList.innerHTML = '<p class="section-lead">No tenés stock asignado todavía.</p>';
     return;
   }
-
-  pendientesList.innerHTML = '';
-  pendientes.forEach((p) => {
+  stockList.innerHTML = '';
+  stock.forEach((s) => {
     const card = document.createElement('div');
     card.className = 'sticker-card';
     card.innerHTML = `
       <div class="sticker-card-head">
         <div>
-          <div class="sticker-code pickup-id">${p.codigoPublico}</div>
-          <div class="sticker-meta">${p.modelo}${p.comprador ? ` · comprador: ${p.comprador.whatsapp}` : ''}</div>
+          <div class="sticker-code pickup-id">${s.codigoPublico}</div>
+          <div class="sticker-meta">${s.modelo}</div>
         </div>
-        <button type="button" class="btn-ghost entregar-btn">Marcar entregado</button>
       </div>
-      <p class="modal-status entregar-status"></p>
     `;
+    stockList.appendChild(card);
+  });
+}
 
-    card.querySelector('.entregar-btn').addEventListener('click', async () => {
-      if (!confirm(`¿Confirmás que ya le entregaste el imprimible ${p.codigoPublico} al comprador?`)) return;
-      const status = card.querySelector('.entregar-status');
-      status.className = 'modal-status';
-      status.textContent = 'Guardando...';
-      try {
-        await api(`/pendientes/${p.id}/entregar`, { method: 'PATCH' });
-        await loadPendientes();
-      } catch (err) {
-        status.className = 'modal-status is-error';
-        status.textContent = err.message;
-      }
-    });
+async function loadVentas() {
+  ventasList.innerHTML = '<p class="section-lead">Cargando...</p>';
+  try {
+    const ventas = await api('/ventas');
+    renderVentas(ventas);
+  } catch (err) {
+    if (err.message.includes('expirada') || err.message.includes('autenticación')) {
+      clearToken();
+      showLogin();
+      return;
+    }
+    ventasList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
+  }
+}
 
-    pendientesList.appendChild(card);
+function renderVentas(ventas) {
+  if (!ventas.length) {
+    ventasList.innerHTML = '<p class="section-lead">Todavía no tenés ventas confirmadas.</p>';
+    return;
+  }
+  ventasList.innerHTML = '';
+  ventas.forEach((v) => {
+    const card = document.createElement('div');
+    card.className = 'sticker-card';
+    card.innerHTML = `
+      <div class="sticker-card-head">
+        <div>
+          <div class="sticker-code pickup-id">${v.codigoPublico}</div>
+          <div class="sticker-meta">${v.modelo}${v.comprador ? ` · comprador: ${v.comprador.whatsapp}` : ''}</div>
+        </div>
+      </div>
+    `;
+    ventasList.appendChild(card);
   });
 }
 
