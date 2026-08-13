@@ -64,6 +64,13 @@
       <h3>Productos</h3>
       <p class="section-lead" style="margin:0 0 16px;">Ya tienen función y modelo, listos para imprimir. Asignales un vendedor para que pasen a "Productos asignados".</p>
       <div class="admin-table admin-table--scroll" id="productos-table"></div>
+
+      <div class="admin-bulk-assign" id="bulk-assign-bar" hidden>
+        <span id="bulk-assign-count"></span>
+        <select id="bulk-assign-vendedor"><option value="">Elegí vendedor…</option></select>
+        <button type="button" class="btn-primary" id="bulk-assign-button" style="width:auto;">Asignar seleccionados</button>
+        <p class="modal-status" id="bulk-assign-status"></p>
+      </div>
     </div>
 
     <div class="admin-section">

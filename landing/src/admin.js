@@ -457,6 +457,7 @@ function renderProductosTable() {
   const rowsHtml = productos
     .map(
       (s) => `<tr>
+        <td><input type="checkbox" class="bulk-check" data-id="${s.id}"></td>
         <td><b>${s.codigoPublico}</b></td>
         <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
         <td>${s.modelo}</td>
@@ -471,7 +472,7 @@ function renderProductosTable() {
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-vendedor-select').forEach((select) => {
     select.addEventListener('change', async () => {
@@ -489,8 +490,51 @@ function renderProductosTable() {
       }
     });
   });
+  container.querySelectorAll('.bulk-check').forEach((checkbox) => {
+    checkbox.addEventListener('change', updateBulkAssignBar);
+  });
+  updateBulkAssignBar();
   wireDeleteButtons(container);
 }
+
+const bulkAssignBar = document.getElementById('bulk-assign-bar');
+const bulkAssignCount = document.getElementById('bulk-assign-count');
+const bulkAssignVendedorSelect = document.getElementById('bulk-assign-vendedor');
+const bulkAssignStatus = document.getElementById('bulk-assign-status');
+
+function updateBulkAssignBar() {
+  const checked = document.querySelectorAll('#productos-table .bulk-check:checked');
+  bulkAssignBar.hidden = checked.length === 0;
+  bulkAssignCount.textContent = `${checked.length} seleccionado${checked.length === 1 ? '' : 's'}`;
+  const currentVendedor = bulkAssignVendedorSelect.value;
+  bulkAssignVendedorSelect.innerHTML =
+    '<option value="">Elegí vendedor…</option>' +
+    vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
+  bulkAssignVendedorSelect.value = currentVendedor;
+  bulkAssignStatus.textContent = '';
+  bulkAssignStatus.className = 'modal-status';
+}
+
+document.getElementById('bulk-assign-button').addEventListener('click', async () => {
+  const ids = Array.from(document.querySelectorAll('#productos-table .bulk-check:checked')).map((c) => c.dataset.id);
+  const vendedorId = bulkAssignVendedorSelect.value;
+  if (!ids.length || !vendedorId) {
+    bulkAssignStatus.className = 'modal-status is-error';
+    bulkAssignStatus.textContent = 'Elegí al menos un NFC y un vendedor.';
+    return;
+  }
+  bulkAssignStatus.className = 'modal-status';
+  bulkAssignStatus.textContent = 'Asignando...';
+  try {
+    for (const id of ids) {
+      await api(`/stickers/${id}/asignar`, { method: 'PATCH', body: JSON.stringify({ vendedorId }) });
+    }
+    await Promise.all([loadStickers(), loadVendedores()]);
+  } catch (err) {
+    bulkAssignStatus.className = 'modal-status is-error';
+    bulkAssignStatus.textContent = err.message;
+  }
+});
 
 function renderAsignadosTable() {
   const container = document.getElementById('asignados-table');
