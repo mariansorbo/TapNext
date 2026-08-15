@@ -63,6 +63,14 @@ function deriveChipPassword(uidNfc) {
   return createHmac('sha256', CHIP_MASTER_SECRET).update(uidNfc).digest('hex').slice(0, 16);
 }
 
+function deriveChipPack(uidNfc) {
+  // Mismo secreto + UID que PWD_AUTH, con un sufijo distinto para que no dé
+  // el mismo hash — así el PACK es igual de reproducible sin depender de que
+  // alguien lo recuerde a mano (ver 01a - Programación física del chip).
+  // NTAG213/215/216 usa PACK de 2 bytes.
+  return createHmac('sha256', CHIP_MASTER_SECRET).update(`${uidNfc}:pack`).digest('hex').slice(0, 4);
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -897,7 +905,7 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.creado_en, s.vigente_desde, l.nombre AS lote_nombre,
+    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.protegido_en, s.creado_en, s.vigente_desde, l.nombre AS lote_nombre,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
       c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
     FROM stickers_actual s
@@ -914,6 +922,7 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       estado: r.estado,
       funcion: r.funcion,
       modelo: r.modelo,
+      protegidoEn: r.protegido_en,
       creadoEn: r.creado_en,
       // Fecha desde la que está vigente el estado actual — cuando el sticker
       // tiene vendedor asignado, coincide con la fecha de esa asignación (la
@@ -1012,6 +1021,7 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
 
   const codigoPublico = codigoImprimible || generateCodigoPublico();
   const writePassword = deriveChipPassword(uidNfc);
+  const writePack = deriveChipPack(uidNfc);
   const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
     codigoPublico,
     uidNfc,
@@ -1025,7 +1035,42 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
     uidNfc,
     url: `${PUBLIC_ROUTER_BASE}/v/${codigoPublico}`,
     writePassword,
+    writePack,
   });
+});
+
+// Recalcula PWD_AUTH y PACK de un chip ya registrado — son determinísticos a
+// partir de uid_nfc + CHIP_MASTER_SECRET, así que se pueden pedir las veces
+// que haga falta (ej. para reprogramar un chip ya protegido) sin depender de
+// haber copiado la clave que se mostró una sola vez en el alta.
+app.get('/api/admin/stickers/:id/clave', requireAdmin, async (req, res) => {
+  if (!CHIP_MASTER_SECRET) {
+    return res.status(503).json({ error: 'Configurá CHIP_MASTER_SECRET para recalcular claves.' });
+  }
+  const stickerId = Number(req.params.id);
+  const sticker = await get('SELECT uid_nfc FROM stickers WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (!sticker.uid_nfc) return res.status(400).json({ error: 'Este sticker no tiene UID real (es de un lote simulado).' });
+
+  res.json({
+    writePassword: deriveChipPassword(sticker.uid_nfc),
+    writePack: deriveChipPack(sticker.uid_nfc),
+  });
+});
+
+// Confirmación manual de que el AUTH0 ya se escribió a mano en el chip
+// físico (ver 01a) — el sistema no tiene lector NFC conectado, así que nunca
+// puede verificar el candado por su cuenta, solo registrar que el admin lo
+// hizo.
+app.patch('/api/admin/stickers/:id/candado', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const sticker = await get('SELECT id, uid_nfc, protegido_en FROM stickers WHERE id = ?', [stickerId]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (!sticker.uid_nfc) return res.status(400).json({ error: 'Este sticker no tiene UID real (es de un lote simulado).' });
+  if (sticker.protegido_en) return res.status(409).json({ error: 'Ya estaba marcado como protegido.' });
+
+  await run('UPDATE stickers SET protegido_en = NOW() WHERE id = ?', [stickerId]);
+  res.json({ ok: true });
 });
 
 // Asignar (o quitar, mandando vendedorId vacío) el vendedor de un NFC en stock —

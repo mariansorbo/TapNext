@@ -96,6 +96,12 @@ await db.executeMultiple(`
     codigo_publico TEXT UNIQUE NOT NULL,
     uid_nfc TEXT UNIQUE,
     lote_id INTEGER REFERENCES lotes(id),
+    -- Cuándo se armó el candado físico (AUTH0 escrito) — ver
+    -- 01a - Programación física del chip. Vive acá y no en sticker_estados
+    -- porque no es un paso del ciclo de vida comercial: es un hecho físico
+    -- de una sola dirección, autodeclarado por el admin (el sistema no tiene
+    -- lector NFC conectado y nunca puede verificarlo solo).
+    protegido_en TIMESTAMPTZ,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
@@ -213,6 +219,7 @@ await db.executeMultiple(`
   -- Migraciones defensivas — Postgres soporta "IF NOT EXISTS" nativo en ADD
   -- COLUMN, así que no hace falta inspeccionar el schema a mano como con SQLite.
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS lote_id INTEGER REFERENCES lotes(id);
+  ALTER TABLE stickers ADD COLUMN IF NOT EXISTS protegido_en TIMESTAMPTZ;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS email TEXT;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS google_id TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id);
@@ -305,10 +312,15 @@ if (preciosConFuncion.length > 0) {
 // última fila vigente de sticker_estados) con los mismos nombres de columna
 // que tenía la tabla `stickers` antes de la migración — así casi todo el
 // backend sigue leyendo con un SELECT normal, solo escribe distinto.
+// protegido_en va al final del SELECT a propósito: CREATE OR REPLACE VIEW en
+// Postgres no permite reordenar/insertar columnas en el medio de una vista ya
+// existente, solo agregar al final (si no, tira "cannot change name of view
+// column" contra la posición que ocupaba antes creado_en).
 await db.executeMultiple(`
   CREATE OR REPLACE VIEW stickers_actual AS
   SELECT st.id, st.codigo_publico, st.uid_nfc, st.lote_id, st.creado_en,
-         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde
+         se.etapa, se.modelo, se.funcion, se.vendedor_id, se.comprador_id, se.estado, se.vigente_desde,
+         st.protegido_en
   FROM stickers st
   JOIN sticker_estados se ON se.sticker_id = st.id AND se.vigente_hasta IS NULL;
 `);

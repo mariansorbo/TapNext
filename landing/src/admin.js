@@ -409,12 +409,13 @@ function renderCrudosTable() {
             ${MODELO_OPTIONS_INV}
           </select>
         </td>
+        ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-funcion-select').forEach((select) => {
     const s = crudos.find((c) => String(c.id) === select.dataset.id);
@@ -450,6 +451,7 @@ function renderCrudosTable() {
       }
     });
   });
+  wireCandadoButtons(container);
   wireDeleteButtons(container);
 }
 
@@ -475,12 +477,13 @@ function renderProductosTable() {
             ${vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('')}
           </select>
         </td>
+        ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-vendedor-select').forEach((select) => {
     select.addEventListener('change', async () => {
@@ -502,6 +505,7 @@ function renderProductosTable() {
     checkbox.addEventListener('change', updateBulkAssignBar);
   });
   updateBulkAssignBar();
+  wireCandadoButtons(container);
   wireDeleteButtons(container);
 }
 
@@ -562,6 +566,7 @@ function renderAsignadosTable() {
         <td>${s.vendedor.nombre} (${s.vendedor.codigoRef})</td>
         <td>Asignado, sin vender</td>
         <td>${s.asignadoEn ? new Date(s.asignadoEn).toLocaleDateString('es-AR') : '—'}</td>
+        ${candadoCellHtml(s)}
         <td>
           <button type="button" class="row-btn quitar-vendedor-btn" data-id="${s.id}">Quitar vendedor</button>
           <button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>
@@ -570,7 +575,7 @@ function renderAsignadosTable() {
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.quitar-vendedor-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -584,7 +589,50 @@ function renderAsignadosTable() {
       }
     });
   });
+  wireCandadoButtons(container);
   wireDeleteButtons(container);
+}
+
+// Candado: columna que aparece en las 3 tablas de inventario, para cualquier
+// sticker con UID real (no aplica a los de lote simulado). "Ver clave" pide
+// PWD_AUTH/PACK recalculados; "Marcar candado" es la confirmación manual de
+// que ya se escribió AUTH0 en el chip físico — el sistema no lo puede saber solo.
+function candadoCellHtml(s) {
+  if (!s.uidNfc) return '<td>—</td>';
+  if (s.protegidoEn) return '<td>🔒 protegido</td>';
+  return `<td>
+    <button type="button" class="row-btn ver-clave-btn" data-id="${s.id}">Ver clave</button>
+    <button type="button" class="row-btn marcar-candado-btn" data-id="${s.id}">Marcar candado</button>
+  </td>`;
+}
+
+function wireCandadoButtons(container) {
+  container.querySelectorAll('.ver-clave-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const data = await api(`/stickers/${btn.dataset.id}/clave`);
+        alert(`PWD_AUTH: ${data.writePassword}\nPACK: ${data.writePack}`);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  container.querySelectorAll('.marcar-candado-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Ya escribiste AUTH0 en el chip físico? Esto solo lo registra acá, no programa nada.')) return;
+      btn.disabled = true;
+      try {
+        await api(`/stickers/${btn.dataset.id}/candado`, { method: 'PATCH' });
+        await loadStickers();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
 }
 
 function wireDeleteButtons(container) {
@@ -652,7 +700,12 @@ document.getElementById('create-individual-button').addEventListener('click', as
       <div><b>Código público:</b> ${data.codigoPublico}</div>
       <div><b>URL a grabar en el chip:</b> ${data.url}</div>
       <div><b>Clave de escritura (PWD_AUTH):</b> ${data.writePassword}</div>
+      <div><b>PACK:</b> ${data.writePack}</div>
+      <div style="margin-top:8px">
+        <button type="button" class="row-btn marcar-candado-btn" data-id="${data.id}">Marcar candado (ya escribí AUTH0)</button>
+      </div>
     `;
+    wireCandadoButtons(result);
     document.getElementById('individual-uid').value = '';
     await Promise.all([loadStickers(), loadVendedores()]);
   } catch (err) {
