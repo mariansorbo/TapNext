@@ -62,6 +62,12 @@ const VENDEDOR_SESSION_TTL_MINUTES = 60 * 12;
 const CHIP_MASTER_SECRET = process.env.CHIP_MASTER_SECRET || '';
 // URL pública del router (este mismo backend) — es lo que se graba en el chip.
 const PUBLIC_ROUTER_BASE = process.env.PUBLIC_ROUTER_BASE || `http://localhost:${process.env.PORT || 3001}`;
+// URL pública de ESTE backend. El webhook de Mercado Pago tiene que pegarle a
+// Render directo — PUBLIC_ROUTER_BASE puede apuntar al dominio del frontend
+// (para que los links /v/ queden lindos), y ahí el webhook daría 404. Render
+// setea RENDER_EXTERNAL_URL solo; en local cae a PUBLIC_ROUTER_BASE.
+const API_PUBLIC_URL =
+  process.env.RENDER_EXTERNAL_URL || process.env.API_PUBLIC_URL || PUBLIC_ROUTER_BASE;
 
 // Pagos — Mercado Pago Checkout Pro. Sin MP_ACCESS_TOKEN configurada, los
 // endpoints de venta/pago quedan inactivos (mismo patrón que Google Sign-In).
@@ -596,7 +602,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
           pending: `${FRONTEND_URL}/pedido.html?venta=${ventaId}&pago=pendiente`,
         },
         auto_return: 'approved',
-        notification_url: `${PUBLIC_ROUTER_BASE}/api/pagos/webhook`,
+        notification_url: `${API_PUBLIC_URL}/api/pagos/webhook`,
       },
     });
     res.status(201).json({ ventaId, initPoint: preference.init_point });
@@ -1421,6 +1427,28 @@ app.patch('/api/admin/ventas/:id/liquidar', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Cancelar una venta que quedó en 'pendiente' (pago abandonado o webhook que
+// nunca llegó): borra la venta y libera sus stickers de vuelta a 'en_stock'
+// (misma lógica que la rama 'rejected' del webhook). Solo pendientes.
+app.delete('/api/admin/ventas/:id', requireAdmin, async (req, res) => {
+  const ventaId = Number(req.params.id);
+  const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+  if (!venta) return res.status(404).json({ error: 'Venta no encontrada.' });
+  if (venta.estado_pago === 'confirmado') {
+    return res.status(400).json({ error: 'No se puede cancelar una venta ya pagada.' });
+  }
+  const items = await all('SELECT * FROM venta_items WHERE venta_id = ?', [ventaId]);
+  for (const item of items) {
+    const actual = await get('SELECT estado FROM stickers_actual WHERE id = ?', [item.sticker_id]);
+    if (actual && actual.estado !== 'activo') {
+      await transicionarSticker(item.sticker_id, { comprador_id: null, estado: 'en_stock' });
+    }
+  }
+  await run('DELETE FROM venta_items WHERE venta_id = ?', [ventaId]);
+  await run('DELETE FROM ventas WHERE id = ?', [ventaId]);
+  res.json({ ok: true, stickersLiberados: items.length });
+});
+
 // --- Router público: acá redirige el chip al ser tapeado (RF-14). ---
 // Siempre va al destino configurado, nunca abre el panel de edición.
 
@@ -1655,7 +1683,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
           pending: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}?pago=pendiente`,
         },
         auto_return: 'approved',
-        notification_url: `${PUBLIC_ROUTER_BASE}/api/pagos/webhook`,
+        notification_url: `${API_PUBLIC_URL}/api/pagos/webhook`,
       },
     });
     res.status(201).json({ ventaId: venta.id, initPoint: preference.init_point });

@@ -873,7 +873,9 @@ async function loadVentas() {
               ? `<button type="button" class="row-btn liquidar-btn" data-id="${v.id}">Liquidar</button>`
               : v.comisionLiquidada
                 ? '✓ liquidada'
-                : ''
+                : v.estadoPago === 'pendiente'
+                  ? `<button type="button" class="row-btn danger cancelar-venta-btn" data-id="${v.id}">Cancelar</button>`
+                  : ''
           }</td>
         </tr>`
       )
@@ -884,6 +886,19 @@ async function loadVentas() {
         try {
           await api(`/ventas/${btn.dataset.id}/liquidar`, { method: 'PATCH' });
           await Promise.all([loadVentas(), loadComisiones()]);
+        } catch (err) {
+          btn.disabled = false;
+          alert(err.message);
+        }
+      });
+    });
+    container.querySelectorAll('.cancelar-venta-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('¿Cancelar esta venta pendiente? Los stickers vuelven a stock.')) return;
+        btn.disabled = true;
+        try {
+          await api(`/ventas/${btn.dataset.id}`, { method: 'DELETE' });
+          await Promise.all([loadVentas(), loadStickers(), loadComisiones()]);
         } catch (err) {
           btn.disabled = false;
           alert(err.message);
