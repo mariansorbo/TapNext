@@ -1,5 +1,6 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
+import { initNfcGrabar } from './nfc-grabar.js';
 
 applyBrand('Admin');
 
@@ -159,6 +160,80 @@ function wireModal(triggerId, overlayId, closeId) {
 wireModal('toggle-add-batch', 'batch-modal-overlay', 'batch-modal-close');
 wireModal('toggle-add-individual', 'individual-modal-overlay', 'individual-modal-close');
 wireModal('toggle-precios', 'precios-modal-overlay', 'precios-modal-close');
+wireModal('toggle-lote-especial', 'especial-modal-overlay', 'especial-modal-close');
+
+// --- Modal "Lote especial": una fila por sticker (modelo + función) ---
+const MODELOS_ESP = ['llavero', 'tarjeta', 'placa'];
+const especialRows = document.getElementById('especial-rows');
+
+function especialAddRow(modelo = 'llavero', funcion = 'instagram') {
+  const row = document.createElement('div');
+  row.className = 'especial-row modal-form';
+  row.innerHTML = `
+    <label>
+      <span>Modelo</span>
+      <select class="esp-modelo">
+        ${MODELOS_ESP.map((m) => `<option value="${m}"${m === modelo ? ' selected' : ''}>${m[0].toUpperCase() + m.slice(1)}</option>`).join('')}
+      </select>
+    </label>
+    <label>
+      <span>¿A dónde apunta?</span>
+      <select class="esp-funcion">
+        <option value="">Sin definir</option>
+        ${Object.entries(FUNCION_LABELS).map(([v, l]) => `<option value="${v}"${v === funcion ? ' selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </label>
+    <button type="button" class="btn-ghost esp-remove" title="Quitar">✕</button>
+  `;
+  row.querySelector('.esp-remove').addEventListener('click', () => {
+    if (especialRows.children.length > 1) row.remove();
+  });
+  especialRows.appendChild(row);
+}
+
+document.getElementById('especial-add-row').addEventListener('click', () => especialAddRow());
+especialAddRow('llavero', 'whatsapp');
+especialAddRow('llavero', 'instagram');
+
+document.getElementById('create-especial-button').addEventListener('click', async () => {
+  const nombre = document.getElementById('especial-nombre').value.trim();
+  const status = document.getElementById('especial-status');
+  const result = document.getElementById('especial-result');
+  const items = [...especialRows.querySelectorAll('.especial-row')].map((r) => ({
+    modelo: r.querySelector('.esp-modelo').value,
+    funcion: r.querySelector('.esp-funcion').value || null,
+  }));
+  if (!items.length) {
+    status.className = 'modal-status is-error';
+    status.textContent = 'Agregá al menos un sticker.';
+    return;
+  }
+  status.className = 'modal-status';
+  status.textContent = 'Creando lote especial...';
+  result.hidden = true;
+  try {
+    const data = await api('/stickers/lote-especial', {
+      method: 'POST',
+      body: JSON.stringify({ nombre: nombre || undefined, items }),
+    });
+    status.className = 'modal-status is-success';
+    status.textContent = `Lote ${data.loteId} — ${data.cantidad} sticker(s) creados.`;
+    result.hidden = false;
+    result.innerHTML =
+      '<p style="margin-bottom:8px;"><b>Links para grabar en cada chip:</b></p>' +
+      data.creados
+        .map(
+          (c) =>
+            `<div style="font-family:var(--mono);font-size:.8rem;margin:4px 0;">` +
+            `${c.modelo}/${FUNCION_LABELS[c.funcion] || '—'} · <a href="${c.link}" target="_blank" rel="noopener">${c.link}</a></div>`
+        )
+        .join('');
+    await loadStickers();
+  } catch (err) {
+    status.className = 'modal-status is-error';
+    status.textContent = err.message;
+  }
+});
 
 let vendedoresCache = [];
 let stickersCache = [];
@@ -832,6 +907,12 @@ async function loadComisiones() {
     container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
   }
 }
+
+initNfcGrabar({
+  api,
+  getVendedores: () => vendedoresCache,
+  onSaved: () => { loadStickers(); },
+});
 
 if (getToken()) {
   showDashboard().catch(() => showLogin());

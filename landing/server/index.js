@@ -1059,45 +1059,61 @@ app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
 // sentinel = LOTE_ESPECIAL_PREFIX + codigo_publico. Devuelve la lista de links
 // de activación — uno por sticker — que hay que grabar en cada chip.
 app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => {
-  const modelo = String(req.body?.modelo || 'llavero').trim();
   const nombre = String(req.body?.nombre || '').trim() || `Lote especial ${new Date().toISOString().slice(0, 10)}`;
+  const modeloDefault = String(req.body?.modelo || 'llavero').trim();
 
-  if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
-
-  // `codigos` explícitos: para stickers YA impresos/grabados con un código
-  // decidido afuera (no se puede regrabar el chip, así que la base se adapta
-  // al sticker y no al revés). Si no se pasan, se generan al azar.
+  // Tres formas de decir qué crear (en orden de prioridad):
+  //  - items:   [{ modelo, funcion, codigo? }] → uno por entrada, con su función
+  //  - codigos: ["abc123", ...]                → stickers ya grabados afuera
+  //  - cantidad + modelo                       → N iguales, sin función
+  const items = Array.isArray(req.body?.items) ? req.body.items : null;
   const codigosPedidos = Array.isArray(req.body?.codigos)
     ? req.body.codigos.map((c) => String(c || '').trim().toLowerCase()).filter(Boolean)
     : null;
 
-  if (codigosPedidos) {
-    if (codigosPedidos.some((c) => !/^[a-z0-9]{3,32}$/.test(c))) {
+  let specs;
+  if (items) {
+    if (!items.length) return res.status(400).json({ error: 'Agregá al menos un sticker.' });
+    specs = items.map((it) => ({
+      codigo: it?.codigo ? String(it.codigo).trim().toLowerCase() : null,
+      modelo: String(it?.modelo || modeloDefault).trim(),
+      funcion: it?.funcion ? String(it.funcion).trim() : null,
+    }));
+  } else if (codigosPedidos) {
+    specs = codigosPedidos.map((c) => ({ codigo: c, modelo: modeloDefault, funcion: null }));
+  } else {
+    const cantidad = Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
+    specs = Array.from({ length: cantidad }, () => ({ codigo: null, modelo: modeloDefault, funcion: null }));
+  }
+  if (specs.length > 100) return res.status(400).json({ error: 'Máximo 100 stickers por lote.' });
+
+  for (const s of specs) {
+    if (!MODELOS.includes(s.modelo)) return res.status(400).json({ error: `Modelo inválido: ${s.modelo}` });
+    if (s.funcion && !DESTINO_TIPOS.includes(s.funcion)) {
+      return res.status(400).json({ error: `Función inválida: ${s.funcion}` });
+    }
+    if (s.codigo && !/^[a-z0-9]{3,32}$/.test(s.codigo)) {
       return res.status(400).json({ error: 'Cada código debe ser alfanumérico (3–32 chars).' });
     }
-    if (new Set(codigosPedidos).size !== codigosPedidos.length) {
-      return res.status(400).json({ error: 'Hay códigos repetidos en la lista.' });
-    }
-    const enUso = await all(
-      `SELECT codigo_publico FROM stickers WHERE codigo_publico = ANY(?)`,
-      [codigosPedidos]
-    );
+  }
+  const codigos = specs.map((s) => s.codigo).filter(Boolean);
+  if (new Set(codigos).size !== codigos.length) {
+    return res.status(400).json({ error: 'Hay códigos repetidos en la lista.' });
+  }
+  if (codigos.length) {
+    const enUso = await all(`SELECT codigo_publico FROM stickers WHERE codigo_publico = ANY(?)`, [codigos]);
     if (enUso.length) {
       return res.status(409).json({ error: `Ya existen: ${enUso.map((r) => r.codigo_publico).join(', ')}` });
     }
   }
 
-  const cantidad = codigosPedidos
-    ? codigosPedidos.length
-    : Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
-
-  const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, cantidad]);
+  const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, specs.length]);
   const loteId = loteResult.lastInsertRowid;
   const vendedorId = await vendedorEspecialId();
 
   const creados = [];
-  for (let i = 0; i < cantidad; i++) {
-    let codigoPublico = codigosPedidos ? codigosPedidos[i] : null;
+  for (const s of specs) {
+    let codigoPublico = s.codigo;
     // codigo_publico único (reintenta ante la colisión, muy poco probable)
     while (!codigoPublico) {
       const cand = generateCodigoPublico();
@@ -1110,13 +1126,15 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
       uidNfc,
       loteId,
     ]);
-    await crearEstadoInicial(result.lastInsertRowid, { modelo, funcion: null, vendedorId });
+    await crearEstadoInicial(result.lastInsertRowid, { modelo: s.modelo, funcion: s.funcion, vendedorId });
     creados.push({
       id: result.lastInsertRowid,
       codigoPublico,
-      // Se graba el router del backend (302 puro), no la landing: el primer tap
-      // de un lote especial sin dueño lo redirige a /activacion/ desde /v/, y una
-      // vez activado el tap va directo al destino sin pasar por ninguna pantalla.
+      modelo: s.modelo,
+      funcion: s.funcion,
+      // Se graba el router del backend (302 puro): el primer tap de un lote
+      // especial sin dueño redirige a /activacion/ desde /v/, y una vez
+      // activado el tap va directo al destino sin pasar por ninguna pantalla.
       link: `${PUBLIC_ROUTER_BASE}/v/${codigoPublico}`,
     });
   }

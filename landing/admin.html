@@ -36,6 +36,7 @@
     <div class="kicker">Admin</div>
     <h2>Panel de administración.</h2>
     <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
+    <button type="button" class="btn-ghost" id="open-grabar-button" title="Programar chips NFC en tanda desde el celular (Chrome Android).">🔧 Grabar chips NFC</button>
 
     <!-- Flujo de vida del producto -->
     <div class="admin-flow" id="admin-flow"></div>
@@ -47,6 +48,9 @@
         <div class="admin-head-actions">
           <button type="button" class="admin-add-btn" id="toggle-add-batch" title="Crear varios NFC de una, ya con modelo definido — para cuando programás un lote entero de chips iguales.">
             <span class="add-icon">+</span> Lote
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
+            <span class="add-icon">+</span> Lote especial
           </button>
           <button type="button" class="admin-add-btn" id="toggle-add-individual" title="Registrar un solo NFC leyendo su UID real desde el taller — sin definir modelo ni vendedor todavía, se asignan después por separado.">
             <span class="add-icon">+</span> NFC crudo
@@ -178,6 +182,26 @@
   </div>
 </div>
 
+<!-- Modal: lote especial (stickers ya impresos, activación con pago sin verificar mail) -->
+<div class="modal-overlay" id="especial-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="especial-modal-close">✕</button>
+    <h3>Crear lote especial</h3>
+    <p class="modal-sub">Cada sticker se marca como lote especial (activación con pago, sin verificar el mail). Definí uno por uno el modelo y a qué red apunta. Al crear te devuelve el link para grabar en cada chip.</p>
+    <div class="modal-form">
+      <label>
+        <span>Nombre del lote (opcional)</span>
+        <input type="text" id="especial-nombre" placeholder="ESPECIAL — feria noviembre">
+      </label>
+    </div>
+    <div id="especial-rows"></div>
+    <button type="button" class="btn-ghost" id="especial-add-row" style="margin:12px 0;">+ Agregar sticker</button>
+    <button type="button" class="btn-primary modal-submit" id="create-especial-button">Crear lote especial</button>
+    <p class="modal-status" id="especial-status"></p>
+    <div class="wizard-summary" id="especial-result" hidden></div>
+  </div>
+</div>
+
 <!-- Modal: registrar NFC crudo (chip real, desde el taller) -->
 <div class="modal-overlay" id="individual-modal-overlay">
   <div class="modal">
@@ -241,6 +265,52 @@
     <h3 id="stock-modal-title">Stock asignado</h3>
     <p class="modal-sub" id="stock-modal-sub"></p>
     <div class="admin-table" id="stock-modal-table"></div>
+  </div>
+</div>
+
+<!-- Modal: asistente "Grabar chips NFC" (Web NFC, Chrome Android) -->
+<div class="modal-overlay" id="grabar-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="grabar-modal-close">✕</button>
+
+    <div class="grabar-step" id="grabar-config">
+      <h3>Grabar chips NFC</h3>
+      <p class="modal-sub">Programá los chips uno por uno desde el teléfono: acercás el chip, se registra y se le graba la URL, y pasás al siguiente. El candado se hace después con NFC Tools. Necesitás Chrome en Android con NFC activado.</p>
+      <div class="modal-form">
+        <label>
+          <span>Cuántos vas a grabar (para la barra de progreso)</span>
+          <input type="number" id="grabar-objetivo" value="10" min="1" max="200">
+        </label>
+        <label>
+          <span>Función (opcional — se aplica a todos)</span>
+          <select id="grabar-funcion"></select>
+        </label>
+        <label>
+          <span>Modelo (opcional — se aplica a todos)</span>
+          <select id="grabar-modelo"></select>
+        </label>
+        <label>
+          <span>Vendedor (opcional — se aplica a todos)</span>
+          <select id="grabar-vendedor"><option value="">Sin asignar</option></select>
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="grabar-start">Empezar</button>
+      <p class="modal-status" id="grabar-config-status"></p>
+    </div>
+
+    <div class="grabar-step" id="grabar-run" hidden>
+      <div class="wizard-topbar">
+        <div class="wizard-progress" id="grabar-progress"></div>
+      </div>
+      <div class="grabar-count" id="grabar-count">0 / 10</div>
+      <div class="grabar-stage" id="grabar-stage"></div>
+      <p class="modal-status" id="grabar-status"></p>
+      <div class="wizard-nav">
+        <button type="button" class="btn-ghost" id="grabar-skip">Saltear este</button>
+        <button type="button" class="btn-primary" id="grabar-next" disabled>Siguiente chip</button>
+      </div>
+      <button type="button" class="btn-ghost" id="grabar-finish" style="margin-top:14px; width:100%;">Terminar</button>
+    </div>
   </div>
 </div>
 

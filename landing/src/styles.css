@@ -256,6 +256,27 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 .modal-status.is-error{color:#e07a7a;}
 body.modal-open{overflow:hidden;}
 
+/* Asistente "Grabar chips NFC" (admin) */
+.grabar-count{font-family:var(--mono); font-size:1.1rem; color:var(--paper); text-align:center; margin-bottom:18px;}
+.grabar-stage{min-height:180px; display:flex; align-items:center; justify-content:center;}
+.grabar-big{text-align:center; color:var(--paper-dim); font-size:1rem; line-height:1.5;}
+.grabar-big b{color:var(--paper);}
+.grabar-big .nfc-pulse{font-size:3rem; margin-bottom:14px; animation:grabar-pulse 1.4s ease-in-out infinite;}
+@keyframes grabar-pulse{0%,100%{opacity:0.35; transform:scale(0.92);} 50%{opacity:1; transform:scale(1.08);}}
+.grabar-key{font-family:var(--mono); color:var(--paper); word-break:break-all;}
+.grabar-hint{font-size:0.8rem; color:var(--paper-dim); margin-top:10px;}
+
+/* ADMIN — filas del modal "Lote especial" */
+.especial-row{
+  display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end;
+  padding:12px 0; border-bottom:1px solid var(--line);
+}
+.especial-row .esp-remove{
+  border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+  color:var(--paper-dim); align-self:end;
+}
+.especial-row .esp-remove:hover{border-color:#e07a7a; color:#e07a7a;}
+
 /* ACTIVACIÓN (activacion.html) */
 .activacion-pasos{margin:22px 0 8px; padding-left:1.1rem; display:grid; gap:10px;
   max-width:48ch; color:var(--paper-dim); font-size:1rem; line-height:1.5;}
