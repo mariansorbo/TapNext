@@ -67,37 +67,47 @@
 
     <div id="done-view" hidden>
       <h2>Ya está activado.</h2>
-      <p class="lead">Este sticker ya tiene dueño. Si sos vos, entrá a tu panel para cambiar a dónde redirige.</p>
+      <p class="lead">Este llavero ya tiene dueño. Si sos vos, entrá a tu panel para cambiar a dónde lleva.</p>
       <a href="/mi-panel.html" class="btn-primary panel-btn">Ir a Mi panel</a>
     </div>
 
+    <div id="pago-view" hidden>
+      <h2>Confirmando tu pago...</h2>
+      <p class="lead" id="pago-text">Esto tarda unos segundos. No cierres esta pantalla.</p>
+      <a href="/mi-panel.html" class="btn-ghost panel-btn" id="pago-panel-link" hidden>Ir a Mi panel</a>
+    </div>
+
     <div id="form-view" hidden>
-      <h2>Activá tu <span id="modelo-label">llavero</span>.</h2>
-      <p class="lead">Tenés el sticker en la mano, así que es tuyo. Elegí a dónde querés que lleve cuando alguien lo tapea y verificá tu <span id="canal-label">email</span> para poder editarlo después.</p>
+      <h2>Tu <span id="modelo-label">llavero</span> todavía no lleva a ningún lado.</h2>
+      <p class="lead">
+        Activalo una sola vez y es tuyo para siempre: cada vez que alguien lo apoya en el
+        teléfono, se abre <span id="cta-destino">tu Instagram</span>. ¿Querés cambiar a dónde
+        lleva más adelante? Lo hacés gratis desde tu panel, las veces que quieras.
+      </p>
+
+      <ol class="activacion-pasos">
+        <li><b>Verificá tu email</b> — así después podés entrar a editarlo.</li>
+        <li><b>Pagá la activación</b> <span id="precio-label"></span> — pago único, sin vueltas.</li>
+        <li><b>Listo</b> — cargás a dónde lleva y a usarlo.</li>
+      </ol>
 
       <div class="modal-form">
         <label>
-          <span>¿A dónde redirige?</span>
-          <select id="tipo"></select>
-        </label>
-        <label>
-          <span>Valor del destino</span>
-          <input type="text" id="valor" placeholder="wa.me/54911... / instagram.com/tucuenta / etc.">
-        </label>
-        <label>
-          <span id="destino-label">Tu email</span>
+          <span>Tu email</span>
           <input type="email" id="destino" placeholder="vos@ejemplo.com">
         </label>
       </div>
-      <button type="button" class="btn-primary panel-btn" id="send-otp">Enviar código</button>
+      <button type="button" class="btn-ghost panel-btn" id="send-otp">Enviar código</button>
 
       <div class="modal-form" id="otp-field" hidden>
         <label>
-          <span>Código recibido</span>
+          <span>Código que te llegó por email</span>
           <input type="text" inputmode="numeric" maxlength="6" id="otp" placeholder="000000">
         </label>
-        <button type="button" class="btn-primary panel-btn modal-submit" id="activar">Verificar y activar</button>
+        <button type="button" class="btn-ghost panel-btn modal-submit" id="verificar">Verificar email</button>
       </div>
+
+      <button type="button" class="btn-primary panel-btn" id="pagar" hidden>Pagar y activar</button>
       <p class="modal-status" id="status"></p>
     </div>
   </div>

@@ -256,6 +256,13 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 .modal-status.is-error{color:#e07a7a;}
 body.modal-open{overflow:hidden;}
 
+/* ACTIVACIÓN (activacion.html) */
+.activacion-pasos{margin:22px 0 8px; padding-left:1.1rem; display:grid; gap:10px;
+  max-width:48ch; color:var(--paper-dim); font-size:1rem; line-height:1.5;}
+.activacion-pasos li{padding-left:.2rem;}
+.activacion-pasos li b{color:var(--paper);}
+#cta-destino{color:var(--paper);}
+
 /* WIZARD (comprar.html) */
 .lead{font-size:1.05rem; color:var(--paper-dim); max-width:48ch;}
 .buy-hero .btn-primary{margin-top:28px;}

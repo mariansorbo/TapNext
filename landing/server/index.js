@@ -1514,9 +1514,9 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     }
   }
 
-  // Lote especial todavía sin activar: el primer tap del comprador lo lleva
-  // directo a la pantalla de activación libre (no a la landing).
-  if (sticker && esLoteEspecial(sticker.uid_nfc) && sticker.comprador_id == null) {
+  // Lote especial todavía sin activar (o con el pago sin confirmar): el tap
+  // lleva a la pantalla de activación para verificar el email y pagar.
+  if (sticker && esLoteEspecial(sticker.uid_nfc) && sticker.estado !== 'activo') {
     return res.redirect(302, `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`);
   }
 
@@ -1526,69 +1526,104 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   res.redirect(302, FRONTEND_URL);
 });
 
-// --- Activación libre del lote especial (sin vendedor, sin pago, sin OTP) ---
-// Posesión física del sticker = dueño legítimo. Ver LOTE_ESPECIAL_PREFIX.
+// --- Activación del lote especial: verificás tu email → pagás → editás ---
+// Los llaveros vienen impresos sin candado y sin ID. El flujo es:
+//   1. el que lo tiene en la mano verifica su email (ciclo OTP normal)
+//   2. paga la activación por Mercado Pago (una sola vez)
+//   3. el webhook de pago deja el sticker `activo` y ya lo edita desde Mi panel
+// El pago reusa toda la maquinaria de `ventas` / `venta_items` / webhook.
 
 app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
     return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
   }
-  const yaActivado = sticker.comprador_id != null;
-  const destino = yaActivado ? await get('SELECT valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
+  const modelo = sticker.modelo || 'llavero';
+  const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
+  const destino =
+    sticker.estado === 'activo' ? await get('SELECT valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
   res.json({
     codigo: sticker.codigo_publico,
-    modelo: sticker.modelo || 'llavero',
-    yaActivado,
-    // Si ya está activado, el tap tiene que ir al destino configurado — la
-    // página de activación redirige ahí en vez de mostrarse.
+    modelo,
+    funcion: sticker.funcion || null,
+    // en_stock (activable) | vendido_pendiente (pago sin confirmar) | activo
+    estado: sticker.estado,
+    yaActivado: sticker.estado === 'activo',
+    precio: precioRow ? Number(precioRow.precio) : null,
+    pagosHabilitados: MP_ENABLED,
     destino: destino ? destino.valor : null,
-    tipos: DESTINO_TIPOS,
   });
 });
 
-// La identidad del que activa se verifica con el mismo canal que el login del
-// comprador (`canalVerificacion`: email hoy). El front hace el ciclo OTP normal
-// (/api/auth/otp/request + /verify), consigue un token de sesión y llega acá ya
-// autenticado — por eso este endpoint usa `requireAuth` y no pide ningún dato
-// de contacto: lo toma de `req.comprador`.
+// requireAuth: el front hace primero el ciclo OTP (/api/auth/otp/request +
+// /verify), consigue el token de sesión y llega acá ya verificado. Devuelve el
+// init_point de Mercado Pago — el sticker recién queda `activo` cuando el
+// webhook confirma el pago (ver /api/pagos/webhook).
 app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
-  const tipo = String(req.body?.tipo || '').trim();
-  const valor = String(req.body?.valor || '').trim();
-
-  if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Elegí un tipo de destino.' });
-  if (!valor) return res.status(400).json({ error: 'Completá a dónde tiene que redirigir el sticker.' });
+  if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
 
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
     return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
   }
-  if (sticker.comprador_id != null) {
-    return res.status(409).json({ error: 'Este sticker ya fue activado. Entrá a "Mi panel" para editarlo.' });
+  if (sticker.estado === 'activo') {
+    return res.status(409).json({ error: 'Este llavero ya está activado. Entrá a "Mi panel" para editarlo.' });
+  }
+  if (sticker.estado === 'vendido_pendiente' && sticker.comprador_id !== req.comprador.id) {
+    return res.status(409).json({ error: 'Este llavero ya lo está activando otra persona.' });
   }
 
-  const comprador = req.comprador;
+  const modelo = sticker.modelo || 'llavero';
+  const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
+  if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${modelo}.` });
+  const precio = Number(precioRow.precio);
   const vendedorId = await vendedorEspecialId();
 
-  await transicionarSticker(sticker.id, {
-    comprador_id: comprador.id,
-    funcion: tipo,
-    estado: 'activo',
-    ...(vendedorId ? { vendedor_id: vendedorId } : {}),
-  });
-
-  await db.execute({
-    sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
-          ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
-    args: [sticker.id, tipo, valor],
-  });
-  await run(
-    `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
-     VALUES (?, ?, 'activacion', NULL, ?)`,
-    [sticker.id, comprador.id, `${tipo}:${valor}`]
+  // Reusar la venta pendiente si ya había empezado un pago para este sticker.
+  let venta = await get(
+    `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
+     WHERE vi.sticker_id = ? AND v.estado_pago = 'pendiente' ORDER BY v.id DESC LIMIT 1`,
+    [sticker.id]
   );
+  if (!venta) {
+    await transicionarSticker(sticker.id, {
+      comprador_id: req.comprador.id,
+      funcion: sticker.funcion || 'instagram',
+      estado: 'vendido_pendiente',
+      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+    });
+    const r = await run(
+      `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago) VALUES (?, ?, ?, 'pendiente')`,
+      [vendedorId, req.comprador.id, precio]
+    );
+    venta = { id: r.lastInsertRowid };
+    await run(
+      'INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, NULL, NULL)',
+      [venta.id, sticker.id, precio]
+    );
+  }
 
-  res.status(201).json({ ok: true, panelUrl: `${FRONTEND_URL}/mi-panel.html` });
+  try {
+    const preference = await new Preference(mpClient).create({
+      body: {
+        items: [
+          { title: `Activación llavero NextTap`, quantity: 1, unit_price: precio, currency_id: 'ARS' },
+        ],
+        external_reference: String(venta.id),
+        back_urls: {
+          success: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}?pago=exito`,
+          failure: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}?pago=error`,
+          pending: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}?pago=pendiente`,
+        },
+        auto_return: 'approved',
+        notification_url: `${PUBLIC_ROUTER_BASE}/api/pagos/webhook`,
+      },
+    });
+    res.status(201).json({ ventaId: venta.id, initPoint: preference.init_point });
+  } catch (err) {
+    console.error('[Mercado Pago] error creando preferencia (activación):', err.message);
+    res.status(502).json({ error: 'No se pudo iniciar el pago. Probá de nuevo.' });
+  }
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
