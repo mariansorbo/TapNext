@@ -4,6 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tap — Activar sticker</title>
+
+  <!--
+    Redirección temprana (solo para chips ya impresos con /activacion/<codigo>;
+    los nuevos se graban con el router /v/<codigo>, que hace un 302 puro).
+    Corre antes de las fuentes y del bundle: si el sticker ya está activado y
+    tiene destino, salta directo sin renderizar nada de esta página. Si no,
+    revela el <html> y deja que el bundle muestre el formulario de activación.
+  -->
+  <script>
+  (function () {
+    // Si la API vive en otro dominio (VITE_API_BASE), poné su origen acá.
+    var API_BASE = '';
+    var path = location.pathname.match(/\/activacion\/([^/?#]+)/);
+    var codigo = path ? decodeURIComponent(path[1]) : new URLSearchParams(location.search).get('c');
+    if (!codigo) return;
+
+    var root = document.documentElement;
+    root.style.visibility = 'hidden';
+    var reveal = function () { root.style.visibility = ''; };
+    // Red lenta o caída: no dejamos la pantalla en blanco para siempre.
+    var safety = setTimeout(reveal, 2500);
+
+    fetch(API_BASE + '/api/activacion/' + encodeURIComponent(codigo))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (info) {
+        if (info && info.yaActivado && info.destino) {
+          location.replace(info.destino);
+        } else {
+          clearTimeout(safety);
+          reveal();
+        }
+      })
+      .catch(function () { clearTimeout(safety); reveal(); });
+  })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>

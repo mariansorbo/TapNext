@@ -1071,7 +1071,10 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
     creados.push({
       id: result.lastInsertRowid,
       codigoPublico,
-      link: `${FRONTEND_URL}/activacion/${codigoPublico}`,
+      // Se graba el router del backend (302 puro), no la landing: el primer tap
+      // de un lote especial sin dueño lo redirige a /activacion/ desde /v/, y una
+      // vez activado el tap va directo al destino sin pasar por ninguna pantalla.
+      link: `${PUBLIC_ROUTER_BASE}/v/${codigoPublico}`,
     });
   }
 
