@@ -2,6 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/activacion/:codigo", "destination": "/activacion.html" }
+    { "source": "/activacion/:codigo", "destination": "/activacion.html" },
+    { "source": "/v/:codigo", "destination": "https://tapnext.onrender.com/v/:codigo" }
   ]
 }
