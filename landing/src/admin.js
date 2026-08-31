@@ -469,7 +469,11 @@ const MODELO_OPTIONS_INV = ['llavero', 'tarjeta', 'placa']
 
 function renderCrudosTable() {
   const container = document.getElementById('crudos-table');
-  const crudos = stickersCache.filter((s) => s.estado === 'en_stock' && !s.vendedor && (!s.funcion || !s.modelo));
+  // Los de lote especial nunca van acá: su modelo y función se fijan al crear
+  // el lote, no son "crudos" pendientes de definir.
+  const crudos = stickersCache.filter(
+    (s) => s.estado === 'en_stock' && !s.vendedor && !s.loteEspecial && (!s.funcion || !s.modelo)
+  );
 
   if (!crudos.length) {
     container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
@@ -548,7 +552,11 @@ function renderCrudosTable() {
 
 function renderProductosTable() {
   const container = document.getElementById('productos-table');
-  const productos = stickersCache.filter((s) => s.estado === 'en_stock' && !s.vendedor && s.funcion && s.modelo);
+  // Productos = stock listo para asignar a vendedor. Los de lote especial
+  // entran siempre (aunque les falte la función), porque no pasan por "crudos".
+  const productos = stickersCache.filter(
+    (s) => s.estado === 'en_stock' && !s.vendedor && (s.loteEspecial || (s.funcion && s.modelo))
+  );
 
   if (!productos.length) {
     container.innerHTML = '<p class="admin-empty">Todavía no hay nada acá.</p>';
@@ -560,8 +568,8 @@ function renderProductosTable() {
       (s) => `<tr>
         <td><input type="checkbox" class="bulk-check" data-id="${s.id}"></td>
         <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
-        <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
-        <td>${s.modelo}</td>
+        <td>${FUNCION_LABELS[s.funcion] || '<span class="admin-muted">sin definir</span>'}</td>
+        <td>${s.modelo || '<span class="admin-muted">sin definir</span>'}</td>
         <td>
           <select class="row-vendedor-select" data-id="${s.id}">
             <option value="">Sin asignar</option>
