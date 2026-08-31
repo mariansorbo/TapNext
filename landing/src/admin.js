@@ -477,25 +477,33 @@ function renderCrudosTable() {
   }
 
   const rowsHtml = crudos
-    .map(
-      (s) => `<tr>
-        <td><b>${s.codigoPublico}</b></td>
-        <td>
-          <select class="row-funcion-select" data-id="${s.id}">
-            <option value="">Sin asignar</option>
-            ${FUNCION_OPTIONS}
-          </select>
-        </td>
-        <td>
-          <select class="row-modelo-select" data-id="${s.id}">
-            <option value="">Sin asignar</option>
-            ${MODELO_OPTIONS_INV}
-          </select>
-        </td>
+    .map((s) => {
+      // Lote especial: modelo y función se fijan al crear el lote — acá van de
+      // solo lectura para no confundir (no se editan sticker por sticker).
+      const funcionCell = s.loteEspecial
+        ? `<td>${FUNCION_LABELS[s.funcion] || '<span class="admin-muted">sin definir</span>'}</td>`
+        : `<td>
+            <select class="row-funcion-select" data-id="${s.id}">
+              <option value="">Sin asignar</option>
+              ${FUNCION_OPTIONS}
+            </select>
+          </td>`;
+      const modeloCell = s.loteEspecial
+        ? `<td>${s.modelo || '<span class="admin-muted">sin definir</span>'}</td>`
+        : `<td>
+            <select class="row-modelo-select" data-id="${s.id}">
+              <option value="">Sin asignar</option>
+              ${MODELO_OPTIONS_INV}
+            </select>
+          </td>`;
+      return `<tr>
+        <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
+        ${funcionCell}
+        ${modeloCell}
         ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join('');
 
   container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
@@ -551,7 +559,7 @@ function renderProductosTable() {
     .map(
       (s) => `<tr>
         <td><input type="checkbox" class="bulk-check" data-id="${s.id}"></td>
-        <td><b>${s.codigoPublico}</b></td>
+        <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
         <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
         <td>${s.modelo}</td>
         <td>
@@ -643,7 +651,7 @@ function renderAsignadosTable() {
   const rowsHtml = asignados
     .map(
       (s) => `<tr>
-        <td><b>${s.codigoPublico}</b></td>
+        <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
         <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
         <td>${s.modelo}</td>
         <td>${s.vendedor.nombre} (${s.vendedor.codigoRef})</td>

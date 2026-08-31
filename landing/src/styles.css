@@ -529,6 +529,13 @@ body.modal-open{overflow:hidden;}
 }
 .precio-input:focus{outline:none; border-color:var(--violet);}
 .admin-empty{padding:20px 14px; color:var(--paper-dim); font-size:0.85rem;}
+.admin-muted{color:var(--paper-dim); font-style:italic;}
+.admin-tag{
+  display:inline-block; font-family:var(--mono); font-size:0.66rem; letter-spacing:0.03em;
+  text-transform:uppercase; color:var(--violet);
+  border:1px solid var(--violet); border-radius:5px; padding:1px 5px; margin-left:6px;
+  vertical-align:middle;
+}
 .admin-bulk-assign{
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   margin-top:12px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface);

@@ -998,6 +998,9 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       id: r.id,
       codigoPublico: r.codigo_publico,
       uidNfc: r.uid_nfc,
+      // Lote especial: modelo y función quedaron fijados al crear el lote —
+      // el panel los muestra de solo lectura (ver admin.js).
+      loteEspecial: esLoteEspecial(r.uid_nfc),
       estado: r.estado,
       funcion: r.funcion,
       modelo: r.modelo,
