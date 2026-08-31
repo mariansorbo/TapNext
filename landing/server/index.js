@@ -725,21 +725,30 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
-// --- Panel del vendedor (/vendedor) — login WhatsApp+contraseña, ver qué
-// stickers vendidos todavía tiene que entregar (RS-06: verificación de
+// --- Panel del vendedor (/vendedor) — login con contraseña + WhatsApp o email,
+// ver qué stickers vendidos todavía tiene que entregar (RS-06: verificación de
 // entrega física por codigo_publico). ---
 
-app.post('/api/vendedor/login', async (req, res) => {
-  const whatsapp = String(req.body?.whatsapp || '').trim();
-  const password = String(req.body?.password || '');
-  if (!whatsapp || !password) return res.status(400).json({ error: 'Faltan datos.' });
+const ES_EMAIL = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-  const vendedor = await get('SELECT * FROM vendedores WHERE whatsapp = ?', [whatsapp]);
+app.post('/api/vendedor/login', async (req, res) => {
+  // Acepta `identificador` (nuevo, whatsapp o email) y `whatsapp` (compat).
+  const identificador = String(req.body?.identificador || req.body?.whatsapp || req.body?.email || '').trim();
+  const password = String(req.body?.password || '');
+  if (!identificador || !password) return res.status(400).json({ error: 'Faltan datos.' });
+
+  const porEmail = identificador.includes('@');
+  const vendedor = await get(
+    porEmail
+      ? 'SELECT * FROM vendedores WHERE LOWER(email) = LOWER(?)'
+      : 'SELECT * FROM vendedores WHERE whatsapp = ?',
+    [identificador]
+  );
   if (!vendedor || !vendedor.password_hash) {
-    return res.status(401).json({ error: 'WhatsApp o contraseña incorrectos.' });
+    return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
   const ok = await bcrypt.compare(password, vendedor.password_hash);
-  if (!ok) return res.status(401).json({ error: 'WhatsApp o contraseña incorrectos.' });
+  if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
 
   const token = generateToken();
   await run('INSERT INTO vendedor_sesiones (vendedor_id, token_hash, expira) VALUES (?, ?, ?)', [
@@ -840,6 +849,7 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token}`,
       comisionPct: v.comision_pct,
       whatsapp: v.whatsapp,
+      email: v.email,
       tieneLogin: Boolean(v.password_hash),
       stockTotal: v.stock_total,
       stockDisponible: v.stock_disponible,
@@ -854,13 +864,18 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const codigoRef = String(req.body?.codigoRef || '').trim().toLowerCase();
   const comisionPct = Number(req.body?.comisionPct ?? 50);
   const whatsapp = String(req.body?.whatsapp || '').trim();
+  const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
   if (!/^[a-z0-9-]+$/.test(codigoRef)) {
     return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
   }
-  if (whatsapp && !password) return res.status(400).json({ error: 'Si cargás un WhatsApp, definí también una contraseña para su login.' });
+  if (email && !ES_EMAIL(email)) return res.status(400).json({ error: 'El email no tiene un formato válido.' });
+  const contacto = whatsapp || email;
+  if (contacto && !password) {
+    return res.status(400).json({ error: 'Si cargás WhatsApp o email para su login, definí también una contraseña.' });
+  }
 
   const existe = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [codigoRef]);
   if (existe) return res.status(409).json({ error: 'Ya existe un vendedor con ese código de referencia.' });
@@ -868,12 +883,16 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
     const otroWa = await get('SELECT id FROM vendedores WHERE whatsapp = ?', [whatsapp]);
     if (otroWa) return res.status(409).json({ error: 'Ya existe un vendedor con ese WhatsApp.' });
   }
+  if (email) {
+    const otroMail = await get('SELECT id FROM vendedores WHERE LOWER(email) = ?', [email]);
+    if (otroMail) return res.status(409).json({ error: 'Ya existe un vendedor con ese email.' });
+  }
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
   const linkToken = generateLinkToken();
   const result = await run(
-    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, password_hash, link_token) VALUES (?, ?, ?, ?, ?, ?)',
-    [nombre, codigoRef, comisionPct, whatsapp || null, passwordHash, linkToken]
+    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, email, password_hash, link_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [nombre, codigoRef, comisionPct, whatsapp || null, email || null, passwordHash, linkToken]
   );
   res.status(201).json({
     id: result.lastInsertRowid,
@@ -883,6 +902,7 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
     linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken}`,
     comisionPct,
     whatsapp: whatsapp || null,
+    email: email || null,
   });
 });
 
@@ -897,14 +917,19 @@ app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   // whatsapp/password son opcionales en el PATCH: si no vienen en el body, se
   // conservan; si vienen vacíos explícitamente, se limpian (permite "sacarle" el login).
   const whatsapp = 'whatsapp' in (req.body || {}) ? String(req.body.whatsapp || '').trim() : vendedor.whatsapp;
+  const email = 'email' in (req.body || {})
+    ? String(req.body.email || '').trim().toLowerCase()
+    : (vendedor.email || '');
   const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
   if (!/^[a-z0-9-]+$/.test(codigoRef)) {
     return res.status(400).json({ error: 'El código de referencia solo puede tener letras, números y guiones.' });
   }
-  if (whatsapp && !password && !vendedor.password_hash) {
-    return res.status(400).json({ error: 'Si cargás un WhatsApp, definí también una contraseña para su login.' });
+  if (email && !ES_EMAIL(email)) return res.status(400).json({ error: 'El email no tiene un formato válido.' });
+  const contacto = whatsapp || email;
+  if (contacto && !password && !vendedor.password_hash) {
+    return res.status(400).json({ error: 'Si cargás WhatsApp o email para su login, definí también una contraseña.' });
   }
 
   const otro = await get('SELECT id FROM vendedores WHERE codigo_ref = ? AND id != ?', [codigoRef, vendedorId]);
@@ -913,17 +938,22 @@ app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
     const otroWa = await get('SELECT id FROM vendedores WHERE whatsapp = ? AND id != ?', [whatsapp, vendedorId]);
     if (otroWa) return res.status(409).json({ error: 'Ya existe otro vendedor con ese WhatsApp.' });
   }
+  if (email) {
+    const otroMail = await get('SELECT id FROM vendedores WHERE LOWER(email) = ? AND id != ?', [email, vendedorId]);
+    if (otroMail) return res.status(409).json({ error: 'Ya existe otro vendedor con ese email.' });
+  }
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : vendedor.password_hash;
-  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ?, whatsapp = ?, password_hash = ? WHERE id = ?', [
+  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ?, whatsapp = ?, email = ?, password_hash = ? WHERE id = ?', [
     nombre,
     codigoRef,
     comisionPct,
     whatsapp || null,
-    whatsapp ? passwordHash : null,
+    email || null,
+    contacto ? passwordHash : null,
     vendedorId,
   ]);
-  res.json({ id: vendedorId, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null });
+  res.json({ id: vendedorId, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null, email: email || null });
 });
 
 app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {

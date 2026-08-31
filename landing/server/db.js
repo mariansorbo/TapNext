@@ -224,8 +224,12 @@ await db.executeMultiple(`
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS google_id TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id);
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS email TEXT;
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS password_hash TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_whatsapp ON vendedores(whatsapp);
+  -- El vendedor puede loguearse con email + contraseña (además de whatsapp).
+  -- Parcial: filas históricas sin email quedan fuera del índice único.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_email ON vendedores(LOWER(email)) WHERE email IS NOT NULL;
   ALTER TABLE sticker_estados DROP COLUMN IF EXISTS entregado_en CASCADE;
   -- Token opaco para el link público del vendedor (?s=...), separado del
   -- codigo_ref legible que usa para loguearse/identificarse en su panel —

@@ -59,17 +59,17 @@ async function showDashboard() {
 }
 
 loginButton.addEventListener('click', async () => {
-  const whatsapp = loginWhatsapp.value.trim();
+  const identificador = loginWhatsapp.value.trim();
   const password = loginPassword.value;
-  if (!whatsapp || !password) {
+  if (!identificador || !password) {
     loginStatus.className = 'modal-status is-error';
-    loginStatus.textContent = 'Completá WhatsApp y contraseña.';
+    loginStatus.textContent = 'Completá email o WhatsApp y contraseña.';
     return;
   }
   loginStatus.className = 'modal-status';
   loginStatus.textContent = 'Ingresando...';
   try {
-    const data = await api('/login', { method: 'POST', body: JSON.stringify({ whatsapp, password }) });
+    const data = await api('/login', { method: 'POST', body: JSON.stringify({ identificador, password }) });
     setToken(data.token);
     dashboardTitle.textContent = data.vendedor.nombre ? `Hola, ${data.vendedor.nombre}` : 'Pendientes de entrega';
     loginStatus.textContent = '';
