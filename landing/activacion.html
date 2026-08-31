@@ -86,7 +86,7 @@
       </p>
 
       <ol class="activacion-pasos">
-        <li><b>Verificá tu email</b> — así después podés entrar a editarlo.</li>
+        <li><b>Poné tu email</b> — con eso vas a poder editar tu llavero cuando quieras.</li>
         <li><b>Pagá la activación</b> <span id="precio-label"></span> — pago único, sin vueltas.</li>
         <li><b>Listo</b> — cargás a dónde lleva y a usarlo.</li>
       </ol>
@@ -94,21 +94,15 @@
       <div class="modal-form">
         <label>
           <span>Tu email</span>
-          <input type="email" id="destino" placeholder="vos@ejemplo.com">
+          <input type="email" id="email" inputmode="email" autocomplete="email" placeholder="vos@ejemplo.com">
         </label>
       </div>
-      <button type="button" class="btn-ghost panel-btn" id="send-otp">Enviar código</button>
-
-      <div class="modal-form" id="otp-field" hidden>
-        <label>
-          <span>Código que te llegó por email</span>
-          <input type="text" inputmode="numeric" maxlength="6" id="otp" placeholder="000000">
-        </label>
-        <button type="button" class="btn-ghost panel-btn modal-submit" id="verificar">Verificar email</button>
-      </div>
-
-      <button type="button" class="btn-primary panel-btn" id="pagar" hidden>Pagar y activar</button>
+      <button type="button" class="btn-primary panel-btn" id="pagar">Pagar y activar</button>
       <p class="modal-status" id="status"></p>
+      <p class="section-lead" style="margin-top:14px; font-size:.9rem;">
+        No hace falta confirmar nada ahora. Después, cuando entres a tu panel,
+        te pedimos un código para verificar que ese email es tuyo.
+      </p>
     </div>
   </div>
 </section>

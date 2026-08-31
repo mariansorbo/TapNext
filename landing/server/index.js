@@ -1555,12 +1555,16 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   });
 });
 
-// requireAuth: el front hace primero el ciclo OTP (/api/auth/otp/request +
-// /verify), consigue el token de sesión y llega acá ya verificado. Devuelve el
-// init_point de Mercado Pago — el sticker recién queda `activo` cuando el
-// webhook confirma el pago (ver /api/pagos/webhook).
-app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
+// Sin verificación previa del email: para que la activación sea de un solo
+// toque, el que tiene el llavero solo escribe su email y paga. La cuenta de
+// comprador se crea SIN verificar — la verifica más tarde al entrar a Mi panel
+// (login por código). Riesgo aceptado: alguien podría activar con un email
+// ajeno, pero hace falta tener el llavero físico en la mano.
+app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
+
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!ES_EMAIL(email)) return res.status(400).json({ error: 'Ingresá un email válido.' });
 
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
@@ -1569,8 +1573,11 @@ app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
   if (sticker.estado === 'activo') {
     return res.status(409).json({ error: 'Este llavero ya está activado. Entrá a "Mi panel" para editarlo.' });
   }
-  if (sticker.estado === 'vendido_pendiente' && sticker.comprador_id !== req.comprador.id) {
-    return res.status(409).json({ error: 'Este llavero ya lo está activando otra persona.' });
+
+  let comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
+  if (!comprador) {
+    const r = await run('INSERT INTO compradores (email) VALUES (?)', [email]);
+    comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
   }
 
   const modelo = sticker.modelo || 'llavero';
@@ -1579,22 +1586,33 @@ app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
   const precio = Number(precioRow.precio);
   const vendedorId = await vendedorEspecialId();
 
-  // Reusar la venta pendiente si ya había empezado un pago para este sticker.
+  // Reusar la venta pendiente si ya había un pago sin terminar para este
+  // sticker (aunque lo hubiera empezado otro email: posesión física manda).
   let venta = await get(
     `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
      WHERE vi.sticker_id = ? AND v.estado_pago = 'pendiente' ORDER BY v.id DESC LIMIT 1`,
     [sticker.id]
   );
-  if (!venta) {
+  if (venta) {
+    if (venta.comprador_id !== comprador.id) {
+      await run('UPDATE ventas SET comprador_id = ? WHERE id = ?', [comprador.id, venta.id]);
+    }
     await transicionarSticker(sticker.id, {
-      comprador_id: req.comprador.id,
+      comprador_id: comprador.id,
+      funcion: sticker.funcion || 'instagram',
+      estado: 'vendido_pendiente',
+      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+    });
+  } else {
+    await transicionarSticker(sticker.id, {
+      comprador_id: comprador.id,
       funcion: sticker.funcion || 'instagram',
       estado: 'vendido_pendiente',
       ...(vendedorId ? { vendedor_id: vendedorId } : {}),
     });
     const r = await run(
       `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago) VALUES (?, ?, ?, 'pendiente')`,
-      [vendedorId, req.comprador.id, precio]
+      [vendedorId, comprador.id, precio]
     );
     venta = { id: r.lastInsertRowid };
     await run(

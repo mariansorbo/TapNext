@@ -14,10 +14,6 @@ const FUNCION_CTA = {
   linktree: 'tu Linktree',
 };
 
-// Mismo key que usa mi-panel.js — al verificar dejamos la sesión lista para
-// que el comprador pueda editar sin volver a loguearse.
-const TOKEN_KEY = 'tap_panel_token';
-
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 const loadingView = document.getElementById('loading-view');
@@ -31,11 +27,7 @@ const formView = document.getElementById('form-view');
 const modeloLabel = document.getElementById('modelo-label');
 const ctaDestino = document.getElementById('cta-destino');
 const precioLabel = document.getElementById('precio-label');
-const destinoInput = document.getElementById('destino');
-const sendOtpButton = document.getElementById('send-otp');
-const otpField = document.getElementById('otp-field');
-const otpInput = document.getElementById('otp');
-const verificarButton = document.getElementById('verificar');
+const emailInput = document.getElementById('email');
 const pagarButton = document.getElementById('pagar');
 const statusEl = document.getElementById('status');
 
@@ -47,13 +39,6 @@ function getCodigo() {
 }
 const codigo = getCodigo();
 const params = new URLSearchParams(window.location.search);
-
-let sesionToken = null;
-try {
-  sesionToken = sessionStorage.getItem(TOKEN_KEY);
-} catch {
-  /* sessionStorage bloqueado */
-}
 
 async function api(path, options = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {
@@ -75,6 +60,7 @@ function setStatus(kind, text) {
 function formatoPrecio(n) {
   return Number(n).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
+const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // --- Post-pago: MP nos devuelve a ?pago=exito|error|pendiente ---
 async function esperarActivacion() {
@@ -129,79 +115,21 @@ async function init() {
 
   if (!info.pagosHabilitados) {
     setStatus('is-error', 'Los pagos todavía no están habilitados. Probá más tarde.');
+    pagarButton.disabled = true;
   }
-
   if (params.get('pago') === 'error') {
     setStatus('is-error', 'El pago no se completó. Podés intentar de nuevo.');
   }
 
-  // Si ya teníamos sesión (misma pestaña), saltamos directo al paso de pago.
-  if (sesionToken) {
-    otpField.hidden = true;
-    sendOtpButton.hidden = true;
-    destinoInput.closest('.modal-form').hidden = true;
-    pagarButton.hidden = false;
-  }
-
   show(formView);
+  emailInput.focus();
 }
 
-sendOtpButton.addEventListener('click', async () => {
-  const destino = destinoInput.value.trim();
-  if (!destino) {
-    setStatus('is-error', 'Ingresá tu email.');
-    return;
-  }
-  sendOtpButton.disabled = true;
-  setStatus('', 'Enviando código...');
-  try {
-    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino }) });
-    otpField.hidden = false;
-    sendOtpButton.textContent = 'Reenviar código';
-    if (data.debug_otp) {
-      otpInput.value = data.debug_otp;
-      setStatus('is-success', 'Código autocompletado (demo, sin envío real conectado).');
-    } else {
-      setStatus('is-success', 'Te mandamos un código por email.');
-    }
-  } catch (err) {
-    setStatus('is-error', err.message);
-  } finally {
-    sendOtpButton.disabled = false;
-  }
-});
-
-verificarButton.addEventListener('click', async () => {
-  const destino = destinoInput.value.trim();
-  const code = otpInput.value.trim();
-  if (!code) {
-    setStatus('is-error', 'Ingresá el código que te llegó.');
-    return;
-  }
-  verificarButton.disabled = true;
-  setStatus('', 'Verificando...');
-  try {
-    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino, code }) });
-    sesionToken = data.token;
-    try {
-      sessionStorage.setItem(TOKEN_KEY, sesionToken);
-    } catch {
-      /* noop */
-    }
-    otpField.hidden = true;
-    sendOtpButton.hidden = true;
-    destinoInput.closest('.modal-form').hidden = true;
-    pagarButton.hidden = false;
-    setStatus('is-success', 'Email verificado. Último paso: el pago.');
-  } catch (err) {
-    verificarButton.disabled = false;
-    setStatus('is-error', err.message);
-  }
-});
-
 pagarButton.addEventListener('click', async () => {
-  if (!sesionToken) {
-    setStatus('is-error', 'Verificá tu email primero.');
+  const email = emailInput.value.trim();
+  if (!RE_EMAIL.test(email)) {
+    setStatus('is-error', 'Ingresá un email válido.');
+    emailInput.focus();
     return;
   }
   pagarButton.disabled = true;
@@ -209,7 +137,7 @@ pagarButton.addEventListener('click', async () => {
   try {
     const data = await api(`/activacion/${encodeURIComponent(codigo)}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${sesionToken}` },
+      body: JSON.stringify({ email }),
     });
     if (data.initPoint) {
       window.location.href = data.initPoint;
@@ -220,6 +148,10 @@ pagarButton.addEventListener('click', async () => {
     pagarButton.disabled = false;
     setStatus('is-error', err.message);
   }
+});
+
+emailInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') pagarButton.click();
 });
 
 init();
