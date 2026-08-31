@@ -17,13 +17,13 @@
 <section class="buy-hero" id="login-view">
   <div class="wrap">
     <div class="kicker">Mi panel</div>
-    <h2>Entrá con tu WhatsApp.</h2>
-    <p class="lead">Sin contraseñas. Te mandamos un código por WhatsApp para confirmar que sos vos.</p>
+    <h2 id="verif-title">Entrá sin contraseña.</h2>
+    <p class="lead" id="verif-sub">Sin contraseñas. Te mandamos un código para confirmar que sos vos.</p>
 
     <div class="modal-form panel-login-form">
       <label>
-        <span>Tu WhatsApp</span>
-        <input type="tel" id="login-whatsapp" placeholder="+54 9 11 1234 5678" value="+5491122334455">
+        <span id="verif-label">Tu contacto</span>
+        <input type="text" id="login-whatsapp" placeholder="">
       </label>
     </div>
     <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>

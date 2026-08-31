@@ -123,15 +123,15 @@
 
     <div class="wizard-step" data-step="4">
       <div class="kicker step-kicker"></div>
-      <h3>Validá tu WhatsApp</h3>
-      <p class="modal-sub">Necesitamos confirmar que este número es tuyo antes de cobrar. Tu cuenta tap se crea sola cuando se confirme el pago.</p>
+      <h3 id="verif-title">Validá tu identidad</h3>
+      <p class="modal-sub">Necesitamos confirmar que estos datos son tuyos antes de cobrar. Tu cuenta tap se crea sola cuando se confirme el pago.</p>
       <div class="modal-form">
         <label>
-          <span>Tu WhatsApp</span>
-          <input type="tel" id="wizard-whatsapp" placeholder="+54 9 11 1234 5678">
+          <span id="verif-label">Tu contacto</span>
+          <input type="text" id="wizard-whatsapp" placeholder="">
         </label>
       </div>
-      <button type="button" class="btn-ghost wizard-otp-send" id="send-otp">📲 Enviar código por WhatsApp</button>
+      <button type="button" class="btn-ghost wizard-otp-send" id="send-otp">📲 Enviar código</button>
 
       <div class="modal-form wizard-otp-code" id="otp-code-field" hidden>
         <label>

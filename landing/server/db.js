@@ -231,6 +231,13 @@ await db.executeMultiple(`
   -- codigo_ref legible que usa para loguearse/identificarse en su panel —
   -- así no se puede enumerar vendedores cambiando el parámetro en la URL.
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token TEXT;
+  -- Canal por el que se emitió cada OTP ('email' | 'whatsapp'). Las filas
+  -- previas a este cambio quedan NULL: eran todas por whatsapp.
+  ALTER TABLE otp_sessions ADD COLUMN IF NOT EXISTS canal TEXT;
+  -- El comprador puede identificarse por email (canal de verificación email),
+  -- no solo por whatsapp. Índice para el lookup del login; parcial porque hay
+  -- filas históricas con email NULL.
+  CREATE INDEX IF NOT EXISTS idx_compradores_email ON compradores(email) WHERE email IS NOT NULL;
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este

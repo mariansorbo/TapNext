@@ -18,6 +18,7 @@ export default defineConfig({
         comprar: resolve(root, 'comprar.html'),
         pedido: resolve(root, 'pedido.html'),
         miPanel: resolve(root, 'mi-panel.html'),
+        activacion: resolve(root, 'activacion.html'),
         faqs: resolve(root, 'faqs.html'),
         quienesSomos: resolve(root, 'quienes-somos.html'),
         admin: resolve(root, 'admin.html'),

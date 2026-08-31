@@ -5,13 +5,23 @@ import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
-import { WHATSAPP_ENABLED, enviarOtpWhatsapp } from './whatsapp.js';
+import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
 const OTP_THROTTLE_SECONDS = 30;
 const SESSION_TTL_MINUTES = 30;
 const DESTINO_TIPOS = ['whatsapp', 'instagram', 'pago', 'menu', 'review', 'web', 'agenda', 'linktree'];
+
+// Lote especial: stickers ya impresos sobre un material que NO admite candado
+// físico (no se puede write-lock el chip) y que NO llevan ningún ID impreso.
+// No nos interesa leer ni registrar su UID real — se dan de alta con un
+// uid_nfc sentinel = LOTE_ESPECIAL_PREFIX + codigo_publico. Cuando el uid
+// arranca con ese prefijo, el sticker sigue un flujo de venta aparte:
+// quien lo tiene en la mano lo activa (posesión física = dueño legítimo),
+// sin vendedor, sin pago y sin OTP previo. Ver activacion.html + /api/activacion.
+const LOTE_ESPECIAL_PREFIX = '00000';
+const esLoteEspecial = (uidNfc) => typeof uidNfc === 'string' && uidNfc.startsWith(LOTE_ESPECIAL_PREFIX);
 
 // Login con Google — opcional, alternativo al WhatsApp+OTP (no lo reemplaza).
 // Queda invisible hasta que se carguen estas tres variables de entorno.
@@ -149,54 +159,65 @@ async function transicionarSticker(stickerId, patch) {
   return siguiente;
 }
 
-// --- Auth: WhatsApp + OTP, no passwords (RF-12/RF-13) ---
+// --- Auth: OTP passwordless, canal de verificación intercambiable (RF-12/RF-13) ---
+//
+// El código de un solo uso se manda por el canal activo (`canalVerificacion`:
+// email hoy, whatsapp cuando se active). La columna `otp_sessions.whatsapp`
+// guarda el "destino" sea cual sea el canal — se llama así por historia, no
+// implica que sea un teléfono. `otp_sessions.canal` deja registrado con qué
+// canal se emitió, así el /verify sabe con qué campo identificar al comprador
+// aunque el canal activo cambie entremedio.
 
 app.post('/api/auth/otp/request', async (req, res) => {
-  const whatsapp = String(req.body?.whatsapp || '').trim();
-  if (!whatsapp) return res.status(400).json({ error: 'Falta el WhatsApp.' });
+  const canal = canalVerificacion;
+  const bruto = req.body?.destino ?? req.body?.whatsapp ?? req.body?.email ?? '';
+  const destino = canal.normalizarDestino(bruto);
+  if (!destino) return res.status(400).json({ error: `Ingresá un ${canal.nombre} válido.` });
 
   const throttleCutoff = new Date(Date.now() - OTP_THROTTLE_SECONDS * 1000).toISOString();
   const recent = await get(
     `SELECT id FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND creado_en > ? ORDER BY id DESC LIMIT 1`,
-    [whatsapp, throttleCutoff]
+    [destino, throttleCutoff]
   );
   if (recent) {
     return res.status(429).json({ error: 'Esperá unos segundos antes de pedir otro código.' });
   }
 
   const code = generateOtp();
-  await run('INSERT INTO otp_sessions (whatsapp, codigo_hash, expira) VALUES (?, ?, ?)', [
-    whatsapp,
+  await run('INSERT INTO otp_sessions (whatsapp, canal, codigo_hash, expira) VALUES (?, ?, ?, ?)', [
+    destino,
+    canal.id,
     hashValue(code),
     isoInMinutes(OTP_TTL_MINUTES),
   ]);
 
-  if (WHATSAPP_ENABLED) {
+  if (canal.disponible) {
     try {
-      await enviarOtpWhatsapp(whatsapp, code);
+      await canal.enviarCodigo(destino, code);
     } catch (err) {
-      console.error('[OTP] Falló el envío por WhatsApp:', err.message);
-      return res.status(502).json({ error: 'No se pudo enviar el código por WhatsApp. Probá de nuevo.' });
+      console.error(`[OTP] Falló el envío por ${canal.id}:`, err.message);
+      return res.status(502).json({ error: `No se pudo enviar el código por ${canal.nombre}. Probá de nuevo.` });
     }
     return res.json({ ok: true });
   }
 
-  // Sin credenciales de WhatsApp Business API configuradas: modo demo.
-  console.log(`[OTP demo] Código para ${whatsapp}: ${code} (expira en ${OTP_TTL_MINUTES} min)`);
+  // Sin credenciales del canal: modo demo.
+  console.log(`[OTP demo] Código para ${destino} (${canal.id}): ${code} (expira en ${OTP_TTL_MINUTES} min)`);
 
-  // DEV ONLY: nunca devolver el código en la respuesta en producción — acá reemplaza
-  // al envío real por WhatsApp mientras no haya esa integración conectada.
+  // DEV ONLY: nunca devolver el código en la respuesta en producción — acá
+  // reemplaza al envío real mientras el canal no tenga credenciales cargadas.
   res.json({ ok: true, debug_otp: code });
 });
 
 app.post('/api/auth/otp/verify', async (req, res) => {
-  const whatsapp = String(req.body?.whatsapp || '').trim();
+  const brutoDestino = req.body?.destino ?? req.body?.whatsapp ?? req.body?.email ?? '';
+  const destino = canalVerificacion.normalizarDestino(brutoDestino) || String(brutoDestino).trim();
   const code = String(req.body?.code || '').trim();
-  if (!whatsapp || !code) return res.status(400).json({ error: 'Faltan datos.' });
+  if (!destino || !code) return res.status(400).json({ error: 'Faltan datos.' });
 
   const otp = await get(
     `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > NOW() ORDER BY id DESC LIMIT 1`,
-    [whatsapp]
+    [destino]
   );
 
   if (!otp || otp.codigo_hash !== hashValue(code)) {
@@ -205,9 +226,17 @@ app.post('/api/auth/otp/verify', async (req, res) => {
 
   await run('UPDATE otp_sessions SET usado = 1 WHERE id = ?', [otp.id]);
 
-  let comprador = await get('SELECT * FROM compradores WHERE whatsapp = ?', [whatsapp]);
+  // Con qué campo de `compradores` se identifica quien acaba de verificar,
+  // según el canal que emitió el OTP (con fallback al canal activo).
+  const canalEmisor = canalPorId(otp.canal) || canalVerificacion;
+  const campo = canalEmisor.campoComprador;
+  if (!CAMPOS_COMPRADOR_VALIDOS.includes(campo)) {
+    return res.status(500).json({ error: 'Canal de verificación mal configurado.' });
+  }
+
+  let comprador = await get(`SELECT * FROM compradores WHERE ${campo} = ?`, [destino]);
   if (!comprador) {
-    const result = await run('INSERT INTO compradores (whatsapp) VALUES (?)', [whatsapp]);
+    const result = await run(`INSERT INTO compradores (${campo}) VALUES (?)`, [destino]);
     comprador = await get('SELECT * FROM compradores WHERE id = ?', [result.lastInsertRowid]);
   }
 
@@ -225,7 +254,15 @@ app.post('/api/auth/otp/verify', async (req, res) => {
 });
 
 app.get('/api/auth/config', (req, res) => {
-  res.json({ googleEnabled: GOOGLE_ENABLED });
+  res.json({
+    googleEnabled: GOOGLE_ENABLED,
+    verificacion: {
+      canal: canalVerificacion.id,
+      nombre: canalVerificacion.nombre,
+      tipoInput: canalVerificacion.tipoInput,
+      placeholder: canalVerificacion.placeholder,
+    },
+  });
 });
 
 app.get('/api/auth/google/start', (req, res) => {
@@ -975,6 +1012,46 @@ app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
   res.status(201).json({ loteId, creados });
 });
 
+// Alta de un lote ESPECIAL (stickers ya impresos, sin candado físico, sin ID
+// impreso). No se registra ningún UID real: cada sticker recibe un uid_nfc
+// sentinel = LOTE_ESPECIAL_PREFIX + codigo_publico. Devuelve la lista de links
+// de activación — uno por sticker — que hay que grabar en cada chip.
+app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => {
+  const cantidad = Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
+  const modelo = String(req.body?.modelo || 'llavero').trim();
+  const nombre = String(req.body?.nombre || '').trim() || `Lote especial ${new Date().toISOString().slice(0, 10)}`;
+
+  if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+
+  const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, cantidad]);
+  const loteId = loteResult.lastInsertRowid;
+
+  const creados = [];
+  for (let i = 0; i < cantidad; i++) {
+    let codigoPublico;
+    // codigo_publico único (reintenta ante la colisión, muy poco probable)
+    for (;;) {
+      codigoPublico = generateCodigoPublico();
+      const enUso = await get('SELECT id FROM stickers WHERE codigo_publico = ?', [codigoPublico]);
+      if (!enUso) break;
+    }
+    const uidNfc = `${LOTE_ESPECIAL_PREFIX}${codigoPublico}`;
+    const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
+      codigoPublico,
+      uidNfc,
+      loteId,
+    ]);
+    await crearEstadoInicial(result.lastInsertRowid, { modelo, funcion: null, vendedorId: null });
+    creados.push({
+      id: result.lastInsertRowid,
+      codigoPublico,
+      link: `${FRONTEND_URL}/activacion/${codigoPublico}`,
+    });
+  }
+
+  res.status(201).json({ loteId, cantidad: creados.length, creados, links: creados.map((c) => c.link) });
+});
+
 // Alta individual "de taller": partís de un uid_nfc real (leído del chip físico)
 // en vez de generarlo al azar. Devuelve la clave de escritura derivada UNA
 // SOLA VEZ, para programar el chip en el momento — no se guarda en ningún lado.
@@ -1283,10 +1360,75 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     if (destino) return res.redirect(302, destino.valor);
   }
 
+  // Lote especial todavía sin activar: el primer tap del comprador lo lleva
+  // directo a la pantalla de activación libre (no a la landing).
+  if (sticker && esLoteEspecial(sticker.uid_nfc) && sticker.comprador_id == null) {
+    return res.redirect(302, `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`);
+  }
+
   // Sticker inexistente, todavía no activado, o sin destino cargado — no hay
   // pantalla de activación construida todavía (RF-08/09), así que por ahora
   // cae a la landing en vez de mostrar un error crudo.
   res.redirect(302, FRONTEND_URL);
+});
+
+// --- Activación libre del lote especial (sin vendedor, sin pago, sin OTP) ---
+// Posesión física del sticker = dueño legítimo. Ver LOTE_ESPECIAL_PREFIX.
+
+app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
+  const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
+  if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
+    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+  }
+  const yaActivado = sticker.comprador_id != null;
+  const destino = yaActivado ? await get('SELECT valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
+  res.json({
+    codigo: sticker.codigo_publico,
+    modelo: sticker.modelo || 'llavero',
+    yaActivado,
+    // Si ya está activado, el tap tiene que ir al destino configurado — la
+    // página de activación redirige ahí en vez de mostrarse.
+    destino: destino ? destino.valor : null,
+    tipos: DESTINO_TIPOS,
+  });
+});
+
+// La identidad del que activa se verifica con el mismo canal que el login del
+// comprador (`canalVerificacion`: email hoy). El front hace el ciclo OTP normal
+// (/api/auth/otp/request + /verify), consigue un token de sesión y llega acá ya
+// autenticado — por eso este endpoint usa `requireAuth` y no pide ningún dato
+// de contacto: lo toma de `req.comprador`.
+app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
+  const tipo = String(req.body?.tipo || '').trim();
+  const valor = String(req.body?.valor || '').trim();
+
+  if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Elegí un tipo de destino.' });
+  if (!valor) return res.status(400).json({ error: 'Completá a dónde tiene que redirigir el sticker.' });
+
+  const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
+  if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
+    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+  }
+  if (sticker.comprador_id != null) {
+    return res.status(409).json({ error: 'Este sticker ya fue activado. Entrá a "Mi panel" para editarlo.' });
+  }
+
+  const comprador = req.comprador;
+
+  await transicionarSticker(sticker.id, { comprador_id: comprador.id, funcion: tipo, estado: 'activo' });
+
+  await db.execute({
+    sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
+          ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
+    args: [sticker.id, tipo, valor],
+  });
+  await run(
+    `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
+     VALUES (?, ?, 'activacion', NULL, ?)`,
+    [sticker.id, comprador.id, `${tipo}:${valor}`]
+  );
+
+  res.status(201).json({ ok: true, panelUrl: `${FRONTEND_URL}/mi-panel.html` });
 });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

@@ -102,7 +102,7 @@ const state = {
   functionId: null,
   modelId: null,
   cart: [], // presencial: [{ functionId, modelId }] — un item por producto en el carrito
-  whatsapp: '',
+  contacto: '',
   otpVerified: false,
   authToken: null,
 };
@@ -260,7 +260,25 @@ const progressEl = document.getElementById('wizard-progress');
 const steps = [...document.querySelectorAll('.wizard-step')];
 const tycCheckbox = document.getElementById('wizard-tyc');
 const whatsappInput = document.getElementById('wizard-whatsapp');
+const verifTitleEl = document.getElementById('verif-title');
+const verifLabelEl = document.getElementById('verif-label');
 const sendOtpButton = document.getElementById('send-otp');
+
+// Canal de verificación activo (email / whatsapp / ...). Lo define el backend;
+// acá solo adaptamos los textos y el tipo de input. Fallback razonable por si
+// /auth/config no responde.
+const verif = { canal: 'email', nombre: 'email', tipoInput: 'email', placeholder: 'vos@ejemplo.com' };
+api('/auth/config')
+  .then((cfg) => {
+    if (!cfg?.verificacion) return;
+    Object.assign(verif, cfg.verificacion);
+    whatsappInput.type = verif.tipoInput;
+    whatsappInput.placeholder = verif.placeholder;
+    if (verifTitleEl) verifTitleEl.textContent = `Validá tu ${verif.nombre}`;
+    if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
+    sendOtpButton.textContent = `📲 Enviar código por ${verif.nombre}`;
+  })
+  .catch(() => {});
 const otpCodeField = document.getElementById('otp-code-field');
 const otpInput = document.getElementById('wizard-otp');
 const confirmOtpButton = document.getElementById('confirm-otp');
@@ -378,15 +396,15 @@ whatsappInput.addEventListener('input', () => {
 });
 
 sendOtpButton.addEventListener('click', async () => {
-  const whatsapp = whatsappInput.value.trim();
-  if (!whatsapp) return;
+  const destino = whatsappInput.value.trim();
+  if (!destino) return;
   sendOtpButton.disabled = true;
   try {
-    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ whatsapp }) });
+    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino }) });
     otpCodeField.hidden = false;
     otpStatus.className = 'modal-status';
     otpStatus.textContent = data.debug_otp
-      ? 'Código autocompletado (demo, no hay WhatsApp real conectado).'
+      ? `Código autocompletado (demo, no hay ${verif.nombre} real conectado).`
       : 'Código enviado.';
     if (data.debug_otp) otpInput.value = data.debug_otp;
     sendOtpButton.textContent = '📲 Reenviar código';
@@ -399,7 +417,7 @@ sendOtpButton.addEventListener('click', async () => {
 });
 
 confirmOtpButton.addEventListener('click', async () => {
-  const whatsapp = whatsappInput.value.trim();
+  const destino = whatsappInput.value.trim();
   const code = otpInput.value.trim();
   if (!code) {
     otpStatus.textContent = 'Ingresá el código.';
@@ -408,11 +426,11 @@ confirmOtpButton.addEventListener('click', async () => {
   }
   confirmOtpButton.disabled = true;
   try {
-    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ whatsapp, code }) });
+    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino, code }) });
     state.otpVerified = true;
     state.authToken = data.token;
     sessionStorage.setItem('tap_panel_token', data.token);
-    otpStatus.textContent = '✓ Número verificado.';
+    otpStatus.textContent = '✓ Verificado.';
     otpStatus.className = 'modal-status is-success';
     whatsappInput.disabled = true;
     sendOtpButton.disabled = true;
@@ -431,7 +449,7 @@ confirmOtpButton.addEventListener('click', async () => {
 });
 
 function renderSummary() {
-  state.whatsapp = whatsappInput.value.trim();
+  state.contacto = whatsappInput.value.trim();
 
   const total = state.cart.reduce((sum, item) => sum + getPrecio(item.modelId), 0);
   summaryBox.innerHTML = `
@@ -444,7 +462,7 @@ function renderSummary() {
         return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label}</b> · ${fn.label} — $${precio.toLocaleString('es-AR')}</div>`;
       })
       .join('')}
-    <div><b>WhatsApp:</b> ${state.whatsapp}</div>
+    <div><b>${verif.nombre}:</b> ${state.contacto}</div>
     <div class="wizard-pay-note">Pagás y ya podés empezar a usar tu NFC. El destino de cada uno (a dónde redirige) lo vas a poder configurar y editar cuando quieras, desde tu panel.</div>
   `;
   payButton.textContent = `Pagar $${total.toLocaleString('es-AR')} y empezar a usar mi NFC`;
@@ -456,7 +474,7 @@ function openWizard() {
     functionId: null,
     modelId: null,
     cart: [],
-    whatsapp: '',
+    contacto: '',
     otpVerified: false,
   });
   functionOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
@@ -465,7 +483,7 @@ function openWizard() {
   whatsappInput.value = '';
   whatsappInput.disabled = false;
   sendOtpButton.disabled = true;
-  sendOtpButton.textContent = '📲 Enviar código por WhatsApp';
+  sendOtpButton.textContent = `📲 Enviar código por ${verif.nombre}`;
   otpCodeField.hidden = true;
   otpInput.value = '';
   otpInput.disabled = false;

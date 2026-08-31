@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Activar sticker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo" data-brand-logo></a>
+  <a href="/mi-panel.html" class="nav-cta">Mi panel</a>
+</nav>
+
+<section class="buy-hero">
+  <div class="wrap">
+    <div class="kicker">Activar sticker</div>
+
+    <div id="loading-view">
+      <p class="lead">Cargando...</p>
+    </div>
+
+    <div id="error-view" hidden>
+      <h2>No pudimos activar este sticker.</h2>
+      <p class="lead" id="error-text"></p>
+      <a href="/" class="btn-ghost panel-btn">Volver al inicio</a>
+    </div>
+
+    <div id="done-view" hidden>
+      <h2>Ya está activado.</h2>
+      <p class="lead">Este sticker ya tiene dueño. Si sos vos, entrá a tu panel para cambiar a dónde redirige.</p>
+      <a href="/mi-panel.html" class="btn-primary panel-btn">Ir a Mi panel</a>
+    </div>
+
+    <div id="form-view" hidden>
+      <h2>Activá tu <span id="modelo-label">llavero</span>.</h2>
+      <p class="lead">Tenés el sticker en la mano, así que es tuyo. Elegí a dónde querés que lleve cuando alguien lo tapea y verificá tu <span id="canal-label">email</span> para poder editarlo después.</p>
+
+      <div class="modal-form">
+        <label>
+          <span>¿A dónde redirige?</span>
+          <select id="tipo"></select>
+        </label>
+        <label>
+          <span>Valor del destino</span>
+          <input type="text" id="valor" placeholder="wa.me/54911... / instagram.com/tucuenta / etc.">
+        </label>
+        <label>
+          <span id="destino-label">Tu email</span>
+          <input type="email" id="destino" placeholder="vos@ejemplo.com">
+        </label>
+      </div>
+      <button type="button" class="btn-primary panel-btn" id="send-otp">Enviar código</button>
+
+      <div class="modal-form" id="otp-field" hidden>
+        <label>
+          <span>Código recibido</span>
+          <input type="text" inputmode="numeric" maxlength="6" id="otp" placeholder="000000">
+        </label>
+        <button type="button" class="btn-primary panel-btn modal-submit" id="activar">Verificar y activar</button>
+      </div>
+      <p class="modal-status" id="status"></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+<script type="module" src="/src/activacion.js"></script>
+</body>
+</html>

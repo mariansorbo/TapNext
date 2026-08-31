@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/activacion/:codigo", "destination": "/activacion.html" }
+  ]
+}

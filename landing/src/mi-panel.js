@@ -106,23 +106,23 @@ saveEmailButton.addEventListener('click', async () => {
 });
 
 sendOtpButton.addEventListener('click', async () => {
-  const whatsapp = loginWhatsapp.value.trim();
-  if (!whatsapp) {
+  const destino = loginWhatsapp.value.trim();
+  if (!destino) {
     loginStatus.className = 'modal-status is-error';
-    loginStatus.textContent = 'Ingresá tu WhatsApp primero.';
+    loginStatus.textContent = `Ingresá tu ${verif.nombre} primero.`;
     loginWhatsapp.focus();
     return;
   }
   loginStatus.className = 'modal-status';
   loginStatus.textContent = 'Enviando código...';
   try {
-    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ whatsapp }) });
+    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino }) });
     otpField.hidden = false;
     sendOtpButton.textContent = 'Reenviar código';
     loginStatus.className = 'modal-status is-success';
     if (data.debug_otp) {
       otpInput.value = data.debug_otp;
-      loginStatus.textContent = 'Código autocompletado (demo, no hay WhatsApp real conectado).';
+      loginStatus.textContent = `Código autocompletado (demo, no hay ${verif.nombre} real conectado).`;
     } else {
       loginStatus.textContent = 'Código enviado.';
     }
@@ -133,13 +133,13 @@ sendOtpButton.addEventListener('click', async () => {
 });
 
 confirmOtpButton.addEventListener('click', async () => {
-  const whatsapp = loginWhatsapp.value.trim();
+  const destino = loginWhatsapp.value.trim();
   const code = otpInput.value.trim();
   if (!code) return;
   loginStatus.className = 'modal-status';
   loginStatus.textContent = 'Verificando...';
   try {
-    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ whatsapp, code }) });
+    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino, code }) });
     setToken(data.token);
     dashboardTitle.textContent = data.comprador.nombre ? `Hola, ${data.comprador.nombre}` : 'Tus stickers';
     loginStatus.textContent = '';
@@ -267,13 +267,29 @@ function renderStickers(stickers) {
   });
 }
 
+// Canal de verificación activo (email / whatsapp / ...) — fallback por si falla.
+const verif = { canal: 'email', nombre: 'email', tipoInput: 'email', placeholder: 'vos@ejemplo.com' };
+const verifTitleEl = document.getElementById('verif-title');
+const verifSubEl = document.getElementById('verif-sub');
+const verifLabelEl = document.getElementById('verif-label');
+
 // Login con Google — opcional, se muestra solo si el backend tiene credenciales cargadas.
+// De paso trae la config del canal de verificación (misma llamada).
 async function checkGoogleLogin() {
   try {
     const res = await fetch(`${API_BASE}/api/auth/config`);
     const data = await res.json();
     googleButton.hidden = !data.googleEnabled;
     googleDivider.hidden = !data.googleEnabled;
+    if (data.verificacion) {
+      Object.assign(verif, data.verificacion);
+      loginWhatsapp.type = verif.tipoInput;
+      loginWhatsapp.placeholder = verif.placeholder;
+      loginWhatsapp.value = '';
+      if (verifTitleEl) verifTitleEl.textContent = `Entrá con tu ${verif.nombre}.`;
+      if (verifSubEl) verifSubEl.textContent = `Sin contraseñas. Te mandamos un código por ${verif.nombre} para confirmar que sos vos.`;
+      if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
+    }
   } catch {
     googleButton.hidden = true;
     googleDivider.hidden = true;
