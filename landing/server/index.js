@@ -1017,23 +1017,49 @@ app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
 // sentinel = LOTE_ESPECIAL_PREFIX + codigo_publico. Devuelve la lista de links
 // de activación — uno por sticker — que hay que grabar en cada chip.
 app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => {
-  const cantidad = Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
   const modelo = String(req.body?.modelo || 'llavero').trim();
   const nombre = String(req.body?.nombre || '').trim() || `Lote especial ${new Date().toISOString().slice(0, 10)}`;
 
   if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+
+  // `codigos` explícitos: para stickers YA impresos/grabados con un código
+  // decidido afuera (no se puede regrabar el chip, así que la base se adapta
+  // al sticker y no al revés). Si no se pasan, se generan al azar.
+  const codigosPedidos = Array.isArray(req.body?.codigos)
+    ? req.body.codigos.map((c) => String(c || '').trim().toLowerCase()).filter(Boolean)
+    : null;
+
+  if (codigosPedidos) {
+    if (codigosPedidos.some((c) => !/^[a-z0-9]{3,32}$/.test(c))) {
+      return res.status(400).json({ error: 'Cada código debe ser alfanumérico (3–32 chars).' });
+    }
+    if (new Set(codigosPedidos).size !== codigosPedidos.length) {
+      return res.status(400).json({ error: 'Hay códigos repetidos en la lista.' });
+    }
+    const enUso = await all(
+      `SELECT codigo_publico FROM stickers WHERE codigo_publico = ANY(?)`,
+      [codigosPedidos]
+    );
+    if (enUso.length) {
+      return res.status(409).json({ error: `Ya existen: ${enUso.map((r) => r.codigo_publico).join(', ')}` });
+    }
+  }
+
+  const cantidad = codigosPedidos
+    ? codigosPedidos.length
+    : Math.min(Math.max(Number(req.body?.cantidad) || 0, 1), 100);
 
   const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, cantidad]);
   const loteId = loteResult.lastInsertRowid;
 
   const creados = [];
   for (let i = 0; i < cantidad; i++) {
-    let codigoPublico;
+    let codigoPublico = codigosPedidos ? codigosPedidos[i] : null;
     // codigo_publico único (reintenta ante la colisión, muy poco probable)
-    for (;;) {
-      codigoPublico = generateCodigoPublico();
-      const enUso = await get('SELECT id FROM stickers WHERE codigo_publico = ?', [codigoPublico]);
-      if (!enUso) break;
+    while (!codigoPublico) {
+      const cand = generateCodigoPublico();
+      const yaHay = await get('SELECT id FROM stickers WHERE codigo_publico = ?', [cand]);
+      if (!yaHay) codigoPublico = cand;
     }
     const uidNfc = `${LOTE_ESPECIAL_PREFIX}${codigoPublico}`;
     const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
