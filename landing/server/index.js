@@ -23,6 +23,16 @@ const DESTINO_TIPOS = ['whatsapp', 'instagram', 'pago', 'menu', 'review', 'web',
 const LOTE_ESPECIAL_PREFIX = '00000';
 const esLoteEspecial = (uidNfc) => typeof uidNfc === 'string' && uidNfc.startsWith(LOTE_ESPECIAL_PREFIX);
 
+// Vendedor por defecto del proceso de activación libre (lote especial): a él se
+// le atribuye la venta al activar, y a él se le asigna el stock del lote al
+// crearlo. Se resuelve por codigo_ref; sobreescribible por env var.
+const LOTE_ESPECIAL_VENDEDOR_REF = process.env.LOTE_ESPECIAL_VENDEDOR_REF || 'marianovich';
+async function vendedorEspecialId() {
+  if (!LOTE_ESPECIAL_VENDEDOR_REF) return null;
+  const v = await get('SELECT id FROM vendedores WHERE codigo_ref = ?', [LOTE_ESPECIAL_VENDEDOR_REF]);
+  return v ? v.id : null;
+}
+
 // Login con Google — opcional, alternativo al WhatsApp+OTP (no lo reemplaza).
 // Queda invisible hasta que se carguen estas tres variables de entorno.
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -966,6 +976,8 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   const venta = await get('SELECT id FROM ventas WHERE vendedor_id = ? LIMIT 1', [vendedorId]);
   if (venta) return res.status(409).json({ error: 'Tiene ventas registradas — no se puede eliminar un vendedor con historial.' });
 
+  // Sin stock ni ventas: lo único que puede colgar es alguna sesión de panel.
+  await run('DELETE FROM vendedor_sesiones WHERE vendedor_id = ?', [vendedorId]);
   await run('DELETE FROM vendedores WHERE id = ?', [vendedorId]);
   res.status(204).end();
 });
@@ -1081,6 +1093,7 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
 
   const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, cantidad]);
   const loteId = loteResult.lastInsertRowid;
+  const vendedorId = await vendedorEspecialId();
 
   const creados = [];
   for (let i = 0; i < cantidad; i++) {
@@ -1097,7 +1110,7 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
       uidNfc,
       loteId,
     ]);
-    await crearEstadoInicial(result.lastInsertRowid, { modelo, funcion: null, vendedorId: null });
+    await crearEstadoInicial(result.lastInsertRowid, { modelo, funcion: null, vendedorId });
     creados.push({
       id: result.lastInsertRowid,
       codigoPublico,
@@ -1411,12 +1424,94 @@ function routerThrottle(req, res, next) {
   next();
 }
 
+// Pantalla de marca que se muestra un instante al tapear un sticker activado,
+// antes de mandar al destino. Es la única superficie publicitaria de NextTap que
+// ve quien tapea el sticker de otra persona (casi siempre un cliente potencial),
+// así que vale ese ~1 s. HTML autónomo servido desde el backend: un request, sin
+// bundle ni llamadas extra. Para quien repite el mismo sticker en <12 h se
+// acorta a ~350 ms (el dueño no se come la intro cada vez). Sin JS, redirige ya.
+function pantallaRedireccion(destino) {
+  const jsUrl = JSON.stringify(String(destino))
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  const htmlUrl = String(destino)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NextTap</title>
+<noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
+<style>
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1400ms}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{background:var(--ink);color:var(--paper);
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;
+    min-height:100svh;overflow:hidden;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;
+    font-size:clamp(2.9rem,17vw,5.5rem);letter-spacing:-.03em;
+    opacity:0;transform:translateY(10px) scale(.95);
+    animation:rise .45s cubic-bezier(.2,.7,.2,1) forwards}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;
+    border-radius:.16em;clip-path:inset(0 100% 0 0);
+    animation:wipe .5s .14s cubic-bezier(.4,0,.1,1) forwards}
+  .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:rgba(237,239,233,.16);
+    overflow:hidden;opacity:0;animation:rise .3s .25s forwards}
+  .bar i{display:block;height:100%;background:var(--violet);
+    transform:translateX(-100%);animation:fill var(--dur) .2s linear forwards}
+  .cta{position:fixed;left:0;right:0;text-align:center;
+    bottom:calc(env(safe-area-inset-bottom) + 22px);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.04em;
+    color:rgba(237,239,233,.42);opacity:0;animation:rise .4s .5s forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
+  @keyframes fill{to{transform:translateX(0)}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+  <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="bar"><i></i></div>
+  <a class="cta" href="https://next-tap.tech">tu Instagram en un toque &middot; next-tap.tech</a>
+  <script>
+  (function(){
+    var to=${jsUrl}, dur=1400;
+    try{
+      var k='nt:'+location.pathname, last=+localStorage.getItem(k)||0;
+      if(Date.now()-last<432e5) dur=350;
+      localStorage.setItem(k,String(Date.now()));
+    }catch(e){}
+    document.documentElement.style.setProperty('--dur',dur+'ms');
+    var go=function(){location.replace(to)};
+    var t=setTimeout(go,dur);
+    addEventListener('pointerdown',function(){clearTimeout(t);go()},{once:true});
+  })();
+  </script>
+</body>
+</html>`;
+}
+
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
 
   if (sticker && sticker.estado === 'activo') {
     const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);
-    if (destino) return res.redirect(302, destino.valor);
+    if (destino) {
+      // Solo interponemos la pantalla si el destino es una URL http(s) normal;
+      // cualquier otra cosa (esquemas raros) se redirige directo, sin adornos.
+      if (/^https?:\/\//i.test(destino.valor)) {
+        return res.type('html').send(pantallaRedireccion(destino.valor));
+      }
+      return res.redirect(302, destino.valor);
+    }
   }
 
   // Lote especial todavía sin activar: el primer tap del comprador lo lleva
@@ -1473,8 +1568,14 @@ app.post('/api/activacion/:codigo', requireAuth, async (req, res) => {
   }
 
   const comprador = req.comprador;
+  const vendedorId = await vendedorEspecialId();
 
-  await transicionarSticker(sticker.id, { comprador_id: comprador.id, funcion: tipo, estado: 'activo' });
+  await transicionarSticker(sticker.id, {
+    comprador_id: comprador.id,
+    funcion: tipo,
+    estado: 'activo',
+    ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+  });
 
   await db.execute({
     sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
