@@ -7,15 +7,16 @@
 
   <!--
     Redirección temprana (solo para chips ya impresos con /activacion/<codigo>;
-    los nuevos se graban con el router /v/<codigo>, que hace un 302 puro).
-    Corre antes de las fuentes y del bundle: si el sticker ya está activado y
-    tiene destino, salta directo sin renderizar nada de esta página. Si no,
-    revela el <html> y deja que el bundle muestre el formulario de activación.
+    los nuevos se graban con el router /v/<codigo>).
+    Corre antes de las fuentes y del bundle: si el sticker ya está activado,
+    lo mandamos al router del backend (/v/<codigo>), que muestra la pantalla de
+    marca y redirige al destino — igual que un chip nuevo. Si todavía no está
+    activado, revela el <html> y deja que el bundle muestre el formulario.
   -->
   <script>
   (function () {
-    // Si la API vive en otro dominio (VITE_API_BASE), poné su origen acá.
-    var API_BASE = '';
+    // Router público del backend (Render). Los chips nuevos ya se graban así.
+    var ROUTER_BASE = 'https://tapnext.onrender.com';
     var path = location.pathname.match(/\/activacion\/([^/?#]+)/);
     var codigo = path ? decodeURIComponent(path[1]) : new URLSearchParams(location.search).get('c');
     if (!codigo) return;
@@ -26,11 +27,11 @@
     // Red lenta o caída: no dejamos la pantalla en blanco para siempre.
     var safety = setTimeout(reveal, 2500);
 
-    fetch(API_BASE + '/api/activacion/' + encodeURIComponent(codigo))
+    fetch(ROUTER_BASE + '/api/activacion/' + encodeURIComponent(codigo))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (info) {
         if (info && info.yaActivado && info.destino) {
-          location.replace(info.destino);
+          location.replace(ROUTER_BASE + '/v/' + encodeURIComponent(codigo));
         } else {
           clearTimeout(safety);
           reveal();
