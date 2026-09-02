@@ -282,6 +282,10 @@
           <input type="number" id="grabar-objetivo" value="10" min="1" max="200">
         </label>
         <label>
+          <span>Lote</span>
+          <select id="grabar-lote"><option value="new">Lote nuevo</option></select>
+        </label>
+        <label>
           <span>Función (opcional — se aplica a todos)</span>
           <select id="grabar-funcion"></select>
         </label>
@@ -302,6 +306,7 @@
       <div class="wizard-topbar">
         <div class="wizard-progress" id="grabar-progress"></div>
       </div>
+      <div class="grabar-lote-label" id="grabar-lote-label"></div>
       <div class="grabar-count" id="grabar-count">0 / 10</div>
       <div class="grabar-stage" id="grabar-stage"></div>
       <p class="modal-status" id="grabar-status"></p>

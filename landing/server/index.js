@@ -1212,15 +1212,44 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
     loteId,
   ]);
   await crearEstadoInicial(result.lastInsertRowid, { modelo: modelo || null, funcion: funcion || null, vendedorId });
+  // Mantenemos `cantidad` del lote al día a medida que se le suman chips
+  // (el asistente de grabado carga de a uno) — así la grilla muestra el x N real.
+  if (loteId) {
+    await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + 1 WHERE id = ?', [loteId]);
+  }
 
   res.status(201).json({
     id: result.lastInsertRowid,
     codigoPublico,
     uidNfc,
+    loteId,
     url: `${PUBLIC_ROUTER_BASE}/v/${codigoPublico}`,
     writePassword,
     writePack,
   });
+});
+
+// Lotes: listar y crear uno vacío. El asistente de grabado de chips crea un
+// lote al empezar una tanda y le va sumando cada chip (loteId en
+// /stickers/individual), así el taller sabe qué lote está escribiendo.
+app.get('/api/admin/lotes', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT l.id, l.nombre, l.creado_en, COUNT(s.id) AS chips
+    FROM lotes l
+    LEFT JOIN stickers s ON s.lote_id = l.id
+    GROUP BY l.id, l.nombre, l.creado_en
+    ORDER BY l.id DESC
+  `);
+  res.json(rows.map((r) => ({
+    id: r.id, nombre: r.nombre, creadoEn: r.creado_en, chips: Number(r.chips) || 0,
+  })));
+});
+
+app.post('/api/admin/lotes', requireAdmin, async (req, res) => {
+  const nombre = String(req.body?.nombre || '').trim()
+    || `Taller ${new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+  const result = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, 0)', [nombre]);
+  res.status(201).json({ id: result.lastInsertRowid, nombre });
 });
 
 // Recalcula PWD_AUTH y PACK de un chip ya registrado — son determinísticos a

@@ -34,12 +34,14 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   const stepRun = $('grabar-run');
   const configStatus = $('grabar-config-status');
   const objetivoInput = $('grabar-objetivo');
+  const loteSel = $('grabar-lote');
   const funcionSel = $('grabar-funcion');
   const modeloSel = $('grabar-modelo');
   const vendedorSel = $('grabar-vendedor');
   const startBtn = $('grabar-start');
 
   const progressEl = $('grabar-progress');
+  const loteLabelEl = $('grabar-lote-label');
   const countEl = $('grabar-count');
   const stageEl = $('grabar-stage');
   const runStatus = $('grabar-status');
@@ -56,6 +58,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   let scanAbort = null;
   let objetivo = 10;
   let grabados = 0;
+  let loteActual = null;   // { id, nombre } — el lote de esta tanda
 
   // phase:
   //   'esperando'   — sin chip todavía, listo para leer el próximo
@@ -91,12 +94,24 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     configStatus.className = 'modal-status';
     grabados = 0;
     cur = null;
+    loteActual = null;
     phase = 'esperando';
     lastUidRead = null;
 
     const vendedores = (getVendedores && getVendedores()) || [];
     vendedorSel.innerHTML = '<option value="">Sin asignar</option>' +
       vendedores.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
+
+    // Lista de lotes existentes + opción de crear uno nuevo (default).
+    loteSel.innerHTML = '<option value="new">Lote nuevo</option>';
+    api('/lotes').then((lotes) => {
+      for (const l of lotes) {
+        const opt = document.createElement('option');
+        opt.value = String(l.id);
+        opt.textContent = `#${l.id} · ${l.nombre}${l.chips ? ` (${l.chips})` : ''}`;
+        loteSel.appendChild(opt);
+      }
+    }).catch(() => { /* si falla, queda solo "Lote nuevo" */ });
 
     if (!supported) {
       configStatus.className = 'modal-status is-error';
@@ -254,6 +269,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
           funcion: funcionSel.value || '',
           modelo: modeloSel.value || '',
           vendedorId: vendedorSel.value || null,
+          loteId: loteActual ? loteActual.id : null,
         }),
       });
     } catch (err) {
@@ -276,6 +292,27 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   async function startRun() {
     objetivo = Math.min(Math.max(Number(objetivoInput.value) || 1, 1), 200);
     configStatus.textContent = '';
+
+    // Resolver el lote de la tanda antes de arrancar el lector.
+    startBtn.disabled = true;
+    try {
+      if (loteSel.value === 'new') {
+        configStatus.className = 'modal-status';
+        configStatus.textContent = 'Creando el lote…';
+        loteActual = await api('/lotes', { method: 'POST', body: JSON.stringify({}) });
+      } else {
+        const txt = loteSel.options[loteSel.selectedIndex].textContent;
+        loteActual = { id: Number(loteSel.value), nombre: txt.replace(/^#\d+ · /, '').replace(/ \(\d+\)$/, '') };
+      }
+    } catch (err) {
+      startBtn.disabled = false;
+      configStatus.className = 'modal-status is-error';
+      configStatus.textContent = `No se pudo preparar el lote: ${err.message}`;
+      return;
+    }
+    configStatus.textContent = '';
+    startBtn.disabled = false;
+
     try {
       ndef = new NDEFReader();
       scanAbort = new AbortController();
@@ -298,6 +335,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     stepConfig.hidden = true;
     stepRun.hidden = false;
     grabados = 0;
+    if (loteActual) loteLabelEl.textContent = `Lote #${loteActual.id} · ${loteActual.nombre}`;
     renderProgress();
     armForNextChip();
   }

@@ -257,6 +257,7 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 body.modal-open{overflow:hidden;}
 
 /* Asistente "Grabar chips NFC" (admin) */
+.grabar-lote-label{font-family:var(--mono); font-size:.82rem; color:var(--violet); text-align:center; margin-bottom:4px;}
 .grabar-count{font-family:var(--mono); font-size:1.1rem; color:var(--paper); text-align:center; margin-bottom:18px;}
 .grabar-stage{min-height:180px; display:flex; align-items:center; justify-content:center;}
 .grabar-big{text-align:center; color:var(--paper-dim); font-size:1rem; line-height:1.5;}
