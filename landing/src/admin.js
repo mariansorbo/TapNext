@@ -502,8 +502,8 @@ function renderCrudosTable() {
               ${MODELO_OPTIONS_INV}
             </select>
           </td>`;
-      const loteCell = s.lote
-        ? `${s.lote}${s.loteCantidad ? ` <span class="admin-muted">(x${s.loteCantidad})</span>` : ''}`
+      const loteCell = s.loteId
+        ? `<b>#${s.loteId}</b>${s.lote ? ` ${s.lote}` : ''}${s.loteCantidad ? ` <span class="admin-muted">(x${s.loteCantidad})</span>` : ''}`
         : '<span class="admin-muted">—</span>';
       return `<tr>
         <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
