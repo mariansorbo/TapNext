@@ -1548,6 +1548,49 @@ function pantallaRedireccion(destino) {
 </html>`;
 }
 
+// Pantalla para un chip que todavía no lleva a ningún lado: recién programado
+// en el taller, o en stock de un vendedor sin vender. Quien lo tapea ve que el
+// sticker es real pero está sin activar, y una invitación a comprar el suyo.
+// HTML autónomo, mismo criterio que pantallaRedireccion (un request, sin bundle).
+function pantallaNoActivado() {
+  const tienda = `${FRONTEND_URL}/pedido.html`;
+  const panel = `${FRONTEND_URL}/mi-panel.html`;
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NextTap — sticker sin activar</title>
+<style>
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{min-height:100%}
+  body{background:var(--ink);color:var(--paper);
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;min-height:100svh;padding:32px 24px;text-align:center;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.2rem,12vw,3.4rem);letter-spacing:-.03em;margin-bottom:6px}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
+  h1{font-size:clamp(1.3rem,6vw,1.8rem);font-weight:600;letter-spacing:-.02em;max-width:16ch}
+  p{color:rgba(237,239,233,.62);max-width:32ch;line-height:1.5}
+  .actions{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;margin-top:8px}
+  a.btn{display:block;padding:15px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:.98rem}
+  a.primary{background:var(--violet);color:var(--ink)}
+  a.ghost{border:1px solid rgba(237,239,233,.22);color:var(--paper)}
+</style>
+</head>
+<body>
+  <div class="mark">Next<span class="tap">Tap</span></div>
+  <h1>Este sticker todav&iacute;a no est&aacute; activado.</h1>
+  <p>El chip funciona, pero nadie carg&oacute; a d&oacute;nde lleva todav&iacute;a. Consegu&iacute; el tuyo y activalo en un toque.</p>
+  <div class="actions">
+    <a class="btn primary" href="${tienda}">Quiero el m&iacute;o</a>
+    <a class="btn ghost" href="${panel}">Ya es m&iacute;o &mdash; entrar a mi panel</a>
+  </div>
+</body>
+</html>`;
+}
+
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
 
@@ -1569,10 +1612,10 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     return res.redirect(302, `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`);
   }
 
-  // Sticker inexistente, todavía no activado, o sin destino cargado — no hay
-  // pantalla de activación construida todavía (RF-08/09), así que por ahora
-  // cae a la landing en vez de mostrar un error crudo.
-  res.redirect(302, FRONTEND_URL);
+  // Chip real todavía sin activar (recién grabado en el taller, o en stock de
+  // un vendedor sin vender), o un código que no reconocemos: pantalla "sin
+  // activar" + invitación a comprar, en vez de tirar a la landing sin contexto.
+  return res.type('html').send(pantallaNoActivado());
 });
 
 // --- Activación del lote especial: verificás tu email → pagás → editás ---
