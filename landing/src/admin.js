@@ -159,8 +159,6 @@ function wireModal(triggerId, overlayId, closeId) {
     if (e.target === overlay) overlay.classList.remove('is-open');
   });
 }
-wireModal('toggle-add-batch', 'batch-modal-overlay', 'batch-modal-close');
-wireModal('toggle-add-individual', 'individual-modal-overlay', 'individual-modal-close');
 wireModal('toggle-precios', 'precios-modal-overlay', 'precios-modal-close');
 wireModal('toggle-lote-especial', 'especial-modal-overlay', 'especial-modal-close');
 

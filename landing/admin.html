@@ -36,7 +36,6 @@
     <div class="kicker">Admin</div>
     <h2>Panel de administración.</h2>
     <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
-    <button type="button" class="btn-ghost" id="open-grabar-button" title="Programar chips NFC en tanda desde el celular (Chrome Android).">🔧 Grabar chips NFC</button>
 
     <!-- Flujo de vida del producto -->
     <div class="admin-flow" id="admin-flow"></div>
@@ -46,14 +45,11 @@
       <div class="admin-section-head">
         <h3>NFC crudos</h3>
         <div class="admin-head-actions">
-          <button type="button" class="admin-add-btn" id="toggle-add-batch" title="Crear varios NFC de una, ya con modelo definido — para cuando programás un lote entero de chips iguales.">
-            <span class="add-icon">+</span> Lote
+          <button type="button" class="admin-add-btn" id="open-grabar-button" title="Programar chips NFC en tanda desde el celular (Chrome Android). El registro se crea al leer y grabar cada chip.">
+            <span class="add-icon">🔧</span> Grabar chips NFC
           </button>
           <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
             <span class="add-icon">+</span> Lote especial
-          </button>
-          <button type="button" class="admin-add-btn" id="toggle-add-individual" title="Registrar un solo NFC leyendo su UID real desde el taller — sin definir modelo ni vendedor todavía, se asignan después por separado.">
-            <span class="add-icon">+</span> NFC crudo
           </button>
           <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
             <span class="add-icon">$</span> Precios
