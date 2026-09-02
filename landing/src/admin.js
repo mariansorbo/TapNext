@@ -87,6 +87,8 @@ logoutButton.addEventListener('click', async () => {
 });
 
 const MONEY = (n) => `$${Number(n).toLocaleString('es-AR')}`;
+const FECHA = (v) => (v ? new Date(v).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—');
+const LOTE_TIPO_LABELS = { especial: 'Especial', normal: 'Lote', suelto: 'Suelto' };
 const ESTADO_LABELS = { en_stock: 'En stock', vendido_pendiente: 'Vendido, sin activar', activo: 'Activo', inactivo: 'Inactivo' };
 const FUNCION_LABELS = {
   whatsapp: 'WhatsApp',
@@ -500,17 +502,23 @@ function renderCrudosTable() {
               ${MODELO_OPTIONS_INV}
             </select>
           </td>`;
+      const loteCell = s.lote
+        ? `${s.lote}${s.loteCantidad ? ` <span class="admin-muted">(x${s.loteCantidad})</span>` : ''}`
+        : '<span class="admin-muted">—</span>';
       return `<tr>
         <td><b>${s.codigoPublico}</b>${s.loteEspecial ? ' <span class="admin-tag">Especial</span>' : ''}</td>
         ${funcionCell}
         ${modeloCell}
+        <td>${FECHA(s.creadoEn)}</td>
+        <td><span class="admin-tag">${LOTE_TIPO_LABELS[s.loteTipo] || s.loteTipo}</span></td>
+        <td>${loteCell}</td>
         ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`;
     })
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Creado</th><th>Tipo</th><th>Lote</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-funcion-select').forEach((select) => {
     const s = crudos.find((c) => String(c.id) === select.dataset.id);

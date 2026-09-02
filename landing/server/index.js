@@ -990,7 +990,8 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.protegido_en, s.creado_en, s.vigente_desde, l.nombre AS lote_nombre,
+    SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.protegido_en, s.creado_en, s.vigente_desde,
+      s.lote_id, l.nombre AS lote_nombre, l.cantidad AS lote_cantidad, l.creado_en AS lote_creado_en,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
       c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
     FROM stickers_actual s
@@ -1017,6 +1018,13 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       // transición de vendedor siempre abre una fila nueva en sticker_estados).
       asignadoEn: r.vendedor_ref ? r.vigente_desde : null,
       lote: r.lote_nombre,
+      loteId: r.lote_id,
+      loteCantidad: r.lote_cantidad,
+      loteCreadoEn: r.lote_creado_en,
+      // Tipo derivado: 'especial' (llaveros pre-impresos sin candado, UID
+      // sentinel), 'normal' (tanda registrada junta desde el panel), o
+      // 'suelto' (chip cargado de a uno en el taller, sin lote).
+      loteTipo: esLoteEspecial(r.uid_nfc) ? 'especial' : (r.lote_id ? 'normal' : 'suelto'),
       vendedor: r.vendedor_nombre ? { nombre: r.vendedor_nombre, codigoRef: r.vendedor_ref } : null,
       comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
     }))
