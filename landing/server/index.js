@@ -1562,7 +1562,12 @@ function pantallaRedireccion(destino) {
 // tapea solo ve que es real pero está sin activar — sin botones de acción,
 // solo un link de texto a la marca. HTML autónomo, mismo criterio que
 // pantallaRedireccion (un request, sin bundle).
-function pantallaNoActivado() {
+function pantallaNoActivado(codigo) {
+  const codigoHtml = String(codigo || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const codigoLinea = codigoHtml
+    ? `<p class="codigo">C&oacute;digo del chip: <b>${codigoHtml}</b></p>`
+    : '';
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -1581,6 +1586,8 @@ function pantallaNoActivado() {
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
   h1{font-size:clamp(1.3rem,6vw,1.8rem);font-weight:600;letter-spacing:-.02em;max-width:16ch}
   p{color:rgba(237,239,233,.62);max-width:32ch;line-height:1.5}
+  p.codigo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;color:rgba(237,239,233,.5)}
+  p.codigo b{color:var(--paper);letter-spacing:.06em}
   a.link{color:rgba(237,239,233,.5);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;letter-spacing:.03em;text-decoration:none;margin-top:6px}
 </style>
 </head>
@@ -1588,6 +1595,7 @@ function pantallaNoActivado() {
   <div class="mark">Next<span class="tap">Tap</span></div>
   <h1>Este sticker todav&iacute;a no est&aacute; activado.</h1>
   <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
+  ${codigoLinea}
   <a class="link" href="https://next-tap.tech">next-tap.tech</a>
 </body>
 </html>`;
@@ -1617,7 +1625,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // Chip real todavía sin activar (recién grabado en el taller, o en stock de
   // un vendedor sin vender), o un código que no reconocemos: pantalla "sin
   // activar" + invitación a comprar, en vez de tirar a la landing sin contexto.
-  return res.type('html').send(pantallaNoActivado());
+  return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo));
 });
 
 // --- Activación del lote especial: verificás tu email → pagás → editás ---
