@@ -14,6 +14,11 @@ const FUNCION_OPTS = {
 };
 const MODELO_OPTS = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa' };
 
+// Cuánto esperamos a que ndef.write() termine antes de darlo por fallido. Si el
+// chip se despega del teléfono, la promesa de write() nunca resuelve sola —
+// sin este corte el asistente queda colgado en "Grabando…".
+const WRITE_TIMEOUT_MS = 6000;
+
 // serialNumber de Web NFC viene "04:d1:3a:..." — el resto del sistema guarda
 // el UID como hex plano en minúscula (ver generateUidNfc en server/index.js).
 const normalizeUid = (serial) => String(serial || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
@@ -48,13 +53,19 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     Object.entries(MODELO_OPTS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
 
   let ndef = null;
-  let abort = null;
+  let scanAbort = null;
   let objetivo = 10;
   let grabados = 0;
-  // Estado del chip actual. phase: 'esperando' | 'grabando-listo' | 'reintento' | 'hecho'
-  let cur = null;
+
+  // phase:
+  //   'esperando'   — sin chip todavía, listo para leer el próximo
+  //   'registrando' — POST /stickers/individual en curso
+  //   'por-grabar'  — chip registrado, falta escribirle la URL (botón Grabar)
+  //   'grabando'    — ndef.write() en curso
+  //   'hecho'       — chip terminado, esperando "Siguiente chip"
   let phase = 'esperando';
-  let lastUidHandled = null;
+  let cur = null;            // { id, uidNfc, codigoPublico, url, writePassword, writePack }
+  let lastUidRead = null;    // dedupe de taps repetidos del mismo chip
 
   function open() {
     resetConfig();
@@ -67,8 +78,8 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     document.body.classList.remove('modal-open');
   }
   function stopScan() {
-    if (abort) { try { abort.abort(); } catch {} }
-    abort = null;
+    if (scanAbort) { try { scanAbort.abort(); } catch {} }
+    scanAbort = null;
     ndef = null;
   }
 
@@ -81,7 +92,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     grabados = 0;
     cur = null;
     phase = 'esperando';
-    lastUidHandled = null;
+    lastUidRead = null;
 
     const vendedores = (getVendedores && getVendedores()) || [];
     vendedorSel.innerHTML = '<option value="">Sin asignar</option>' +
@@ -111,13 +122,21 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     runStatus.className = 'modal-status' + (kind ? ` is-${kind}` : '');
   }
 
+  // "Saltear" está disponible en cualquier momento salvo mientras hay una
+  // operación en vuelo (registrando/grabando) — así el usuario nunca queda
+  // trabado. "Siguiente chip" solo se habilita con un chip terminado.
+  function syncNav() {
+    const busy = phase === 'registrando' || phase === 'grabando';
+    skipBtn.disabled = busy;
+    nextBtn.disabled = phase !== 'hecho';
+  }
+
   // Pantalla "acercá el chip" para el próximo
   function armForNextChip() {
     cur = null;
     phase = 'esperando';
-    lastUidHandled = null;
-    nextBtn.disabled = true;
-    skipBtn.disabled = false;
+    lastUidRead = null;
+    syncNav();
     stageEl.innerHTML = `
       <div class="grabar-big">
         <div class="nfc-pulse">📡</div>
@@ -126,10 +145,25 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     setStatus('Esperando chip…');
   }
 
+  // Chip registrado pero sin URL grabada todavía — botón explícito para grabar
+  // (más confiable en Android que reintentar en un segundo tap automático).
+  function renderPorGrabar(errMsg) {
+    phase = 'por-grabar';
+    syncNav();
+    stageEl.innerHTML = `
+      <div class="grabar-big">
+        <div class="nfc-pulse">📡</div>
+        <p>Chip <b>${cur.codigoPublico}</b> registrado.<br>
+        Mantené el chip pegado al teléfono y tocá <b>Grabar URL</b>.</p>
+        <button type="button" class="btn-primary" id="grabar-write" style="width:100%; margin-top:14px;">Grabar URL</button>
+      </div>`;
+    document.getElementById('grabar-write').addEventListener('click', () => writeUrl());
+    setStatus(errMsg || 'Registrado. Falta grabar la URL en el chip.', errMsg ? 'error' : '');
+  }
+
   function renderDone() {
     phase = 'hecho';
-    nextBtn.disabled = false;
-    skipBtn.disabled = true;
+    syncNav();
     stageEl.innerHTML = `
       <div class="wizard-summary">
         <div>✅ <b>Grabado</b> — código <b>${cur.codigoPublico}</b></div>
@@ -165,38 +199,50 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     setStatus(`Chip ${grabados} de ${objetivo} listo.`, 'success');
   }
 
-  async function writeUrlToChip(url) {
-    // AbortSignal para que el write no quede colgado si el chip ya se fue.
-    await ndef.write(
-      { records: [{ recordType: 'url', data: url }] },
-      { overwrite: true },
-    );
+  async function writeUrl() {
+    if (!ndef || !cur) return;
+    phase = 'grabando';
+    syncNav();
+    setStatus('Grabando la URL… mantené el chip pegado.');
+
+    // Corte por timeout: si el chip se fue, write() no resuelve nunca.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), WRITE_TIMEOUT_MS);
+    try {
+      await ndef.write(
+        { records: [{ recordType: 'url', data: cur.url }] },
+        { overwrite: true, signal: ac.signal },
+      );
+      clearTimeout(timer);
+      grabados += 1;
+      renderProgress();
+      if (onSaved) onSaved();
+      renderDone();
+    } catch (err) {
+      clearTimeout(timer);
+      const msg = err && err.name === 'AbortError'
+        ? 'No detecté el chip a tiempo. Acercalo bien al centro del dorso y tocá Grabar URL de nuevo.'
+        : `No se pudo grabar: ${err.message}. Probá de nuevo con el chip pegado.`;
+      renderPorGrabar(msg);
+    }
   }
 
-  async function handleReading(serialNumber) {
+  async function onReading(serialNumber) {
     const uid = normalizeUid(serialNumber);
     if (!uid) { setStatus('No pude leer el UID del chip. Probá de nuevo.', 'error'); return; }
 
-    // Reintento de grabación sobre el MISMO chip ya registrado.
-    if (phase === 'reintento' && cur && cur.uidNfc === uid) {
-      setStatus('Grabando la URL…');
-      try {
-        await writeUrlToChip(cur.url);
-        grabados += 1;
-        renderProgress();
-        if (onSaved) onSaved();
-        renderDone();
-      } catch (err) {
-        setStatus(`No se pudo grabar: ${err.message}. Mantené el chip pegado y probá de nuevo.`, 'error');
-      }
+    // Si estamos esperando para grabar y vuelven a acercar el mismo chip,
+    // disparamos la grabación (equivale a tocar "Grabar URL").
+    if (phase === 'por-grabar' && cur && cur.uidNfc === uid) {
+      writeUrl();
       return;
     }
+    if (phase !== 'esperando') return;   // ocupado o chip ya terminado
+    if (uid === lastUidRead) return;     // mismo tap repetido
+    lastUidRead = uid;
 
-    if (phase !== 'esperando') return;      // ya estamos procesando/hecho
-    if (uid === lastUidHandled) return;      // mismo tap repetido
-    lastUidHandled = uid;
-    phase = 'procesando';
-    skipBtn.disabled = true;
+    phase = 'registrando';
+    syncNav();
     setStatus('Registrando el chip…');
 
     let data;
@@ -212,9 +258,9 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
       });
     } catch (err) {
       phase = 'esperando';
-      lastUidHandled = null;
-      skipBtn.disabled = false;
-      setStatus(err.message + ' — acercá otro chip o salteá.', 'error');
+      lastUidRead = null;
+      syncNav();
+      setStatus(err.message + ' — acercá otro chip o tocá Saltear.', 'error');
       return;
     }
 
@@ -222,24 +268,9 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
       id: data.id, uidNfc: uid, codigoPublico: data.codigoPublico,
       url: data.url, writePassword: data.writePassword, writePack: data.writePack,
     };
-
-    setStatus('Registrado. Grabando la URL en el chip…');
-    try {
-      await writeUrlToChip(cur.url);
-      grabados += 1;
-      renderProgress();
-      if (onSaved) onSaved();
-      renderDone();
-    } catch (err) {
-      phase = 'reintento';
-      stageEl.innerHTML = `
-        <div class="grabar-big">
-          <div class="nfc-pulse">📡</div>
-          <p>Chip registrado como <b>${cur.codigoPublico}</b>, pero faltó grabar la URL.<br>
-          Volvé a acercar <b>el mismo chip</b> para grabarla.</p>
-        </div>`;
-      setStatus(`Grabación pendiente: ${err.message}`, 'error');
-    }
+    // Intento de grabación automático (chip todavía pegado). Si falla, cae al
+    // botón manual — no queda trabado.
+    await writeUrl();
   }
 
   async function startRun() {
@@ -247,8 +278,8 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     configStatus.textContent = '';
     try {
       ndef = new NDEFReader();
-      abort = new AbortController();
-      await ndef.scan({ signal: abort.signal });
+      scanAbort = new AbortController();
+      await ndef.scan({ signal: scanAbort.signal });
     } catch (err) {
       configStatus.className = 'modal-status is-error';
       configStatus.textContent =
@@ -262,9 +293,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     ndef.addEventListener('readingerror', () => {
       setStatus('Lectura fallida — acercá bien el chip al centro de la parte de atrás.', 'error');
     });
-    ndef.addEventListener('reading', (event) => {
-      handleReading(event.serialNumber);
-    });
+    ndef.addEventListener('reading', (event) => { onReading(event.serialNumber); });
 
     stepConfig.hidden = true;
     stepRun.hidden = false;
@@ -274,6 +303,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   }
 
   startBtn.addEventListener('click', startRun);
+
   nextBtn.addEventListener('click', () => {
     if (grabados >= objetivo) {
       setStatus(`¡Listo! Grabaste los ${objetivo} chips.`, 'success');
@@ -283,10 +313,18 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     renderProgress();
     armForNextChip();
   });
+
   skipBtn.addEventListener('click', () => {
+    // Si el chip ya se registró pero no se grabó, avisamos: queda en la base
+    // sin URL, se le puede grabar después con "Ver clave" desde el inventario.
+    if (phase === 'por-grabar') {
+      setStatus(`Chip ${cur.codigoPublico} registrado sin URL — grabala después desde el inventario.`, 'error');
+    } else {
+      setStatus('Chip salteado.');
+    }
     armForNextChip();
-    setStatus('Chip salteado.');
   });
+
   finishBtn.addEventListener('click', close);
 
   $('grabar-modal-close').addEventListener('click', close);
