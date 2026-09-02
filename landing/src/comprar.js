@@ -102,9 +102,7 @@ api('/public/precios')
   });
 
 const state = {
-  functionId: null,
-  modelId: null,
-  qty: 1,
+  quantities: {}, // comboId -> cantidad elegida (>= 0), una por combo
   cart: [], // se arma al salir del paso 1: un item { functionId, modelId } por unidad
   contacto: '',
   otpVerified: false,
@@ -115,10 +113,12 @@ const state = {
 // paso 1 ofrece todas las funciones sobre este modelo. En el presencial las
 // opciones se reemplazan por los combos reales del vendedor (fetch de stock).
 const DEFAULT_MODEL = 'llavero';
+const MAX_POR_COMBO = 20;
 
-// Cada opción del paso 1 es un combo función+modelo. La tarjeta muestra la
-// función en grande y el modelo ("<Modelo> NFC") como subtítulo.
-function comboItem(funcId, modelId) {
+// Cada opción del paso 1 es un combo función+modelo con su propia cantidad. La
+// tarjeta muestra la función en grande, el modelo ("<Modelo> NFC") de subtítulo
+// y un stepper − N +. `max` = tope de unidades (stock del combo, o 20 online).
+function comboItem(funcId, modelId, max = MAX_POR_COMBO) {
   const fn = FUNCTIONS.find((f) => f.id === funcId);
   const model = MODELS.find((m) => m.id === modelId);
   return {
@@ -128,13 +128,25 @@ function comboItem(funcId, modelId) {
     label: fn ? fn.label : funcId,
     desc: `${model ? model.label : modelId} NFC`,
     icon: fn ? fn.icon : '',
+    max: Math.max(1, Math.min(Number(max) || MAX_POR_COMBO, MAX_POR_COMBO)),
   };
 }
 
 let comboItems = FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
 
 const comboOptions = document.getElementById('combo-options');
-const qtyInput = document.getElementById('wizard-qty');
+
+function totalUnidades() {
+  return Object.values(state.quantities).reduce((s, n) => s + (n || 0), 0);
+}
+
+function setQty(item, n) {
+  const q = Math.max(0, Math.min(n, item.max));
+  if (q === 0) delete state.quantities[item.id];
+  else state.quantities[item.id] = q;
+  renderCombos();
+  updateNextButton();
+}
 
 function renderCombos() {
   comboOptions.innerHTML = '';
@@ -144,45 +156,39 @@ function renderCombos() {
     return;
   }
   comboItems.forEach((item) => {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'option-card';
+    const qty = state.quantities[item.id] || 0;
+    const card = document.createElement('div');
+    card.className = 'option-card combo-card' + (qty > 0 ? ' is-selected' : '');
     card.dataset.id = item.id;
-    if (item.id === `${state.modelId}__${state.functionId}`) card.classList.add('is-selected');
     card.innerHTML = `
       <div class="option-text">
         <div class="option-label">${item.label}</div>
         <div class="option-desc">${item.desc}</div>
       </div>
-      ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
+      <div class="combo-right">
+        ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
+        <div class="combo-stepper">
+          <button type="button" class="combo-minus" aria-label="Restar"${qty === 0 ? ' disabled' : ''}>−</button>
+          <span class="combo-qty">${qty}</span>
+          <button type="button" class="combo-plus" aria-label="Sumar"${qty >= item.max ? ' disabled' : ''}>+</button>
+        </div>
+      </div>
     `;
-    card.addEventListener('click', () => {
-      state.functionId = item.funcId;
-      state.modelId = item.modelId;
-      comboOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-      card.classList.add('is-selected');
-      updateNextButton();
-    });
+    card.querySelector('.combo-minus').addEventListener('click', () => setQty(item, qty - 1));
+    card.querySelector('.combo-plus').addEventListener('click', () => setQty(item, qty + 1));
     comboOptions.appendChild(card);
   });
 }
 renderCombos();
 
-if (qtyInput) {
-  qtyInput.value = String(state.qty);
-  qtyInput.addEventListener('input', () => {
-    state.qty = Math.min(Math.max(Number(qtyInput.value) || 1, 1), 20);
-    updateNextButton();
-  });
-}
-
-// Arma el carrito a partir de la selección del paso 1 (combo + cantidad). Se
-// llama al salir del paso 1, así volver atrás y cambiar rehace todo.
+// Arma el carrito con las cantidades de cada combo del paso 1. Se llama al salir
+// del paso 1, así volver atrás y cambiar rehace todo.
 function syncCartFromStep1() {
   state.cart = [];
-  if (!state.functionId || !state.modelId) return;
-  const n = Math.min(Math.max(state.qty || 1, 1), 20);
-  for (let i = 0; i < n; i++) state.cart.push({ functionId: state.functionId, modelId: state.modelId });
+  comboItems.forEach((item) => {
+    const n = state.quantities[item.id] || 0;
+    for (let i = 0; i < n; i++) state.cart.push({ functionId: item.funcId, modelId: item.modelId });
+  });
 }
 
 // Venta presencial: el vendedor solo tiene consigo los impresos 3D (con su NFC
@@ -194,14 +200,14 @@ if (isPresencial && vendorToken) {
       refKicker.textContent = `Recomendado por ${data.vendedor}`;
       const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion);
       if (combos.length) {
-        comboItems = combos.map((c) => comboItem(c.funcion, c.modelo));
+        comboItems = combos.map((c) => comboItem(c.funcion, c.modelo, c.cantidad));
       } else {
         // El vendedor tiene stock pero sin función asignada (falta cargarla en
         // Admin) — no lo dejamos sin vender: ofrecemos todas las funciones sobre
-        // los modelos que sí tiene en mano.
-        const modelosConStock = (data.modelos || []).filter((m) => m.cantidad > 0).map((m) => m.modelo);
-        const modelos = modelosConStock.length ? modelosConStock : [DEFAULT_MODEL];
-        comboItems = modelos.flatMap((modelId) => FUNCTIONS.map((f) => comboItem(f.id, modelId)));
+        // los modelos que sí tiene en mano (tope = stock total de ese modelo).
+        const conStock = (data.modelos || []).filter((m) => m.cantidad > 0);
+        const modelos = conStock.length ? conStock : [{ modelo: DEFAULT_MODEL, cantidad: MAX_POR_COMBO }];
+        comboItems = modelos.flatMap((m) => FUNCTIONS.map((f) => comboItem(f.id, m.modelo, m.cantidad)));
       }
       renderCombos();
     })
@@ -278,7 +284,7 @@ function showStep(step) {
 }
 
 function updateNextButton() {
-  if (currentStep === 1) nextButton.disabled = !state.functionId || !state.modelId || !(state.qty >= 1);
+  if (currentStep === 1) nextButton.disabled = totalUnidades() === 0;
   else if (currentStep === 3) nextButton.disabled = !tycCheckbox.checked;
   else if (currentStep === 4) nextButton.disabled = !state.otpVerified;
   else nextButton.disabled = false;
@@ -373,15 +379,12 @@ function renderSummary() {
 
 function openWizard() {
   Object.assign(state, {
-    functionId: null,
-    modelId: null,
-    qty: 1,
+    quantities: {},
     cart: [],
     contacto: '',
     otpVerified: false,
   });
-  comboOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-  if (qtyInput) qtyInput.value = '1';
+  renderCombos();
   tycCheckbox.checked = false;
   whatsappInput.value = '';
   whatsappInput.disabled = false;
