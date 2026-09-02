@@ -195,9 +195,6 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
           <button type="button" class="row-btn" data-copy="${cur.writePassword}">copiar</button></div>
         <div><b>PACK:</b> <span class="grabar-key">${cur.writePack}</span>
           <button type="button" class="row-btn" data-copy="${cur.writePack}">copiar</button></div>
-        <div style="margin-top:8px">
-          <button type="button" class="row-btn" id="grabar-candado">Marcar candado (ya escribí AUTH0)</button>
-        </div>
         <p class="grabar-hint">El candado se hace después con NFC Tools usando estas claves. "Siguiente chip" para seguir.</p>
       </div>`;
     stageEl.querySelectorAll('[data-copy]').forEach((b) => {
@@ -206,19 +203,6 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
         catch { window.prompt('Copiá:', b.dataset.copy); }
       });
     });
-    const candadoBtn = document.getElementById('grabar-candado');
-    if (candadoBtn) {
-      candadoBtn.addEventListener('click', async () => {
-        candadoBtn.disabled = true;
-        try {
-          await api(`/stickers/${cur.id}/candado`, { method: 'PATCH' });
-          candadoBtn.textContent = '🔒 candado marcado';
-        } catch (err) {
-          candadoBtn.disabled = false;
-          setStatus(err.message, 'error');
-        }
-      });
-    }
     setStatus(`Chip ${grabados} de ${objetivo} listo.`, 'success');
   }
 

@@ -239,6 +239,7 @@ document.getElementById('create-especial-button').addEventListener('click', asyn
 
 let vendedoresCache = [];
 let stickersCache = [];
+let comisionesCache = [];
 
 async function loadVendedores() {
   const container = document.getElementById('vendedores-table');
@@ -262,7 +263,7 @@ async function loadVendedores() {
             })()}</td>
             <td>${v.stockDisponible} / ${v.stockTotal}</td>
             <td>
-              <button type="button" class="row-btn copy-link-btn" data-link="${v.linkCompra}">Copiar link</button>
+              <button type="button" class="row-btn ver-links-btn" data-id="${v.id}">Ver links</button>
               <button type="button" class="row-btn ver-stock-btn" data-id="${v.id}">Ver stock asignado</button>
               <button type="button" class="row-btn edit-vendedor-btn" data-id="${v.id}">Editar</button>
               <button type="button" class="row-btn danger delete-vendedor-btn" data-id="${v.id}">Eliminar</button>
@@ -277,6 +278,7 @@ async function loadVendedores() {
                   <label><span>Comisión (%)</span><input type="number" class="edit-v-comision" value="${v.comisionPct}" min="0" max="100"></label>
                   <label><span>Email (para su panel)</span><input type="email" class="edit-v-email" value="${v.email || ''}"></label>
                   <label><span>WhatsApp (alternativa al email)</span><input type="tel" class="edit-v-whatsapp" value="${v.whatsapp || ''}"></label>
+                  <label><span>Alias / CVU de Mercado Pago</span><input type="text" class="edit-v-alias" value="${v.aliasMp || ''}"></label>
                   <label><span>Nueva contraseña (dejar vacío para no cambiarla)</span><input type="password" class="edit-v-password" placeholder="••••••••"></label>
                 </div>
                 <div>
@@ -292,16 +294,10 @@ async function loadVendedores() {
 
       container.innerHTML = `<table><thead><tr><th>Nombre</th><th>Código ref.</th><th>Comisión</th><th>Login (email / WhatsApp)</th><th>Stock disponible / total</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
-      container.querySelectorAll('.copy-link-btn').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(btn.dataset.link);
-            const original = btn.textContent;
-            btn.textContent = 'Copiado ✓';
-            setTimeout(() => (btn.textContent = original), 1500);
-          } catch {
-            window.prompt('Copiá el link:', btn.dataset.link);
-          }
+      container.querySelectorAll('.ver-links-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const vendedor = vendedoresCache.find((v) => String(v.id) === btn.dataset.id);
+          openLinksModal(vendedor);
         });
       });
       container.querySelectorAll('.ver-stock-btn').forEach((btn) => {
@@ -329,6 +325,7 @@ async function loadVendedores() {
           const comisionPct = Number(editRow.querySelector('.edit-v-comision').value);
           const whatsapp = editRow.querySelector('.edit-v-whatsapp').value.trim();
           const email = editRow.querySelector('.edit-v-email').value.trim();
+          const aliasMp = editRow.querySelector('.edit-v-alias').value.trim();
           const password = editRow.querySelector('.edit-v-password').value;
           const status = editRow.querySelector('.edit-v-status');
           status.className = 'modal-status';
@@ -336,7 +333,7 @@ async function loadVendedores() {
           try {
             await api(`/vendedores/${btn.dataset.id}`, {
               method: 'PATCH',
-              body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, email, ...(password ? { password } : {}) }),
+              body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, email, aliasMp, ...(password ? { password } : {}) }),
             });
             await loadVendedores();
           } catch (err) {
@@ -377,6 +374,7 @@ document.getElementById('create-vendedor-button').addEventListener('click', asyn
   const comisionPct = Number(document.getElementById('new-vendedor-comision').value);
   const whatsapp = document.getElementById('new-vendedor-whatsapp').value.trim();
   const email = document.getElementById('new-vendedor-email').value.trim();
+  const aliasMp = document.getElementById('new-vendedor-alias').value.trim();
   const password = document.getElementById('new-vendedor-password').value;
   const status = document.getElementById('vendedor-status');
 
@@ -393,13 +391,14 @@ document.getElementById('create-vendedor-button').addEventListener('click', asyn
   status.className = 'modal-status';
   status.textContent = 'Creando...';
   try {
-    await api('/vendedores', { method: 'POST', body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, email, password }) });
+    await api('/vendedores', { method: 'POST', body: JSON.stringify({ nombre, codigoRef, comisionPct, whatsapp, email, aliasMp, password }) });
     status.className = 'modal-status is-success';
     status.textContent = 'Vendedor creado.';
     document.getElementById('new-vendedor-nombre').value = '';
     document.getElementById('new-vendedor-ref').value = '';
     document.getElementById('new-vendedor-whatsapp').value = '';
     document.getElementById('new-vendedor-email').value = '';
+    document.getElementById('new-vendedor-alias').value = '';
     document.getElementById('new-vendedor-password').value = '';
     await loadVendedores();
     const panel = document.getElementById('add-vendedor-panel');
@@ -441,6 +440,34 @@ function openStockModal(vendedor) {
 }
 function closeStockModal() {
   stockModalOverlay.classList.remove('is-open');
+}
+
+// Modal "Ver links" — los dos links presenciales del vendedor: venta común y
+// venta 2x1 (cada uno es una cara de su llavero físico). Ver "Modo de venta 2x1".
+const linksModalOverlay = document.getElementById('links-modal-overlay');
+const linksModalTitle = document.getElementById('links-modal-title');
+const linksModalComun = document.getElementById('links-modal-comun');
+const linksModal2x1 = document.getElementById('links-modal-2x1');
+document.getElementById('links-modal-close').addEventListener('click', closeLinksModal);
+linksModalOverlay.addEventListener('click', (e) => {
+  if (e.target === linksModalOverlay) closeLinksModal();
+});
+document.getElementById('links-modal-copy-comun').addEventListener('click', (e) => {
+  copiar(linksModalComun.textContent, e.currentTarget);
+});
+document.getElementById('links-modal-copy-2x1').addEventListener('click', (e) => {
+  copiar(linksModal2x1.textContent, e.currentTarget);
+});
+
+function openLinksModal(vendedor) {
+  if (!vendedor) return;
+  linksModalTitle.textContent = `Links de venta de ${vendedor.nombre}`;
+  linksModalComun.textContent = vendedor.linkCompra;
+  linksModal2x1.textContent = vendedor.linkCompra2x1;
+  linksModalOverlay.classList.add('is-open');
+}
+function closeLinksModal() {
+  linksModalOverlay.classList.remove('is-open');
 }
 
 // Inventario en 3 tablas, según en qué paso del flujo está cada NFC:
@@ -512,13 +539,12 @@ function renderCrudosTable() {
         <td>${FECHA(s.creadoEn)}</td>
         <td><span class="admin-tag">${s.loteTipoNombre || LOTE_TIPO_LABELS[s.loteTipo] || s.loteTipo}</span></td>
         <td>${loteCell}</td>
-        ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`;
     })
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Creado</th><th>Tipo</th><th>Lote</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Creado</th><th>Tipo</th><th>Lote</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-funcion-select').forEach((select) => {
     const s = crudos.find((c) => String(c.id) === select.dataset.id);
@@ -554,7 +580,6 @@ function renderCrudosTable() {
       }
     });
   });
-  wireCandadoButtons(container);
   wireDeleteButtons(container);
 }
 
@@ -584,13 +609,12 @@ function renderProductosTable() {
             ${vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('')}
           </select>
         </td>
-        ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-vendedor-select').forEach((select) => {
     select.addEventListener('change', async () => {
@@ -612,7 +636,6 @@ function renderProductosTable() {
     checkbox.addEventListener('change', updateBulkAssignBar);
   });
   updateBulkAssignBar();
-  wireCandadoButtons(container);
   wireDeleteButtons(container);
 }
 
@@ -673,7 +696,6 @@ function renderAsignadosTable() {
         <td>${s.vendedor.nombre} (${s.vendedor.codigoRef})</td>
         <td>Asignado, sin vender</td>
         <td>${s.asignadoEn ? new Date(s.asignadoEn).toLocaleDateString('es-AR') : '—'}</td>
-        ${candadoCellHtml(s)}
         <td>
           <button type="button" class="row-btn quitar-vendedor-btn" data-id="${s.id}">Quitar vendedor</button>
           <button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>
@@ -682,7 +704,7 @@ function renderAsignadosTable() {
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th>Candado</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.quitar-vendedor-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -696,50 +718,7 @@ function renderAsignadosTable() {
       }
     });
   });
-  wireCandadoButtons(container);
   wireDeleteButtons(container);
-}
-
-// Candado: columna que aparece en las 3 tablas de inventario, para cualquier
-// sticker con UID real (no aplica a los de lote simulado). "Ver clave" pide
-// PWD_AUTH/PACK recalculados; "Marcar candado" es la confirmación manual de
-// que ya se escribió AUTH0 en el chip físico — el sistema no lo puede saber solo.
-function candadoCellHtml(s) {
-  if (!s.uidNfc) return '<td>—</td>';
-  if (s.protegidoEn) return '<td>🔒 protegido</td>';
-  return `<td>
-    <button type="button" class="row-btn ver-clave-btn" data-id="${s.id}">Ver clave</button>
-    <button type="button" class="row-btn marcar-candado-btn" data-id="${s.id}">Marcar candado</button>
-  </td>`;
-}
-
-function wireCandadoButtons(container) {
-  container.querySelectorAll('.ver-clave-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try {
-        const data = await api(`/stickers/${btn.dataset.id}/clave`);
-        alert(`PWD_AUTH: ${data.writePassword}\nPACK: ${data.writePack}`);
-      } catch (err) {
-        alert(err.message);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-  container.querySelectorAll('.marcar-candado-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm('¿Ya escribiste AUTH0 en el chip físico? Esto solo lo registra acá, no programa nada.')) return;
-      btn.disabled = true;
-      try {
-        await api(`/stickers/${btn.dataset.id}/candado`, { method: 'PATCH' });
-        await loadStickers();
-      } catch (err) {
-        btn.disabled = false;
-        alert(err.message);
-      }
-    });
-  });
 }
 
 function wireDeleteButtons(container) {
@@ -808,11 +787,7 @@ document.getElementById('create-individual-button').addEventListener('click', as
       <div><b>URL a grabar en el chip:</b> ${data.url}</div>
       <div><b>Clave de escritura (PWD_AUTH):</b> ${data.writePassword}</div>
       <div><b>PACK:</b> ${data.writePack}</div>
-      <div style="margin-top:8px">
-        <button type="button" class="row-btn marcar-candado-btn" data-id="${data.id}">Marcar candado (ya escribí AUTH0)</button>
-      </div>
     `;
-    wireCandadoButtons(result);
     document.getElementById('individual-uid').value = '';
     await Promise.all([loadStickers(), loadVendedores()]);
   } catch (err) {
@@ -929,23 +904,114 @@ async function loadVentas() {
 async function loadComisiones() {
   const container = document.getElementById('comisiones-table');
   try {
-    const comisiones = await api('/comisiones');
+    comisionesCache = await api('/comisiones');
     renderTable(
       container,
-      ['Vendedor', 'Ventas totales', 'Comisión pendiente', 'Comisión liquidada'],
-      comisiones.map(
+      ['Vendedor', 'Ventas totales', 'Comisión pendiente', 'Comisión liquidada', ''],
+      comisionesCache.map(
         (c) => `<tr>
           <td><b>${c.nombre}</b> (${c.comisionPct}%)</td>
           <td>${MONEY(c.ventasTotales)}</td>
           <td>${MONEY(c.comisionPendiente)}</td>
           <td>${MONEY(c.comisionLiquidada)}</td>
+          <td>${
+            c.comisionPendiente > 0
+              ? `<button type="button" class="row-btn liquidar-comision-btn" data-id="${c.vendedorId}">Liquidar</button>`
+              : ''
+          }</td>
         </tr>`
       )
     );
+    container.querySelectorAll('.liquidar-comision-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const c = comisionesCache.find((x) => String(x.vendedorId) === btn.dataset.id);
+        if (c) openLiquidarModal(c);
+      });
+    });
   } catch (err) {
     container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
   }
 }
+
+// --- Modal "Liquidar comisión" -------------------------------------------------
+// El pago real se hace por transferencia manual en Mercado Pago (no hay API de
+// payouts self-serve). El modal solo copia alias y monto al portapapeles, abre
+// MP en otra pestaña, y registra el número de operación al confirmar.
+const MP_TRANSFERENCIA_URL = 'https://www.mercadopago.com.ar/money-transfer';
+const liquidarOverlay = document.getElementById('liquidar-modal-overlay');
+const liquidarSub = document.getElementById('liquidar-modal-sub');
+const liquidarAliasEl = document.getElementById('liquidar-alias');
+const liquidarMontoEl = document.getElementById('liquidar-monto');
+const liquidarRefInput = document.getElementById('liquidar-ref');
+const liquidarStatus = document.getElementById('liquidar-status');
+let liquidarActual = null;
+
+function closeLiquidarModal() {
+  liquidarOverlay.classList.remove('is-open');
+}
+document.getElementById('liquidar-modal-close').addEventListener('click', closeLiquidarModal);
+liquidarOverlay.addEventListener('click', (e) => {
+  if (e.target === liquidarOverlay) closeLiquidarModal();
+});
+
+function openLiquidarModal(comision) {
+  liquidarActual = comision;
+  const alias = comision.aliasMp || '';
+  liquidarSub.textContent = `${comision.nombre} — ${comision.ventasPendientes} venta${comision.ventasPendientes === 1 ? '' : 's'} sin liquidar.`;
+  liquidarAliasEl.textContent = alias || '⚠️ sin alias cargado — editá el vendedor primero';
+  liquidarMontoEl.textContent = MONEY(comision.comisionPendiente);
+  liquidarRefInput.value = '';
+  liquidarStatus.textContent = '';
+  liquidarStatus.className = 'modal-status';
+  document.getElementById('liquidar-copy-alias').disabled = !alias;
+  liquidarOverlay.classList.add('is-open');
+}
+
+async function copiar(texto, btn) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    const original = btn.textContent;
+    btn.textContent = 'Copiado ✓';
+    setTimeout(() => (btn.textContent = original), 1500);
+  } catch {
+    window.prompt('Copiá esto:', texto);
+  }
+}
+
+document.getElementById('liquidar-copy-alias').addEventListener('click', (e) => {
+  if (liquidarActual?.aliasMp) copiar(liquidarActual.aliasMp, e.currentTarget);
+});
+document.getElementById('liquidar-copy-monto').addEventListener('click', (e) => {
+  // Solo el número, sin símbolo ni separador de miles — así se pega limpio en MP.
+  if (liquidarActual) copiar(String(liquidarActual.comisionPendiente), e.currentTarget);
+});
+document.getElementById('liquidar-open-mp').addEventListener('click', () => {
+  window.open(MP_TRANSFERENCIA_URL, '_blank', 'noopener');
+});
+document.getElementById('liquidar-confirm').addEventListener('click', async () => {
+  if (!liquidarActual) return;
+  const ref = liquidarRefInput.value.trim();
+  if (!ref) {
+    liquidarStatus.className = 'modal-status is-error';
+    liquidarStatus.textContent = 'Pegá el número de operación de la transferencia.';
+    return;
+  }
+  liquidarStatus.className = 'modal-status';
+  liquidarStatus.textContent = 'Registrando...';
+  try {
+    const data = await api(`/comisiones/${liquidarActual.vendedorId}/liquidar`, {
+      method: 'POST',
+      body: JSON.stringify({ ref }),
+    });
+    liquidarStatus.className = 'modal-status is-success';
+    liquidarStatus.textContent = `Liquidado — ${data.ventasLiquidadas} venta(s) marcadas.`;
+    await Promise.all([loadComisiones(), loadVentas()]);
+    setTimeout(closeLiquidarModal, 900);
+  } catch (err) {
+    liquidarStatus.className = 'modal-status is-error';
+    liquidarStatus.textContent = err.message;
+  }
+});
 
 initNfcGrabar({
   api,

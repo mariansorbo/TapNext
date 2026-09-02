@@ -116,6 +116,10 @@
             <input type="tel" id="new-vendedor-whatsapp" placeholder="+54 9 11 1234 5678">
           </label>
           <label>
+            <span>Alias o CVU de Mercado Pago (para liquidarle la comisión)</span>
+            <input type="text" id="new-vendedor-alias" placeholder="nacho.mp o CVU">
+          </label>
+          <label>
             <span>Contraseña (si cargaste email o WhatsApp)</span>
             <input type="password" id="new-vendedor-password" placeholder="Contraseña de su panel">
           </label>
@@ -258,6 +262,37 @@
   </div>
 </div>
 
+<!-- Modal: liquidar comisión de un vendedor -->
+<div class="modal-overlay" id="liquidar-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="liquidar-modal-close">✕</button>
+    <h3>Liquidar comisión</h3>
+    <p class="modal-sub" id="liquidar-modal-sub"></p>
+    <div class="liquidar-grid">
+      <div>
+        <span class="liquidar-label">Alias / CVU</span>
+        <div class="liquidar-value" id="liquidar-alias"></div>
+        <button type="button" class="btn-ghost" id="liquidar-copy-alias" style="margin-top:6px;">Copiar alias</button>
+      </div>
+      <div>
+        <span class="liquidar-label">Monto a transferir</span>
+        <div class="liquidar-value" id="liquidar-monto"></div>
+        <button type="button" class="btn-ghost" id="liquidar-copy-monto" style="margin-top:6px;">Copiar monto</button>
+      </div>
+    </div>
+    <button type="button" class="btn-ghost" id="liquidar-open-mp" style="width:100%; margin:14px 0;">Abrir Mercado Pago →</button>
+    <p class="modal-sub" style="margin:0 0 4px;">Después de transferir, pegá acá el número de operación que te da Mercado Pago:</p>
+    <div class="modal-form">
+      <label>
+        <span>Número de operación</span>
+        <input type="text" id="liquidar-ref" placeholder="Ej. 123456789012">
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="liquidar-confirm">Confirmar liquidación</button>
+    <p class="modal-status" id="liquidar-status"></p>
+  </div>
+</div>
+
 <!-- Modal: stock asignado a un vendedor -->
 <div class="modal-overlay" id="stock-modal-overlay">
   <div class="modal">
@@ -265,6 +300,27 @@
     <h3 id="stock-modal-title">Stock asignado</h3>
     <p class="modal-sub" id="stock-modal-sub"></p>
     <div class="admin-table" id="stock-modal-table"></div>
+  </div>
+</div>
+
+<!-- Modal: links de venta de un vendedor (común + 2x1) -->
+<div class="modal-overlay" id="links-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="links-modal-close">✕</button>
+    <h3 id="links-modal-title">Links de venta</h3>
+    <p class="modal-sub">Cada cara del llavero del vendedor apunta a uno de estos. El de 2x1 aplica el descuento de a pares.</p>
+    <div style="display:flex; flex-direction:column; gap:18px; margin:6px 0 4px;">
+      <div>
+        <span class="liquidar-label">Venta común</span>
+        <div class="liquidar-value" id="links-modal-comun"></div>
+        <button type="button" class="btn-ghost" id="links-modal-copy-comun" style="margin-top:8px;">Copiar link común</button>
+      </div>
+      <div>
+        <span class="liquidar-label">Venta 2x1</span>
+        <div class="liquidar-value" id="links-modal-2x1"></div>
+        <button type="button" class="btn-ghost" id="links-modal-copy-2x1" style="margin-top:8px;">Copiar link 2x1</button>
+      </div>
+    </div>
   </div>
 </div>
 

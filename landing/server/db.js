@@ -238,6 +238,14 @@ await db.executeMultiple(`
   -- codigo_ref legible que usa para loguearse/identificarse en su panel —
   -- así no se puede enumerar vendedores cambiando el parámetro en la URL.
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token TEXT;
+  -- Segundo link presencial del vendedor, para la venta 2x1 (ver
+  -- "Modo de venta 2x1" en el vault). Es la otra cara de su llavero físico:
+  -- misma mecánica que link_token, token aparte → el modo no viaja editable
+  -- en la URL. El resolver de /comprar y POST /api/ventas lo matchea y, si
+  -- pega acá, marca la venta como modo_venta = '2x1'.
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token_2x1 TEXT;
+  -- Modo de la venta según por qué link entró el comprador.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS modo_venta TEXT DEFAULT 'estandar';
   -- Canal por el que se emitió cada OTP ('email' | 'whatsapp'). Las filas
   -- previas a este cambio quedan NULL: eran todas por whatsapp.
   ALTER TABLE otp_sessions ADD COLUMN IF NOT EXISTS canal TEXT;
@@ -245,6 +253,13 @@ await db.executeMultiple(`
   -- no solo por whatsapp. Índice para el lookup del login; parcial porque hay
   -- filas históricas con email NULL.
   CREATE INDEX IF NOT EXISTS idx_compradores_email ON compradores(email) WHERE email IS NOT NULL;
+  -- Alias o CVU de Mercado Pago del vendedor, para liquidarle la comisión por
+  -- transferencia. Solo dato de contacto de pago — no se valida contra MP.
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS alias_mp TEXT;
+  -- Liquidación de comisión: número de operación de la transferencia y cuándo
+  -- se hizo. Se completan al confirmar la liquidación desde el panel de Admin.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidacion_ref TEXT;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidada_en TIMESTAMPTZ;
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este
@@ -259,8 +274,20 @@ for (const v of vendedoresSinToken) {
   });
 }
 
+// Mismo backfill para el token del link 2x1 (vendedores previos a esa columna).
+const vendedoresSinToken2x1 = (
+  await db.execute('SELECT id FROM vendedores WHERE link_token_2x1 IS NULL')
+).rows;
+for (const v of vendedoresSinToken2x1) {
+  await db.execute({
+    sql: 'UPDATE vendedores SET link_token_2x1 = ? WHERE id = ?',
+    args: [randomBytes(6).toString('hex'), v.id],
+  });
+}
+
 await db.executeMultiple(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_link_token ON vendedores(link_token);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_link_token_2x1 ON vendedores(link_token_2x1);
 `);
 
 // Migración de datos: si `stickers` todavía tiene las columnas viejas

@@ -256,6 +256,12 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 .modal-status.is-error{color:#e07a7a;}
 body.modal-open{overflow:hidden;}
 
+/* Modal "Liquidar comisión" (admin) */
+.liquidar-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:6px 0 4px;}
+.liquidar-label{font-family:var(--mono); font-size:0.72rem; color:var(--paper-dim); text-transform:uppercase; letter-spacing:0.04em;}
+.liquidar-value{font-family:var(--mono); font-size:1rem; color:var(--paper); margin-top:4px; word-break:break-all;}
+@media (max-width:480px){.liquidar-grid{grid-template-columns:1fr;}}
+
 /* Asistente "Grabar chips NFC" (admin) */
 .grabar-lote-label{font-family:var(--mono); font-size:.82rem; color:var(--violet); text-align:center; margin-bottom:4px;}
 .grabar-count{font-family:var(--mono); font-size:1.1rem; color:var(--paper); text-align:center; margin-bottom:18px;}

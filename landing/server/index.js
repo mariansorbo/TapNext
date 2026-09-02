@@ -473,7 +473,10 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
 // viejo (?ref=<codigo_ref>) — sacar el fallback una vez reimpresos todos.
 app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   const ref = String(req.params.ref || '').trim().toLowerCase();
-  const vendedor = await get('SELECT id, nombre FROM vendedores WHERE link_token = ? OR codigo_ref = ?', [ref, ref]);
+  const vendedor = await get(
+    'SELECT id, nombre FROM vendedores WHERE link_token = ? OR link_token_2x1 = ? OR codigo_ref = ?',
+    [ref, ref, ref]
+  );
   if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
 
   const rows = await all(
@@ -525,11 +528,18 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     // desde su panel a dónde redirige — no hace falta decidirlo antes de pagar.
   }
 
-  // Mismo fallback temporal que el endpoint de stock: acepta el token nuevo o
-  // el codigo_ref viejo, hasta reimprimir todos los stickers repartidos.
+  // Mismo fallback temporal que el endpoint de stock: acepta el token nuevo, el
+  // token del link 2x1, o el codigo_ref viejo, hasta reimprimir todos los
+  // stickers repartidos. Si el comprador entró por el link 2x1 (link_token_2x1),
+  // la venta queda marcada modo_venta = '2x1'.
   let vendedor = null;
+  let modoVenta = 'estandar';
   if (vendedorToken) {
-    vendedor = await get('SELECT id FROM vendedores WHERE link_token = ? OR codigo_ref = ?', [vendedorToken, vendedorToken]);
+    vendedor = await get(
+      'SELECT id, link_token_2x1 FROM vendedores WHERE link_token = ? OR link_token_2x1 = ? OR codigo_ref = ?',
+      [vendedorToken, vendedorToken, vendedorToken]
+    );
+    if (vendedor && vendedor.link_token_2x1 === vendedorToken) modoVenta = '2x1';
   }
 
   // Reservamos un sticker en_stock por cada item pedido, antes de crear nada,
@@ -567,8 +577,8 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   }
 
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago) VALUES (?, ?, ?, 'pendiente')`,
-    [vendedorIdVenta, req.comprador.id, monto]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, modo_venta) VALUES (?, ?, ?, 'pendiente', ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, modoVenta]
   );
   const ventaId = ventaResult.lastInsertRowid;
 
@@ -863,9 +873,11 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       codigoRef: v.codigo_ref,
       linkToken: v.link_token,
       linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token}`,
+      linkCompra2x1: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token_2x1}`,
       comisionPct: v.comision_pct,
       whatsapp: v.whatsapp,
       email: v.email,
+      aliasMp: v.alias_mp,
       tieneLogin: Boolean(v.password_hash),
       stockTotal: v.stock_total,
       stockDisponible: v.stock_disponible,
@@ -881,6 +893,7 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const comisionPct = Number(req.body?.comisionPct ?? 50);
   const whatsapp = String(req.body?.whatsapp || '').trim();
   const email = String(req.body?.email || '').trim().toLowerCase();
+  const aliasMp = String(req.body?.aliasMp || '').trim();
   const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
@@ -906,9 +919,10 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
   const linkToken = generateLinkToken();
+  const linkToken2x1 = generateLinkToken();
   const result = await run(
-    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, email, password_hash, link_token) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [nombre, codigoRef, comisionPct, whatsapp || null, email || null, passwordHash, linkToken]
+    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, email, alias_mp, password_hash, link_token, link_token_2x1) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [nombre, codigoRef, comisionPct, whatsapp || null, email || null, aliasMp || null, passwordHash, linkToken, linkToken2x1]
   );
   res.status(201).json({
     id: result.lastInsertRowid,
@@ -916,9 +930,11 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
     codigoRef,
     linkToken,
     linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken}`,
+    linkCompra2x1: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken2x1}`,
     comisionPct,
     whatsapp: whatsapp || null,
     email: email || null,
+    aliasMp: aliasMp || null,
   });
 });
 
@@ -936,6 +952,9 @@ app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   const email = 'email' in (req.body || {})
     ? String(req.body.email || '').trim().toLowerCase()
     : (vendedor.email || '');
+  const aliasMp = 'aliasMp' in (req.body || {})
+    ? String(req.body.aliasMp || '').trim()
+    : (vendedor.alias_mp || '');
   const password = String(req.body?.password || '');
 
   if (!nombre || !codigoRef) return res.status(400).json({ error: 'Faltan datos.' });
@@ -960,16 +979,17 @@ app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
   }
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : vendedor.password_hash;
-  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ?, whatsapp = ?, email = ?, password_hash = ? WHERE id = ?', [
+  await run('UPDATE vendedores SET nombre = ?, codigo_ref = ?, comision_pct = ?, whatsapp = ?, email = ?, alias_mp = ?, password_hash = ? WHERE id = ?', [
     nombre,
     codigoRef,
     comisionPct,
     whatsapp || null,
     email || null,
+    aliasMp || null,
     contacto ? passwordHash : null,
     vendedorId,
   ]);
-  res.json({ id: vendedorId, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null, email: email || null });
+  res.json({ id: vendedorId, nombre, codigoRef, comisionPct, whatsapp: whatsapp || null, email: email || null, aliasMp: aliasMp || null });
 });
 
 app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
@@ -1449,10 +1469,11 @@ app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/comisiones', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT v.id, v.nombre, v.comision_pct,
+    SELECT v.id, v.nombre, v.comision_pct, v.alias_mp,
       COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' THEN ve.monto ELSE 0 END), 0) AS ventas_totales,
       COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 0 THEN ve.monto ELSE 0 END), 0) AS base_pendiente,
-      COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 1 THEN ve.monto ELSE 0 END), 0) AS base_liquidada
+      COALESCE(SUM(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 1 THEN ve.monto ELSE 0 END), 0) AS base_liquidada,
+      COUNT(CASE WHEN ve.estado_pago = 'confirmado' AND ve.comision_liquidada = 0 THEN 1 END) AS ventas_pendientes
     FROM vendedores v
     LEFT JOIN ventas ve ON ve.vendedor_id = v.id
     GROUP BY v.id
@@ -1464,11 +1485,33 @@ app.get('/api/admin/comisiones', requireAdmin, async (req, res) => {
       vendedorId: r.id,
       nombre: r.nombre,
       comisionPct: r.comision_pct,
+      aliasMp: r.alias_mp,
       ventasTotales: r.ventas_totales,
+      ventasPendientes: Number(r.ventas_pendientes),
       comisionPendiente: Math.round((r.base_pendiente * r.comision_pct) / 100),
       comisionLiquidada: Math.round((r.base_liquidada * r.comision_pct) / 100),
     }))
   );
+});
+
+// Liquidar de una toda la comisión pendiente de un vendedor: marca todas sus
+// ventas confirmadas sin liquidar y les graba el número de operación de la
+// transferencia + la fecha. El pago real se hace por fuera (transferencia
+// manual en Mercado Pago); acá solo se registra.
+app.post('/api/admin/comisiones/:vendedorId/liquidar', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.vendedorId);
+  const ref = String(req.body?.ref || '').trim();
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  if (!ref) return res.status(400).json({ error: 'Falta el número de operación de la transferencia.' });
+
+  const { rowsAffected } = await run(
+    `UPDATE ventas SET comision_liquidada = 1, liquidacion_ref = ?, liquidada_en = NOW()
+     WHERE vendedor_id = ? AND estado_pago = 'confirmado' AND comision_liquidada = 0`,
+    [ref, vendedorId]
+  );
+  if (!rowsAffected) return res.status(400).json({ error: 'Este vendedor no tiene comisión pendiente.' });
+  res.json({ ok: true, ventasLiquidadas: rowsAffected });
 });
 
 app.patch('/api/admin/ventas/:id/liquidar', requireAdmin, async (req, res) => {
