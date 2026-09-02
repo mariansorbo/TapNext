@@ -303,24 +303,13 @@
   </div>
 </div>
 
-<!-- Modal: links de venta de un vendedor (común + 2x1) -->
+<!-- Modal: links de venta de un vendedor (común + una por promo activa) -->
 <div class="modal-overlay" id="links-modal-overlay">
   <div class="modal">
     <button type="button" class="modal-close" id="links-modal-close">✕</button>
     <h3 id="links-modal-title">Links de venta</h3>
-    <p class="modal-sub">Cada cara del llavero del vendedor apunta a uno de estos. El de 2x1 aplica el descuento de a pares.</p>
-    <div style="display:flex; flex-direction:column; gap:18px; margin:6px 0 4px;">
-      <div>
-        <span class="liquidar-label">Venta común</span>
-        <div class="liquidar-value" id="links-modal-comun"></div>
-        <button type="button" class="btn-ghost" id="links-modal-copy-comun" style="margin-top:8px;">Copiar link común</button>
-      </div>
-      <div>
-        <span class="liquidar-label">Venta 2x1</span>
-        <div class="liquidar-value" id="links-modal-2x1"></div>
-        <button type="button" class="btn-ghost" id="links-modal-copy-2x1" style="margin-top:8px;">Copiar link 2x1</button>
-      </div>
-    </div>
+    <p class="modal-sub">Cada cara del llavero del vendedor apunta a uno de estos. Los de promo aplican el descuento de a pares.</p>
+    <div id="links-modal-list" style="display:flex; flex-direction:column; gap:18px; margin:6px 0 4px;"></div>
   </div>
 </div>
 

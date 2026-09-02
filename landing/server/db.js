@@ -238,14 +238,46 @@ await db.executeMultiple(`
   -- codigo_ref legible que usa para loguearse/identificarse en su panel —
   -- así no se puede enumerar vendedores cambiando el parámetro en la URL.
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token TEXT;
-  -- Segundo link presencial del vendedor, para la venta 2x1 (ver
-  -- "Modo de venta 2x1" en el vault). Es la otra cara de su llavero físico:
-  -- misma mecánica que link_token, token aparte → el modo no viaja editable
-  -- en la URL. El resolver de /comprar y POST /api/ventas lo matchea y, si
-  -- pega acá, marca la venta como modo_venta = '2x1'.
-  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS link_token_2x1 TEXT;
-  -- Modo de la venta según por qué link entró el comprador.
-  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS modo_venta TEXT DEFAULT 'estandar';
+  -- Promociones de venta presencial (ver "Modo de venta 2x1" en el vault).
+  -- Cada promo agrupa unidades del mismo modelo de a unidades_pack y
+  -- descuenta cada grupo, ya sea por % del precio de lista (pct_lista) o
+  -- fijando el total del grupo ('monto_fijo', con montos por modelo en
+  -- promocion_montos). El estándar es "no hay promo" — no lleva fila acá.
+  CREATE TABLE IF NOT EXISTS promociones (
+    id SERIAL PRIMARY KEY,
+    slug TEXT UNIQUE NOT NULL,
+    nombre TEXT NOT NULL,
+    unidades_pack INTEGER NOT NULL DEFAULT 2,
+    modo_precio TEXT NOT NULL,          -- 'pct_lista' | 'monto_fijo'
+    descuento_pct REAL,                 -- solo si modo_precio = 'pct_lista'
+    activa BOOLEAN NOT NULL DEFAULT TRUE,
+    creada_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  -- Total del grupo (pack de unidades_pack unidades) para un modelo, cuando
+  -- la promo es monto_fijo. Modelo sin fila = la promo no le aplica.
+  CREATE TABLE IF NOT EXISTS promocion_montos (
+    promocion_id INTEGER NOT NULL REFERENCES promociones(id) ON DELETE CASCADE,
+    modelo TEXT NOT NULL,
+    monto_pack REAL NOT NULL,
+    PRIMARY KEY (promocion_id, modelo)
+  );
+  -- Un token de link presencial por (vendedor, promo). Es la contracara
+  -- física de cada cara del llavero del vendedor: cada promo activa le da al
+  -- vendedor un link propio, aparte del común (vendedores.link_token). El modo
+  -- no viaja editable en la URL: entrar por este token es lo que fija la promo.
+  CREATE TABLE IF NOT EXISTS vendedor_promo_tokens (
+    id SERIAL PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL REFERENCES vendedores(id) ON DELETE CASCADE,
+    promocion_id INTEGER NOT NULL REFERENCES promociones(id) ON DELETE CASCADE,
+    token TEXT UNIQUE NOT NULL,
+    UNIQUE (vendedor_id, promocion_id)
+  );
+  -- Promo con la que se cerró la venta (NULL = venta estándar).
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS promocion_id INTEGER REFERENCES promociones(id);
+  -- Limpieza de una iteración anterior (columnas efímeras, nunca tuvieron datos
+  -- de valor): el modo de venta ahora es ventas.promocion_id + vendedor_promo_tokens.
+  ALTER TABLE vendedores DROP COLUMN IF EXISTS link_token_2x1;
+  ALTER TABLE ventas DROP COLUMN IF EXISTS modo_venta;
   -- Canal por el que se emitió cada OTP ('email' | 'whatsapp'). Las filas
   -- previas a este cambio quedan NULL: eran todas por whatsapp.
   ALTER TABLE otp_sessions ADD COLUMN IF NOT EXISTS canal TEXT;
@@ -274,21 +306,45 @@ for (const v of vendedoresSinToken) {
   });
 }
 
-// Mismo backfill para el token del link 2x1 (vendedores previos a esa columna).
-const vendedoresSinToken2x1 = (
-  await db.execute('SELECT id FROM vendedores WHERE link_token_2x1 IS NULL')
-).rows;
-for (const v of vendedoresSinToken2x1) {
-  await db.execute({
-    sql: 'UPDATE vendedores SET link_token_2x1 = ? WHERE id = ?',
-    args: [randomBytes(6).toString('hex'), v.id],
-  });
-}
-
 await db.executeMultiple(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_link_token ON vendedores(link_token);
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_vendedores_link_token_2x1 ON vendedores(link_token_2x1);
 `);
+
+// Seed de las promos base. Idempotente (ON CONFLICT sobre el slug) — editar
+// montos/porcentajes después se hace desde la base, no acá.
+await db.executeMultiple(`
+  INSERT INTO promociones (slug, nombre, unidades_pack, modo_precio, descuento_pct)
+  VALUES
+    ('2x1', '2x1', 2, 'pct_lista', 50),
+    ('2x30', '2 x 30k', 2, 'monto_fijo', NULL)
+  ON CONFLICT (slug) DO NOTHING;
+
+  INSERT INTO promocion_montos (promocion_id, modelo, monto_pack)
+  SELECT p.id, 'llavero', 30000 FROM promociones p WHERE p.slug = '2x30'
+  ON CONFLICT (promocion_id, modelo) DO NOTHING;
+`);
+
+// Backfill de tokens: un token por cada (vendedor, promo activa) que todavía
+// no lo tenga. Corre también cuando se agrega una promo nueva o un vendedor
+// nuevo (el alta de vendedor además lo hace en el endpoint, para no depender
+// de un reinicio).
+const paresSinToken = (
+  await db.execute(`
+    SELECT v.id AS vendedor_id, p.id AS promocion_id
+    FROM vendedores v CROSS JOIN promociones p
+    WHERE p.activa
+      AND NOT EXISTS (
+        SELECT 1 FROM vendedor_promo_tokens t
+        WHERE t.vendedor_id = v.id AND t.promocion_id = p.id
+      )
+  `)
+).rows;
+for (const par of paresSinToken) {
+  await db.execute({
+    sql: 'INSERT INTO vendedor_promo_tokens (vendedor_id, promocion_id, token) VALUES (?, ?, ?)',
+    args: [par.vendedor_id, par.promocion_id, randomBytes(6).toString('hex')],
+  });
+}
 
 // Migración de datos: si `stickers` todavía tiene las columnas viejas
 // (mutables) de una versión pre-SCD, movemos el estado actual de cada fila a

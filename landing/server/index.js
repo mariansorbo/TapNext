@@ -471,12 +471,66 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
 // link_token (link nuevo, no adivinable); codigo_ref queda como fallback
 // TEMPORAL mientras se reimprimen los stickers ya repartidos con el link
 // viejo (?ref=<codigo_ref>) — sacar el fallback una vez reimpresos todos.
+// Resuelve el ref del link presencial (?s=) a un vendedor y, si el link es de
+// una promo (vendedor_promo_tokens), también a esa promo. Orden de resolución:
+// token de promo → link_token común → codigo_ref legacy.
+async function resolverRefPresencial(ref) {
+  if (!ref) return { vendedor: null, promocionId: null };
+  const promoTok = await get(
+    `SELECT v.id, v.nombre, t.promocion_id
+       FROM vendedor_promo_tokens t
+       JOIN vendedores v ON v.id = t.vendedor_id
+       JOIN promociones p ON p.id = t.promocion_id
+      WHERE t.token = ? AND p.activa`,
+    [ref]
+  );
+  if (promoTok) {
+    return { vendedor: { id: promoTok.id, nombre: promoTok.nombre }, promocionId: promoTok.promocion_id };
+  }
+  const v = await get('SELECT id, nombre FROM vendedores WHERE link_token = ? OR codigo_ref = ?', [ref, ref]);
+  return { vendedor: v || null, promocionId: null };
+}
+
+// Aplica una promo a las unidades reservadas. En el flujo actual todas son del
+// mismo modelo, pero se agrupa por modelo por robustez. Devuelve el mismo array
+// con `precio` (final) en cada item. Sin promo → precio de lista.
+function preciosConPromo(reservados, promo, montosPorModelo) {
+  if (!promo) return reservados.map((r) => ({ ...r, precio: r.precioLista }));
+  const n = promo.unidades_pack;
+  const idxPorModelo = new Map();
+  reservados.forEach((r, i) => {
+    const m = r.item.modelo;
+    if (!idxPorModelo.has(m)) idxPorModelo.set(m, []);
+    idxPorModelo.get(m).push(i);
+  });
+  const precioFinal = new Array(reservados.length);
+  for (const [modelo, idxs] of idxPorModelo) {
+    const unit = reservados[idxs[0]].precioLista;
+    const enPromo = Math.floor(idxs.length / n) * n; // unidades que entran en un grupo completo
+    let totalGrupo;
+    if (promo.modo_precio === 'monto_fijo') {
+      const montoPack = montosPorModelo.get(modelo);
+      totalGrupo = montoPack == null ? unit * n : montoPack; // sin monto para ese modelo → la promo no aplica
+    } else {
+      totalGrupo = unit * n * (1 - Number(promo.descuento_pct) / 100);
+    }
+    idxs.forEach((idx, k) => {
+      if (k >= enPromo) {
+        precioFinal[idx] = unit;
+        return;
+      }
+      // Repartimos el total del grupo entre sus n unidades; el sobrante del
+      // redondeo cae en la primera, para que la suma del grupo dé exacta.
+      const base = Math.round(totalGrupo / n);
+      precioFinal[idx] = k % n === 0 ? totalGrupo - base * (n - 1) : base;
+    });
+  }
+  return reservados.map((r, i) => ({ ...r, precio: precioFinal[i] }));
+}
+
 app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   const ref = String(req.params.ref || '').trim().toLowerCase();
-  const vendedor = await get(
-    'SELECT id, nombre FROM vendedores WHERE link_token = ? OR link_token_2x1 = ? OR codigo_ref = ?',
-    [ref, ref, ref]
-  );
+  const { vendedor } = await resolverRefPresencial(ref);
   if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
 
   const rows = await all(
@@ -540,18 +594,23 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     // desde su panel a dónde redirige — no hace falta decidirlo antes de pagar.
   }
 
-  // Mismo fallback temporal que el endpoint de stock: acepta el token nuevo, el
-  // token del link 2x1, o el codigo_ref viejo, hasta reimprimir todos los
-  // stickers repartidos. Si el comprador entró por el link 2x1 (link_token_2x1),
-  // la venta queda marcada modo_venta = '2x1'.
-  let vendedor = null;
-  let modoVenta = 'estandar';
-  if (vendedorToken) {
-    vendedor = await get(
-      'SELECT id, link_token_2x1 FROM vendedores WHERE link_token = ? OR link_token_2x1 = ? OR codigo_ref = ?',
-      [vendedorToken, vendedorToken, vendedorToken]
-    );
-    if (vendedor && vendedor.link_token_2x1 === vendedorToken) modoVenta = '2x1';
+  // Resuelve vendedor + promo por el token del link presencial (acepta el token
+  // común, un token de promo, o el codigo_ref legacy).
+  const { vendedor, promocionId } = await resolverRefPresencial(vendedorToken);
+
+  // Si el link era de una promo, la cargamos para calcular el descuento y
+  // validar el mínimo de unidades.
+  let promo = null;
+  const montosPromo = new Map();
+  if (promocionId) {
+    promo = await get('SELECT * FROM promociones WHERE id = ? AND activa', [promocionId]);
+    if (promo) {
+      if (items.length < promo.unidades_pack) {
+        return res.status(400).json({ error: `La promo ${promo.nombre} necesita al menos ${promo.unidades_pack} unidades.` });
+      }
+      const montoRows = await all('SELECT modelo, monto_pack FROM promocion_montos WHERE promocion_id = ?', [promo.id]);
+      for (const m of montoRows) montosPromo.set(m.modelo, m.monto_pack);
+    }
   }
 
   // Reservamos un sticker en_stock por cada item pedido, antes de crear nada,
@@ -576,25 +635,28 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     }
     const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
     if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${modelo}.` });
-    reservados.push({ sticker, item, precio: precioRow.precio });
+    reservados.push({ sticker, item, precioLista: precioRow.precio });
   }
 
+  // Resuelve el precio final de cada unidad según la promo (o precio de lista).
+  const conPromo = preciosConPromo(reservados, promo, montosPromo);
+
   let vendedorIdVenta = vendedor?.id || null;
-  const montoItems = reservados.reduce((sum, r) => sum + r.precio, 0);
+  const montoItems = conPromo.reduce((sum, r) => sum + r.precio, 0);
   const monto = montoItems + (envio ? Number(envio.price) : 0);
 
-  for (const { sticker } of reservados) {
+  for (const { sticker } of conPromo) {
     await transicionarSticker(sticker.id, { comprador_id: req.comprador.id, estado: 'vendido_pendiente' });
     if (!vendedorIdVenta && sticker.vendedor_id) vendedorIdVenta = sticker.vendedor_id;
   }
 
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, modo_venta) VALUES (?, ?, ?, 'pendiente', ?)`,
-    [vendedorIdVenta, req.comprador.id, monto, modoVenta]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id) VALUES (?, ?, ?, 'pendiente', ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null]
   );
   const ventaId = ventaResult.lastInsertRowid;
 
-  for (const { sticker, item, precio } of reservados) {
+  for (const { sticker, item, precio } of conPromo) {
     await run('INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, ?, ?)', [
       ventaId,
       sticker.id,
@@ -605,7 +667,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   }
 
   try {
-    const mpItems = reservados.map(({ item, precio }) => ({
+    const mpItems = conPromo.map(({ item, precio }) => ({
       title: `Sticker AltoqueTap — ${item.modelo}`,
       quantity: 1,
       unit_price: precio,
@@ -878,6 +940,21 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       (SELECT COUNT(*) FROM stickers_actual s WHERE s.vendedor_id = v.id AND s.estado = 'en_stock') AS stock_disponible
     FROM vendedores v ORDER BY v.id
   `);
+  // Links de promo por vendedor (uno por promo activa), para el modal "Ver links".
+  const promoTokens = await all(`
+    SELECT t.vendedor_id, t.token, p.nombre
+      FROM vendedor_promo_tokens t
+      JOIN promociones p ON p.id = t.promocion_id
+     WHERE p.activa
+     ORDER BY p.id
+  `);
+  const linksPromoPorVendedor = new Map();
+  for (const t of promoTokens) {
+    if (!linksPromoPorVendedor.has(t.vendedor_id)) linksPromoPorVendedor.set(t.vendedor_id, []);
+    linksPromoPorVendedor
+      .get(t.vendedor_id)
+      .push({ nombre: t.nombre, url: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${t.token}` });
+  }
   res.json(
     vendedores.map((v) => ({
       id: v.id,
@@ -885,7 +962,10 @@ app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
       codigoRef: v.codigo_ref,
       linkToken: v.link_token,
       linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token}`,
-      linkCompra2x1: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token_2x1}`,
+      links: [
+        { nombre: 'Venta común', url: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${v.link_token}` },
+        ...(linksPromoPorVendedor.get(v.id) || []),
+      ],
       comisionPct: v.comision_pct,
       whatsapp: v.whatsapp,
       email: v.email,
@@ -931,18 +1011,26 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
 
   const passwordHash = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
   const linkToken = generateLinkToken();
-  const linkToken2x1 = generateLinkToken();
   const result = await run(
-    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, email, alias_mp, password_hash, link_token, link_token_2x1) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [nombre, codigoRef, comisionPct, whatsapp || null, email || null, aliasMp || null, passwordHash, linkToken, linkToken2x1]
+    'INSERT INTO vendedores (nombre, codigo_ref, comision_pct, whatsapp, email, alias_mp, password_hash, link_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [nombre, codigoRef, comisionPct, whatsapp || null, email || null, aliasMp || null, passwordHash, linkToken]
   );
+  const nuevoVendedorId = result.lastInsertRowid;
+  // Un token de link por cada promo activa (mismo criterio que el backfill de db.js).
+  const promosActivas = await all('SELECT id FROM promociones WHERE activa');
+  for (const p of promosActivas) {
+    await run('INSERT INTO vendedor_promo_tokens (vendedor_id, promocion_id, token) VALUES (?, ?, ?)', [
+      nuevoVendedorId,
+      p.id,
+      generateLinkToken(),
+    ]);
+  }
   res.status(201).json({
-    id: result.lastInsertRowid,
+    id: nuevoVendedorId,
     nombre,
     codigoRef,
     linkToken,
     linkCompra: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken}`,
-    linkCompra2x1: `${PUBLIC_ROUTER_BASE}/comprar.html?s=${linkToken2x1}`,
     comisionPct,
     whatsapp: whatsapp || null,
     email: email || null,

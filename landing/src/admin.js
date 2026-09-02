@@ -442,28 +442,37 @@ function closeStockModal() {
   stockModalOverlay.classList.remove('is-open');
 }
 
-// Modal "Ver links" — los dos links presenciales del vendedor: venta común y
-// venta 2x1 (cada uno es una cara de su llavero físico). Ver "Modo de venta 2x1".
+// Modal "Ver links" — todos los links presenciales del vendedor: venta común +
+// uno por cada promo activa (2x1, 2x30, ...). Cada uno es una cara de su llavero
+// físico. Ver "Modo de venta 2x1" en el vault.
 const linksModalOverlay = document.getElementById('links-modal-overlay');
 const linksModalTitle = document.getElementById('links-modal-title');
-const linksModalComun = document.getElementById('links-modal-comun');
-const linksModal2x1 = document.getElementById('links-modal-2x1');
+const linksModalList = document.getElementById('links-modal-list');
 document.getElementById('links-modal-close').addEventListener('click', closeLinksModal);
 linksModalOverlay.addEventListener('click', (e) => {
   if (e.target === linksModalOverlay) closeLinksModal();
-});
-document.getElementById('links-modal-copy-comun').addEventListener('click', (e) => {
-  copiar(linksModalComun.textContent, e.currentTarget);
-});
-document.getElementById('links-modal-copy-2x1').addEventListener('click', (e) => {
-  copiar(linksModal2x1.textContent, e.currentTarget);
 });
 
 function openLinksModal(vendedor) {
   if (!vendedor) return;
   linksModalTitle.textContent = `Links de venta de ${vendedor.nombre}`;
-  linksModalComun.textContent = vendedor.linkCompra;
-  linksModal2x1.textContent = vendedor.linkCompra2x1;
+  const links = vendedor.links || [{ nombre: 'Venta común', url: vendedor.linkCompra }];
+  linksModalList.innerHTML = links
+    .map(
+      (l, i) => `
+      <div>
+        <span class="liquidar-label">${l.nombre}</span>
+        <div class="liquidar-value" data-links-url="${i}">${l.url}</div>
+        <button type="button" class="btn-ghost" data-links-copy="${i}" style="margin-top:8px;">Copiar</button>
+      </div>`
+    )
+    .join('');
+  linksModalList.querySelectorAll('[data-links-copy]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const url = linksModalList.querySelector(`[data-links-url="${btn.dataset.linksCopy}"]`).textContent;
+      copiar(url, e.currentTarget);
+    });
+  });
   linksModalOverlay.classList.add('is-open');
 }
 function closeLinksModal() {
