@@ -134,10 +134,37 @@ function comboItem(funcId, modelId, max = MAX_POR_COMBO) {
 
 let comboItems = FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
 
+// Promo del link presencial (?s=<token de promo>), si aplica: { slug, nombre,
+// unidadesPack }. La trae /public/vendedores/:ref/stock. null = venta estándar.
+let promo = null;
+
 const comboOptions = document.getElementById('combo-options');
+const promoNote = document.getElementById('promo-note');
 
 function totalUnidades() {
   return Object.values(state.quantities).reduce((s, n) => s + (n || 0), 0);
+}
+
+// Aviso del paso 1 cuando entraste por un link de promo: cuánto falta para el
+// pack (el mínimo real lo valida el server en POST /api/ventas).
+function renderPromoNote() {
+  if (!promoNote) return;
+  if (!promo) {
+    promoNote.hidden = true;
+    return;
+  }
+  const faltan = promo.unidadesPack - totalUnidades();
+  promoNote.hidden = false;
+  if (faltan <= 0) {
+    promoNote.className = 'wizard-step-note is-ok';
+    promoNote.textContent = `✓ Descuento ${promo.nombre} aplicado.`;
+  } else {
+    promoNote.className = 'wizard-step-note is-warn';
+    promoNote.textContent =
+      totalUnidades() === 0
+        ? `Entraste con un link ${promo.nombre}: elegí al menos ${promo.unidadesPack} unidades para el descuento.`
+        : `Sumá ${faltan} más para el ${promo.nombre}.`;
+  }
 }
 
 function setQty(item, n) {
@@ -178,6 +205,7 @@ function renderCombos() {
     card.querySelector('.combo-plus').addEventListener('click', () => setQty(item, qty + 1));
     comboOptions.appendChild(card);
   });
+  renderPromoNote();
 }
 renderCombos();
 
@@ -198,6 +226,7 @@ if (isPresencial && vendorToken) {
   api(`/public/vendedores/${vendorToken}/stock`)
     .then((data) => {
       refKicker.textContent = `Recomendado por ${data.vendedor}`;
+      promo = data.promo || null;
       const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion);
       if (combos.length) {
         comboItems = combos.map((c) => comboItem(c.funcion, c.modelo, c.cantidad));
@@ -210,6 +239,7 @@ if (isPresencial && vendorToken) {
         comboItems = modelos.flatMap((m) => FUNCTIONS.map((f) => comboItem(f.id, m.modelo, m.cantidad)));
       }
       renderCombos();
+      updateNextButton();
     })
     .catch(() => {
       // si falla la consulta, dejamos el catálogo completo como fallback
@@ -284,7 +314,12 @@ function showStep(step) {
 }
 
 function updateNextButton() {
-  if (currentStep === 1) nextButton.disabled = totalUnidades() === 0;
+  if (currentStep === 1) {
+    const total = totalUnidades();
+    // Con link de promo, no se puede avanzar sin llegar al pack (el server
+    // igual lo rechazaría con 400).
+    nextButton.disabled = total === 0 || (promo && total < promo.unidadesPack);
+  }
   else if (currentStep === 3) nextButton.disabled = !tycCheckbox.checked;
   else if (currentStep === 4) nextButton.disabled = !state.otpVerified;
   else nextButton.disabled = false;

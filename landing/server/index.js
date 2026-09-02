@@ -530,8 +530,16 @@ function preciosConPromo(reservados, promo, montosPorModelo) {
 
 app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   const ref = String(req.params.ref || '').trim().toLowerCase();
-  const { vendedor } = await resolverRefPresencial(ref);
+  const { vendedor, promocionId } = await resolverRefPresencial(ref);
   if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  // Si el link es de una promo, el wizard avisa en el paso 1 cuánto falta para
+  // llegar al pack (el mínimo real lo valida POST /api/ventas).
+  let promo = null;
+  if (promocionId) {
+    const p = await get('SELECT slug, nombre, unidades_pack FROM promociones WHERE id = ? AND activa', [promocionId]);
+    if (p) promo = { slug: p.slug, nombre: p.nombre, unidadesPack: p.unidades_pack };
+  }
 
   const rows = await all(
     'SELECT modelo, COUNT(*) AS cantidad FROM stickers_actual WHERE vendedor_id = ? AND estado = ? GROUP BY modelo',
@@ -561,6 +569,7 @@ app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
     modelos: rows.map((r) => ({ modelo: r.modelo || 'suelto', cantidad: r.cantidad })),
     funciones: funcionRows.map((r) => r.funcion),
     combos: comboRows.map((r) => ({ modelo: r.modelo || 'suelto', funcion: r.funcion, cantidad: r.cantidad })),
+    promo,
   });
 });
 
