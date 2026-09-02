@@ -1557,12 +1557,12 @@ function pantallaRedireccion(destino) {
 }
 
 // Pantalla para un chip que todavía no lleva a ningún lado: recién programado
-// en el taller, o en stock de un vendedor sin vender. Quien lo tapea ve que el
-// sticker es real pero está sin activar, y una invitación a comprar el suyo.
-// HTML autónomo, mismo criterio que pantallaRedireccion (un request, sin bundle).
+// en el taller, o en stock de un vendedor sin vender. Estos son de venta
+// presencial: NO se autoactivan (a diferencia del lote especial). Quien lo
+// tapea solo ve que es real pero está sin activar — sin botones de acción,
+// solo un link de texto a la marca. HTML autónomo, mismo criterio que
+// pantallaRedireccion (un request, sin bundle).
 function pantallaNoActivado() {
-  const tienda = `${FRONTEND_URL}/pedido.html`;
-  const panel = `${FRONTEND_URL}/mi-panel.html`;
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -1581,20 +1581,14 @@ function pantallaNoActivado() {
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
   h1{font-size:clamp(1.3rem,6vw,1.8rem);font-weight:600;letter-spacing:-.02em;max-width:16ch}
   p{color:rgba(237,239,233,.62);max-width:32ch;line-height:1.5}
-  .actions{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;margin-top:8px}
-  a.btn{display:block;padding:15px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:.98rem}
-  a.primary{background:var(--violet);color:var(--ink)}
-  a.ghost{border:1px solid rgba(237,239,233,.22);color:var(--paper)}
+  a.link{color:rgba(237,239,233,.5);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;letter-spacing:.03em;text-decoration:none;margin-top:6px}
 </style>
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
   <h1>Este sticker todav&iacute;a no est&aacute; activado.</h1>
-  <p>El chip funciona, pero nadie carg&oacute; a d&oacute;nde lleva todav&iacute;a. Consegu&iacute; el tuyo y activalo en un toque.</p>
-  <div class="actions">
-    <a class="btn primary" href="${tienda}">Quiero el m&iacute;o</a>
-    <a class="btn ghost" href="${panel}">Ya es m&iacute;o &mdash; entrar a mi panel</a>
-  </div>
+  <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
+  <a class="link" href="https://next-tap.tech">next-tap.tech</a>
 </body>
 </html>`;
 }
