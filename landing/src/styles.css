@@ -386,6 +386,16 @@ body.modal-open{overflow:hidden;}
   border:1px solid var(--line); border-radius:12px; padding:16px; background:var(--surface-2);
 }
 .cart-add-form.modal-form{flex-direction:column; gap:12px; margin-bottom:0;}
+.wizard-qty-field{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-top:16px; padding:12px 16px;
+  border:1px solid var(--line); border-radius:12px; background:var(--surface-2);
+  font-size:0.9rem; font-weight:600;
+}
+.wizard-qty-field input{
+  width:72px; text-align:center; padding:8px; border:1px solid var(--line);
+  border-radius:8px; background:var(--surface-1); color:inherit; font:inherit;
+}
 .wizard-pay-note{
   font-size:0.82rem; color:var(--paper-dim); margin-top:6px; padding-top:12px; border-top:1px solid var(--line);
 }

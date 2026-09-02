@@ -47,7 +47,10 @@ const vendorToken = readVendorToken();
 const refKicker = document.getElementById('buy-ref-kicker');
 
 const PAY_STEP = 6;
-const STEP_SEQUENCE = [1, 2, 'cart', 3, 4, PAY_STEP];
+// Los pasos "función" y "modelo" viejos se fusionaron en un paso 1 único que
+// muestra combos (modelo+función) como opciones, y el paso "carrito" se sacó:
+// la cantidad se elige en el mismo paso 1.
+const STEP_SEQUENCE = [1, 3, 4, PAY_STEP];
 
 // Mismo patrón que mi-panel.js: en local pasa por el proxy de Vite, en producción
 // apunta a la URL pública de la API (Render).
@@ -101,28 +104,51 @@ api('/public/precios')
 const state = {
   functionId: null,
   modelId: null,
-  cart: [], // presencial: [{ functionId, modelId }] — un item por producto en el carrito
+  qty: 1,
+  cart: [], // se arma al salir del paso 1: un item { functionId, modelId } por unidad
   contacto: '',
   otpVerified: false,
   authToken: null,
 };
 
-// Modelos realmente disponibles para este vendedor (se recorta cuando llega
-// la respuesta de stock) — se usa tanto para la grilla de opciones como para
-// el select de "agregar otro" en el paso carrito.
-let availableModels = MODELS;
+// Modelo por defecto del flujo online (a pedido, sin límite de stock): ahí el
+// paso 1 ofrece todas las funciones sobre este modelo. En el presencial las
+// opciones se reemplazan por los combos reales del vendedor (fetch de stock).
+const DEFAULT_MODEL = 'llavero';
 
-// disabledIds: opciones que se muestran igual (no se sacan de la grilla) pero
-// no se pueden elegir — ej. un modelo o función sin stock para el vendedor presencial.
-function renderOptions(container, items, key, disabledIds = new Set()) {
-  container.innerHTML = '';
-  items.forEach((item) => {
-    const isDisabled = disabledIds.has(item.id);
+// Cada opción del paso 1 es un combo función+modelo. La tarjeta muestra la
+// función en grande y el modelo ("<Modelo> NFC") como subtítulo.
+function comboItem(funcId, modelId) {
+  const fn = FUNCTIONS.find((f) => f.id === funcId);
+  const model = MODELS.find((m) => m.id === modelId);
+  return {
+    id: `${modelId}__${funcId}`,
+    funcId,
+    modelId,
+    label: fn ? fn.label : funcId,
+    desc: `${model ? model.label : modelId} NFC`,
+    icon: fn ? fn.icon : '',
+  };
+}
+
+let comboItems = FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
+
+const comboOptions = document.getElementById('combo-options');
+const qtyInput = document.getElementById('wizard-qty');
+
+function renderCombos() {
+  comboOptions.innerHTML = '';
+  if (!comboItems.length) {
+    comboOptions.innerHTML =
+      '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
+    return;
+  }
+  comboItems.forEach((item) => {
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'option-card' + (isDisabled ? ' is-disabled' : '');
+    card.className = 'option-card';
     card.dataset.id = item.id;
-    card.disabled = isDisabled;
+    if (item.id === `${state.modelId}__${state.functionId}`) card.classList.add('is-selected');
     card.innerHTML = `
       <div class="option-text">
         <div class="option-label">${item.label}</div>
@@ -130,118 +156,54 @@ function renderOptions(container, items, key, disabledIds = new Set()) {
       </div>
       ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
     `;
-    if (!isDisabled) {
-      card.addEventListener('click', () => {
-        state[key] = item.id;
-        container.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-        card.classList.add('is-selected');
-        updateNextButton();
-      });
-    }
-    container.appendChild(card);
-  });
-}
-
-const functionOptions = document.getElementById('function-options');
-const modelOptions = document.getElementById('model-options');
-renderOptions(functionOptions, FUNCTIONS, 'functionId');
-renderOptions(modelOptions, MODELS, 'modelId');
-
-const cartAddFuncionSelect = document.getElementById('cart-add-funcion');
-const cartAddModeloSelect = document.getElementById('cart-add-modelo');
-const cartAddQtyInput = document.getElementById('cart-add-qty');
-
-function populateCartAddSelects() {
-  if (!cartAddFuncionSelect) return;
-  cartAddFuncionSelect.innerHTML =
-    '<option value="">Sin asignar</option>' + FUNCTIONS.map((f) => `<option value="${f.id}">${f.label}</option>`).join('');
-  cartAddModeloSelect.innerHTML =
-    '<option value="">Sin asignar</option>' + availableModels.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
-}
-populateCartAddSelects();
-
-// Dropdown de función con ícono por opción, para el paso "carrito" — un
-// <select> nativo no puede mostrar SVGs en sus <option>. El <select> real
-// sigue en el DOM (oculto) como fuente de verdad de .value, así el resto del
-// código (leer/resetear el valor elegido) no cambia.
-function setupIconSelect(selectEl, triggerEl, menuEl, items) {
-  if (!selectEl || !triggerEl || !menuEl) return null;
-
-  function currentItem() {
-    return items.find((it) => it.id === selectEl.value) || null;
-  }
-  function renderTrigger() {
-    const item = currentItem();
-    triggerEl.innerHTML = `
-      ${item?.icon ? `<span class="icon-select-icon">${item.icon}</span>` : ''}
-      <span class="icon-select-label">${item ? item.label : 'Sin asignar'}</span>
-    `;
-  }
-  function renderMenu() {
-    menuEl.innerHTML =
-      `<button type="button" class="icon-select-option" data-id="">Sin asignar</button>` +
-      items
-        .map(
-          (it) => `
-        <button type="button" class="icon-select-option" data-id="${it.id}">
-          ${it.icon ? `<span class="icon-select-icon">${it.icon}</span>` : ''}
-          <span>${it.label}</span>
-        </button>`
-        )
-        .join('');
-    menuEl.querySelectorAll('.icon-select-option').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        selectEl.value = btn.dataset.id;
-        selectEl.dispatchEvent(new Event('change'));
-        renderTrigger();
-        menuEl.hidden = true;
-      });
+    card.addEventListener('click', () => {
+      state.functionId = item.funcId;
+      state.modelId = item.modelId;
+      comboOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+      card.classList.add('is-selected');
+      updateNextButton();
     });
-  }
-
-  triggerEl.addEventListener('click', () => {
-    menuEl.hidden = !menuEl.hidden;
+    comboOptions.appendChild(card);
   });
-  document.addEventListener('click', (e) => {
-    if (!menuEl.hidden && !triggerEl.contains(e.target) && !menuEl.contains(e.target)) menuEl.hidden = true;
-  });
+}
+renderCombos();
 
-  renderMenu();
-  renderTrigger();
-  return { renderTrigger };
+if (qtyInput) {
+  qtyInput.value = String(state.qty);
+  qtyInput.addEventListener('input', () => {
+    state.qty = Math.min(Math.max(Number(qtyInput.value) || 1, 1), 20);
+    updateNextButton();
+  });
 }
 
-const cartAddFuncionIconSelect = setupIconSelect(
-  cartAddFuncionSelect,
-  document.getElementById('cart-add-funcion-trigger'),
-  document.getElementById('cart-add-funcion-menu'),
-  FUNCTIONS
-);
+// Arma el carrito a partir de la selección del paso 1 (combo + cantidad). Se
+// llama al salir del paso 1, así volver atrás y cambiar rehace todo.
+function syncCartFromStep1() {
+  state.cart = [];
+  if (!state.functionId || !state.modelId) return;
+  const n = Math.min(Math.max(state.qty || 1, 1), 20);
+  for (let i = 0; i < n; i++) state.cart.push({ functionId: state.functionId, modelId: state.modelId });
+}
 
 // Venta presencial: el vendedor solo tiene consigo los impresos 3D (con su NFC
-// ya adentro) que el admin le cargó a él — el comprador no puede elegir un
-// modelo que ese vendedor no tenga físicamente en mano.
+// ya adentro) que el admin le cargó a él — el comprador solo puede elegir un
+// combo (modelo+función) que ese vendedor tenga físicamente en mano.
 if (isPresencial && vendorToken) {
   api(`/public/vendedores/${vendorToken}/stock`)
     .then((data) => {
       refKicker.textContent = `Recomendado por ${data.vendedor}`;
-      const disponibles = MODELS.filter((m) => data.modelos.some((s) => s.modelo === m.id && s.cantidad > 0));
-      const sinStockIds = new Set(MODELS.filter((m) => !disponibles.includes(m)).map((m) => m.id));
-      if (!disponibles.length) {
-        modelOptions.innerHTML = '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
-        return;
+      const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion);
+      if (combos.length) {
+        comboItems = combos.map((c) => comboItem(c.funcion, c.modelo));
+      } else {
+        // El vendedor tiene stock pero sin función asignada (falta cargarla en
+        // Admin) — no lo dejamos sin vender: ofrecemos todas las funciones sobre
+        // los modelos que sí tiene en mano.
+        const modelosConStock = (data.modelos || []).filter((m) => m.cantidad > 0).map((m) => m.modelo);
+        const modelos = modelosConStock.length ? modelosConStock : [DEFAULT_MODEL];
+        comboItems = modelos.flatMap((modelId) => FUNCTIONS.map((f) => comboItem(f.id, modelId)));
       }
-      // El carrito ("agregar otro") sí solo ofrece lo disponible — ahí no hay
-      // affordance para "deshabilitado", es un <select>.
-      availableModels = disponibles;
-      renderOptions(modelOptions, MODELS, 'modelId', sinStockIds);
-      populateCartAddSelects();
-
-      // Mismo criterio para el paso 1: solo se puede elegir una función que
-      // este vendedor realmente tenga asignada en su stock físico.
-      const funcionesDisponibles = new Set(data.funciones || []);
-      const funcionesSinStockIds = new Set(FUNCTIONS.filter((f) => !funcionesDisponibles.has(f.id)).map((f) => f.id));
-      renderOptions(functionOptions, FUNCTIONS, 'functionId', funcionesSinStockIds);
+      renderCombos();
     })
     .catch(() => {
       // si falla la consulta, dejamos el catálogo completo como fallback
@@ -285,76 +247,11 @@ const confirmOtpButton = document.getElementById('confirm-otp');
 const otpStatus = document.getElementById('otp-status');
 const summaryBox = document.getElementById('wizard-summary');
 const successSummary = document.getElementById('wizard-success-summary');
-const cartSummaryEl = document.getElementById('cart-summary');
-const cartSummaryStepEl = document.getElementById('cart-summary-step');
-const cartAddConfirmButton = document.getElementById('cart-add-confirm');
 
 progressEl.innerHTML = STEP_SEQUENCE.map(() => '<span class="wizard-dot"></span>').join('');
 const dots = [...progressEl.querySelectorAll('.wizard-dot')];
 
 let currentStep = STEP_SEQUENCE[0];
-
-// Carrito (solo presencial): agrega la función+modelo elegidos como un nuevo
-// producto y limpia la selección actual.
-function addCurrentItemToCart() {
-  if (!state.functionId || !state.modelId) return false;
-  state.cart.push({ functionId: state.functionId, modelId: state.modelId });
-  state.functionId = null;
-  state.modelId = null;
-  functionOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-  modelOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-  renderCart();
-  return true;
-}
-
-function cartItemRowHtml(item, i) {
-  const fn = FUNCTIONS.find((f) => f.id === item.functionId);
-  const model = MODELS.find((m) => m.id === item.modelId);
-  return `<div class="cart-item">
-    <span><span class="inline-icon">${fn.icon}</span> ${model.label} · ${fn.label}</span>
-    <button type="button" class="cart-item-remove" data-index="${i}" aria-label="Quitar">✕</button>
-  </div>`;
-}
-
-function renderCart() {
-  const cartText = state.cart.length
-    ? `<div class="cart-summary-title">Tu carrito (${state.cart.length})</div>${state.cart.map(cartItemRowHtml).join('')}`
-    : '';
-
-  if (cartSummaryEl) {
-    const showTop = state.cart.length > 0 && (currentStep === 1 || currentStep === 2);
-    cartSummaryEl.hidden = !showTop;
-    if (showTop) cartSummaryEl.innerHTML = cartText;
-  }
-  if (cartSummaryStepEl) {
-    const showStep = currentStep === 'cart' && state.cart.length > 0;
-    cartSummaryStepEl.hidden = !showStep;
-    if (showStep) cartSummaryStepEl.innerHTML = cartText;
-  }
-  document.querySelectorAll('.cart-item-remove').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.cart.splice(Number(btn.dataset.index), 1);
-      renderCart();
-      updateNextButton();
-    });
-  });
-}
-
-cartAddConfirmButton?.addEventListener('click', () => {
-  const functionId = cartAddFuncionSelect.value;
-  const modelId = cartAddModeloSelect.value;
-  if (!functionId || !modelId) return;
-  const qty = Math.min(Math.max(Number(cartAddQtyInput.value) || 1, 1), 20);
-  for (let i = 0; i < qty; i++) {
-    state.cart.push({ functionId, modelId });
-  }
-  cartAddFuncionSelect.value = '';
-  cartAddModeloSelect.value = '';
-  cartAddFuncionIconSelect?.renderTrigger();
-  cartAddQtyInput.value = '1';
-  renderCart();
-  updateNextButton();
-});
 
 function showStep(step) {
   currentStep = step;
@@ -377,14 +274,11 @@ function showStep(step) {
   if (step === PAY_STEP) {
     renderSummary();
   }
-  renderCart();
   updateNextButton();
 }
 
 function updateNextButton() {
-  if (currentStep === 1) nextButton.disabled = !state.functionId;
-  else if (currentStep === 2) nextButton.disabled = !state.modelId;
-  else if (currentStep === 'cart') nextButton.disabled = state.cart.length === 0;
+  if (currentStep === 1) nextButton.disabled = !state.functionId || !state.modelId || !(state.qty >= 1);
   else if (currentStep === 3) nextButton.disabled = !tycCheckbox.checked;
   else if (currentStep === 4) nextButton.disabled = !state.otpVerified;
   else nextButton.disabled = false;
@@ -452,14 +346,22 @@ function renderSummary() {
   state.contacto = whatsappInput.value.trim();
 
   const total = state.cart.reduce((sum, item) => sum + getPrecio(item.modelId), 0);
+  // El carrito son N unidades del mismo combo (paso 1) — se agrupa para el resumen.
+  const groups = [];
+  state.cart.forEach((item) => {
+    const key = `${item.modelId}__${item.functionId}`;
+    const g = groups.find((x) => x.key === key);
+    if (g) g.qty += 1;
+    else groups.push({ key, ...item, qty: 1 });
+  });
   summaryBox.innerHTML = `
-    <div class="cart-summary-title">Tu compra (${state.cart.length} producto${state.cart.length === 1 ? '' : 's'})</div>
-    ${state.cart
+    <div class="cart-summary-title">Tu compra (${state.cart.length} unidad${state.cart.length === 1 ? '' : 'es'})</div>
+    ${groups
       .map((item) => {
         const fn = FUNCTIONS.find((f) => f.id === item.functionId);
         const model = MODELS.find((m) => m.id === item.modelId);
         const precio = getPrecio(item.modelId);
-        return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label}</b> · ${fn.label} — $${precio.toLocaleString('es-AR')}</div>`;
+        return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label} · ${fn.label}</b>${item.qty > 1 ? ` ×${item.qty}` : ''} — $${(precio * item.qty).toLocaleString('es-AR')}</div>`;
       })
       .join('')}
     <div><b>${verif.nombre}:</b> ${state.contacto}</div>
@@ -473,12 +375,13 @@ function openWizard() {
   Object.assign(state, {
     functionId: null,
     modelId: null,
+    qty: 1,
     cart: [],
     contacto: '',
     otpVerified: false,
   });
-  functionOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
-  modelOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+  comboOptions.querySelectorAll('.option-card').forEach((c) => c.classList.remove('is-selected'));
+  if (qtyInput) qtyInput.value = '1';
   tycCheckbox.checked = false;
   whatsappInput.value = '';
   whatsappInput.disabled = false;
@@ -490,10 +393,6 @@ function openWizard() {
   confirmOtpButton.disabled = false;
   otpStatus.textContent = '';
   otpStatus.className = 'modal-status';
-  if (cartAddFuncionSelect) cartAddFuncionSelect.value = '';
-  cartAddFuncionIconSelect?.renderTrigger();
-  if (cartAddModeloSelect) cartAddModeloSelect.value = '';
-  if (cartAddQtyInput) cartAddQtyInput.value = '1';
   payButton.disabled = false;
   payButton.textContent = 'Pagar';
   closeTyc();
@@ -541,7 +440,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 nextButton.addEventListener('click', () => {
-  if (currentStep === 2) addCurrentItemToCart();
+  if (currentStep === 1) syncCartFromStep1();
   const i = STEP_SEQUENCE.indexOf(currentStep);
   if (i < STEP_SEQUENCE.length - 1) showStep(STEP_SEQUENCE[i + 1]);
 });

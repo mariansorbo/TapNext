@@ -67,43 +67,14 @@
       <span class="wizard-forward-hint" aria-hidden="true">→</span>
     </div>
 
-    <div class="cart-summary" id="cart-summary" hidden></div>
-
     <div class="wizard-step" data-step="1">
       <div class="kicker step-kicker"></div>
       <h3 id="wizard-title">¿Para qué función lo vas a usar?</h3>
-      <div class="option-grid" id="function-options"></div>
-    </div>
-
-    <div class="wizard-step" data-step="2">
-      <div class="kicker step-kicker"></div>
-      <h3>Elegí el modelo</h3>
-      <div class="option-grid option-grid-4" id="model-options"></div>
-    </div>
-
-    <div class="wizard-step" data-step="cart">
-      <div class="kicker step-kicker"></div>
-      <h3>Tu carrito</h3>
-      <div class="cart-summary" id="cart-summary-step" hidden></div>
-      <h4 class="cart-more-question">¿Querés comprar más?</h4>
-      <p class="modal-sub">Sumá otro producto a esta misma compra, o seguí si con esto ya estás.</p>
-      <div class="cart-add-row">
-        <div class="modal-form cart-add-form">
-          <label>
-            <span>Función</span>
-            <select id="cart-add-funcion"></select>
-          </label>
-          <label>
-            <span>Modelo</span>
-            <select id="cart-add-modelo"></select>
-          </label>
-          <label>
-            <span>Cantidad</span>
-            <input type="number" id="cart-add-qty" min="1" value="1">
-          </label>
-        </div>
-        <button type="button" class="btn-ghost cart-add-more" id="cart-add-confirm">+ Agregar al carrito</button>
-      </div>
+      <div class="option-grid" id="combo-options"></div>
+      <label class="wizard-qty-field">
+        <span>¿Cuántos?</span>
+        <input type="number" id="wizard-qty" min="1" max="20" value="1">
+      </label>
     </div>
 
     <div class="wizard-step" data-step="3">

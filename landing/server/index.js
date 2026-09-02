@@ -490,11 +490,23 @@ app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
     'SELECT DISTINCT funcion FROM stickers_actual WHERE vendedor_id = ? AND estado = ? AND funcion IS NOT NULL',
     [vendedor.id, 'en_stock']
   );
+  // Combos modelo+función realmente en mano — el wizard de compra fusiona los
+  // pasos "función" y "modelo" en uno solo y arma sus tarjetas desde acá.
+  // El stock con funcion IS NULL (sin función asignada) no arma combo vendible:
+  // hay que asignarle función desde el panel de Admin para que aparezca.
+  const comboRows = await all(
+    `SELECT modelo, funcion, COUNT(*) AS cantidad
+     FROM stickers_actual
+     WHERE vendedor_id = ? AND estado = ? AND funcion IS NOT NULL
+     GROUP BY modelo, funcion`,
+    [vendedor.id, 'en_stock']
+  );
   // modelo NULL = sticker sin impreso 3D ("suelto") — se agrupa como su propio bucket.
   res.json({
     vendedor: vendedor.nombre,
     modelos: rows.map((r) => ({ modelo: r.modelo || 'suelto', cantidad: r.cantidad })),
     funciones: funcionRows.map((r) => r.funcion),
+    combos: comboRows.map((r) => ({ modelo: r.modelo || 'suelto', funcion: r.funcion, cantidad: r.cantidad })),
   });
 });
 
