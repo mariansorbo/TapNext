@@ -510,7 +510,7 @@ function renderCrudosTable() {
         ${funcionCell}
         ${modeloCell}
         <td>${FECHA(s.creadoEn)}</td>
-        <td><span class="admin-tag">${LOTE_TIPO_LABELS[s.loteTipo] || s.loteTipo}</span></td>
+        <td><span class="admin-tag">${s.loteTipoNombre || LOTE_TIPO_LABELS[s.loteTipo] || s.loteTipo}</span></td>
         <td>${loteCell}</td>
         ${candadoCellHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>

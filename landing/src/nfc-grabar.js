@@ -35,6 +35,8 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   const configStatus = $('grabar-config-status');
   const objetivoInput = $('grabar-objetivo');
   const loteSel = $('grabar-lote');
+  const loteTipoInput = $('grabar-lote-tipo');
+  const loteTipoLabel = $('grabar-lote-tipo-label');
   const funcionSel = $('grabar-funcion');
   const modeloSel = $('grabar-modelo');
   const vendedorSel = $('grabar-vendedor');
@@ -104,14 +106,20 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
 
     // Lista de lotes existentes + opción de crear uno nuevo (default).
     loteSel.innerHTML = '<option value="new">Lote nuevo</option>';
+    loteTipoInput.value = '';
     api('/lotes').then((lotes) => {
       for (const l of lotes) {
         const opt = document.createElement('option');
         opt.value = String(l.id);
-        opt.textContent = `#${l.id} · ${l.nombre}${l.chips ? ` (${l.chips})` : ''}`;
+        opt.textContent = `#${l.id} · ${l.nombre}${l.tipo ? ` [${l.tipo}]` : ''}${l.chips ? ` (${l.chips})` : ''}`;
         loteSel.appendChild(opt);
       }
     }).catch(() => { /* si falla, queda solo "Lote nuevo" */ });
+
+    // El campo "tipo de lote" solo aplica al crear uno nuevo.
+    const syncTipoVisible = () => { loteTipoLabel.hidden = loteSel.value !== 'new'; };
+    loteSel.onchange = syncTipoVisible;
+    syncTipoVisible();
 
     if (!supported) {
       configStatus.className = 'modal-status is-error';
@@ -299,7 +307,10 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
       if (loteSel.value === 'new') {
         configStatus.className = 'modal-status';
         configStatus.textContent = 'Creando el lote…';
-        loteActual = await api('/lotes', { method: 'POST', body: JSON.stringify({}) });
+        loteActual = await api('/lotes', {
+          method: 'POST',
+          body: JSON.stringify({ tipo: loteTipoInput.value.trim() || undefined }),
+        });
       } else {
         const txt = loteSel.options[loteSel.selectedIndex].textContent;
         loteActual = { id: Number(loteSel.value), nombre: txt.replace(/^#\d+ · /, '').replace(/ \(\d+\)$/, '') };
@@ -335,7 +346,10 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     stepConfig.hidden = true;
     stepRun.hidden = false;
     grabados = 0;
-    if (loteActual) loteLabelEl.textContent = `Lote #${loteActual.id} · ${loteActual.nombre}`;
+    if (loteActual) {
+      loteLabelEl.textContent = `Lote #${loteActual.id} · ${loteActual.nombre}` +
+        (loteActual.tipo ? ` · ${loteActual.tipo}` : '');
+    }
     renderProgress();
     armForNextChip();
   }

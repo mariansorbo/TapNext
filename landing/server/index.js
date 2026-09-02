@@ -991,7 +991,7 @@ app.delete('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
     SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.protegido_en, s.creado_en, s.vigente_desde,
-      s.lote_id, l.nombre AS lote_nombre, l.cantidad AS lote_cantidad, l.creado_en AS lote_creado_en,
+      s.lote_id, l.nombre AS lote_nombre, l.cantidad AS lote_cantidad, l.creado_en AS lote_creado_en, l.tipo AS lote_tipo,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
       c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
     FROM stickers_actual s
@@ -1021,6 +1021,8 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       loteId: r.lote_id,
       loteCantidad: r.lote_cantidad,
       loteCreadoEn: r.lote_creado_en,
+      // Etiqueta libre del lote, si se le puso una (ej. "Activación Bloqueada").
+      loteTipoNombre: r.lote_tipo || null,
       // Tipo derivado: 'especial' (llaveros pre-impresos sin candado, UID
       // sentinel), 'normal' (tanda registrada junta desde el panel), o
       // 'suelto' (chip cargado de a uno en el taller, sin lote).
@@ -1234,22 +1236,35 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
 // /stickers/individual), así el taller sabe qué lote está escribiendo.
 app.get('/api/admin/lotes', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT l.id, l.nombre, l.creado_en, COUNT(s.id) AS chips
+    SELECT l.id, l.nombre, l.tipo, l.creado_en, COUNT(s.id) AS chips
     FROM lotes l
     LEFT JOIN stickers s ON s.lote_id = l.id
-    GROUP BY l.id, l.nombre, l.creado_en
+    GROUP BY l.id, l.nombre, l.tipo, l.creado_en
     ORDER BY l.id DESC
   `);
   res.json(rows.map((r) => ({
-    id: r.id, nombre: r.nombre, creadoEn: r.creado_en, chips: Number(r.chips) || 0,
+    id: r.id, nombre: r.nombre, tipo: r.tipo || null, creadoEn: r.creado_en, chips: Number(r.chips) || 0,
   })));
 });
 
 app.post('/api/admin/lotes', requireAdmin, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim()
     || `Taller ${new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
-  const result = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, 0)', [nombre]);
-  res.status(201).json({ id: result.lastInsertRowid, nombre });
+  const tipo = String(req.body?.tipo || '').trim() || null;
+  const result = await run('INSERT INTO lotes (nombre, tipo, cantidad) VALUES (?, ?, 0)', [nombre, tipo]);
+  res.status(201).json({ id: result.lastInsertRowid, nombre, tipo });
+});
+
+// Editar nombre / tipo (etiqueta libre) de un lote existente.
+app.patch('/api/admin/lotes/:id', requireAdmin, async (req, res) => {
+  const loteId = Number(req.params.id);
+  const lote = await get('SELECT id, nombre, tipo FROM lotes WHERE id = ?', [loteId]);
+  if (!lote) return res.status(404).json({ error: 'Lote no encontrado.' });
+  const nombre = 'nombre' in (req.body || {}) ? String(req.body.nombre || '').trim() : lote.nombre;
+  const tipo = 'tipo' in (req.body || {}) ? (String(req.body.tipo || '').trim() || null) : lote.tipo;
+  if (!nombre) return res.status(400).json({ error: 'El nombre no puede quedar vacío.' });
+  await run('UPDATE lotes SET nombre = ?, tipo = ? WHERE id = ?', [nombre, tipo, loteId]);
+  res.json({ id: loteId, nombre, tipo });
 });
 
 // Recalcula PWD_AUTH y PACK de un chip ya registrado — son determinísticos a

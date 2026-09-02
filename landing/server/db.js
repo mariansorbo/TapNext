@@ -220,6 +220,9 @@ await db.executeMultiple(`
   -- COLUMN, así que no hace falta inspeccionar el schema a mano como con SQLite.
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS lote_id INTEGER REFERENCES lotes(id);
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS protegido_en TIMESTAMPTZ;
+  -- Etiqueta libre del lote (ej. "Activación Bloqueada"). Solo informativa —
+  -- el comportamiento del tap lo sigue decidiendo esLoteEspecial(uid_nfc).
+  ALTER TABLE lotes ADD COLUMN IF NOT EXISTS tipo TEXT;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS email TEXT;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS google_id TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id);
