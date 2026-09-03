@@ -40,6 +40,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   const funcionSel = $('grabar-funcion');
   const modeloSel = $('grabar-modelo');
   const vendedorSel = $('grabar-vendedor');
+  const sobrescribirChk = $('grabar-sobrescribir');
   const startBtn = $('grabar-start');
 
   const progressEl = $('grabar-progress');
@@ -107,6 +108,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     // Lista de lotes existentes + opción de crear uno nuevo (default).
     loteSel.innerHTML = '<option value="new">Lote nuevo</option>';
     loteTipoInput.value = '';
+    sobrescribirChk.checked = false;
     api('/lotes').then((lotes) => {
       for (const l of lotes) {
         const opt = document.createElement('option');
@@ -190,6 +192,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     stageEl.innerHTML = `
       <div class="wizard-summary">
         <div>✅ <b>Grabado</b> — código <b>${cur.codigoPublico}</b></div>
+        ${cur.sobrescrito ? '<div style="color:#e07a7a;">⚠ <b>UID sobrescrito</b> — ya estaba registrado; se re-aplicaron función / modelo / vendedor / lote.</div>' : ''}
         <div><b>URL en el chip:</b><br>${cur.url}</div>
         <div><b>PWD_AUTH:</b> <span class="grabar-key">${cur.writePassword}</span>
           <button type="button" class="row-btn" data-copy="${cur.writePassword}">copiar</button></div>
@@ -203,7 +206,11 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
         catch { window.prompt('Copiá:', b.dataset.copy); }
       });
     });
-    setStatus(`Chip ${grabados} de ${objetivo} listo.`, 'success');
+    if (cur.sobrescrito) {
+      setStatus(`Chip ${grabados} de ${objetivo} listo — ⚠ UID sobrescrito.`, 'error');
+    } else {
+      setStatus(`Chip ${grabados} de ${objetivo} listo.`, 'success');
+    }
   }
 
   async function writeUrl() {
@@ -262,6 +269,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
           modelo: modeloSel.value || '',
           vendedorId: vendedorSel.value || null,
           loteId: loteActual ? loteActual.id : null,
+          sobrescribir: sobrescribirChk.checked,
         }),
       });
     } catch (err) {
@@ -275,7 +283,11 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     cur = {
       id: data.id, uidNfc: uid, codigoPublico: data.codigoPublico,
       url: data.url, writePassword: data.writePassword, writePack: data.writePack,
+      sobrescrito: Boolean(data.sobrescrito),
     };
+    if (cur.sobrescrito) {
+      setStatus(`⚠ El UID ya estaba registrado — se sobrescribió (código ${cur.codigoPublico}).`, 'error');
+    }
     // Intento de grabación automático (chip todavía pegado). Si falla, cae al
     // botón manual — no queda trabado.
     await writeUrl();

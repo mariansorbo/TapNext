@@ -212,12 +212,15 @@ document.getElementById('create-especial-button').addEventListener('click', asyn
   status.textContent = 'Creando lote especial...';
   result.hidden = true;
   try {
+    const sobrescribir = document.getElementById('especial-sobrescribir').checked;
     const data = await api('/stickers/lote-especial', {
       method: 'POST',
-      body: JSON.stringify({ nombre: nombre || undefined, items }),
+      body: JSON.stringify({ nombre: nombre || undefined, items, sobrescribir }),
     });
-    status.className = 'modal-status is-success';
-    status.textContent = `Lote ${data.loteId} — ${data.cantidad} sticker(s) creados.`;
+    status.className = data.loteReusado ? 'modal-status is-error' : 'modal-status is-success';
+    status.textContent = data.loteReusado
+      ? `⚠ Lote ${data.loteId} ya existía — se le agregaron ${data.cantidad} sticker(s).`
+      : `Lote ${data.loteId} — ${data.cantidad} sticker(s) creados.`;
     result.hidden = false;
     result.innerHTML =
       '<p style="margin-bottom:8px;"><b>Links para grabar en cada chip:</b></p>' +
@@ -782,14 +785,18 @@ document.getElementById('create-individual-button').addEventListener('click', as
   status.textContent = 'Generando...';
   result.hidden = true;
   try {
+    const sobrescribir = document.getElementById('individual-sobrescribir').checked;
     const data = await api('/stickers/individual', {
       method: 'POST',
-      body: JSON.stringify({ uidNfc, funcion, modelo, vendedorId }),
+      body: JSON.stringify({ uidNfc, funcion, modelo, vendedorId, sobrescribir }),
     });
-    status.className = 'modal-status is-success';
-    status.textContent = 'Listo — copiá la clave ahora, no se vuelve a mostrar.';
+    status.className = data.sobrescrito ? 'modal-status is-error' : 'modal-status is-success';
+    status.textContent = data.sobrescrito
+      ? '⚠ El UID ya estaba registrado — se sobrescribió. Copiá la clave ahora, no se vuelve a mostrar.'
+      : 'Listo — copiá la clave ahora, no se vuelve a mostrar.';
     result.hidden = false;
     result.innerHTML = `
+      ${data.sobrescrito ? '<div style="color:#e07a7a;"><b>⚠ UID sobrescrito</b> — se re-aplicaron función / modelo / vendedor.</div>' : ''}
       <div><b>Código público:</b> ${data.codigoPublico}</div>
       <div><b>URL a grabar en el chip:</b> ${data.url}</div>
       <div><b>Clave de escritura (PWD_AUTH):</b> ${data.writePassword}</div>

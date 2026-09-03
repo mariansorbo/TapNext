@@ -193,6 +193,10 @@
         <span>Nombre del lote (opcional)</span>
         <input type="text" id="especial-nombre" placeholder="ESPECIAL — feria noviembre">
       </label>
+      <label class="modal-check">
+        <input type="checkbox" id="especial-sobrescribir">
+        <span>Sobrescribir: si ya existe un lote con este nombre, agregarle los stickers en vez de crear uno nuevo</span>
+      </label>
     </div>
     <div id="especial-rows"></div>
     <button type="button" class="btn-ghost" id="especial-add-row" style="margin:12px 0;">+ Agregar sticker</button>
@@ -239,6 +243,10 @@
       <label>
         <span>Vendedor</span>
         <select id="individual-vendedor"><option value="" selected>Sin asignar</option></select>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="individual-sobrescribir">
+        <span>Sobrescribir si el UID ya está registrado (re-aplica función / modelo / vendedor; conserva activación y dueño)</span>
       </label>
     </div>
     <button type="button" class="btn-primary modal-submit" id="create-individual-button">Registrar NFC</button>
@@ -341,6 +349,10 @@
         <label>
           <span>Vendedor (opcional — se aplica a todos)</span>
           <select id="grabar-vendedor"><option value="">Sin asignar</option></select>
+        </label>
+        <label class="modal-check">
+          <input type="checkbox" id="grabar-sobrescribir">
+          <span>Sobrescribir si el UID ya está registrado (re-aplica función / modelo / vendedor / lote; conserva activación y dueño)</span>
         </label>
       </div>
       <button type="button" class="btn-primary modal-submit" id="grabar-start">Empezar</button>

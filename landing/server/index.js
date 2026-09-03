@@ -5,6 +5,7 @@ import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
+import { enviarCorreo, mailCompraComprador, mailVentaVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 
 const PORT = process.env.PORT || 3001;
@@ -738,6 +739,56 @@ app.get('/api/ventas/:id', requireAuth, async (req, res) => {
   });
 });
 
+// Manda los avisos post-venta (pago ya confirmado). Nunca lanza: si falta el
+// mail de alguna de las partes, o Resend no está configurado, se saltea esa
+// parte y sigue. Se llama una sola vez por venta — el webhook sale temprano si
+// la venta ya estaba 'confirmado'.
+async function notificarVentaConfirmada(ventaId) {
+  try {
+    const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+    if (!venta) return;
+
+    const items = await all(
+      `SELECT s.codigo_publico, s.modelo
+         FROM venta_items vi JOIN stickers_actual s ON s.id = vi.sticker_id
+        WHERE vi.venta_id = ?
+        ORDER BY vi.id`,
+      [ventaId]
+    );
+    if (!items.length) return;
+    const itemsMail = items.map((r) => ({ codigoPublico: r.codigo_publico, modelo: r.modelo }));
+    const panelComprador = `${FRONTEND_URL}/mi-panel.html`;
+    const panelVendedor = `${FRONTEND_URL}/vendedor.html`;
+
+    const comprador = venta.comprador_id
+      ? await get('SELECT nombre, whatsapp, email FROM compradores WHERE id = ?', [venta.comprador_id])
+      : null;
+    if (comprador?.email) {
+      const { subject, text, html } = mailCompraComprador({ items: itemsMail, panelUrl: panelComprador });
+      await enviarCorreo({ to: comprador.email, subject, text, html });
+    } else {
+      console.log(`[correo] Venta ${ventaId}: el comprador no tiene mail cargado — no se le avisa.`);
+    }
+
+    const vendedor = venta.vendedor_id
+      ? await get('SELECT nombre, email FROM vendedores WHERE id = ?', [venta.vendedor_id])
+      : null;
+    if (vendedor?.email) {
+      const { subject, text, html } = mailVentaVendedor({
+        items: itemsMail,
+        comprador,
+        monto: venta.monto,
+        panelUrl: panelVendedor,
+      });
+      await enviarCorreo({ to: vendedor.email, subject, text, html });
+    } else if (venta.vendedor_id) {
+      console.log(`[correo] Venta ${ventaId}: el vendedor no tiene mail cargado — no se le avisa.`);
+    }
+  } catch (err) {
+    console.error(`[correo] Error armando los avisos de la venta ${ventaId}:`, err.message);
+  }
+}
+
 // Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
 // usuario en este request). Confirmamos el estado real contra la API de MP en
 // vez de confiar en el payload de la notificación (evita pagos falsificados).
@@ -776,6 +827,10 @@ app.post('/api/pagos/webhook', async (req, res) => {
         }
         await transicionarSticker(item.sticker_id, { estado: 'activo' });
       }
+      // Aviso por mail (best-effort) al comprador y al vendedor con el/los
+      // codigo_publico que corresponden a esta venta — es el ID que el
+      // vendedor tiene que entregar y el comprador tiene que recibir.
+      await notificarVentaConfirmada(ventaId);
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
         'rechazado',
@@ -1209,6 +1264,10 @@ app.post('/api/admin/stickers/batch', requireAdmin, async (req, res) => {
 app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim() || `Lote especial ${new Date().toISOString().slice(0, 10)}`;
   const modeloDefault = String(req.body?.modelo || 'llavero').trim();
+  // Sobrescribir: si ya hay un lote con este mismo nombre, en vez de crear uno
+  // nuevo (y quedar con dos lotes homónimos) se le agregan los stickers al
+  // lote existente. Los stickers que ya tenía no se tocan.
+  const sobrescribir = req.body?.sobrescribir === true || req.body?.overwrite === true;
 
   // Tres formas de decir qué crear (en orden de prioridad):
   //  - items:   [{ modelo, funcion, codigo? }] → uno por entrada, con su función
@@ -1255,8 +1314,17 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
     }
   }
 
-  const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, specs.length]);
-  const loteId = loteResult.lastInsertRowid;
+  const loteExistente = sobrescribir
+    ? await get('SELECT id FROM lotes WHERE nombre = ? ORDER BY id DESC LIMIT 1', [nombre])
+    : null;
+  let loteId;
+  if (loteExistente) {
+    loteId = loteExistente.id;
+    await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + ? WHERE id = ?', [specs.length, loteId]);
+  } else {
+    const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, specs.length]);
+    loteId = loteResult.lastInsertRowid;
+  }
   const vendedorId = await vendedorEspecialId();
 
   const creados = [];
@@ -1287,7 +1355,13 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
     });
   }
 
-  res.status(201).json({ loteId, cantidad: creados.length, creados, links: creados.map((c) => c.link) });
+  res.status(201).json({
+    loteId,
+    cantidad: creados.length,
+    creados,
+    links: creados.map((c) => c.link),
+    loteReusado: Boolean(loteExistente),
+  });
 });
 
 // Alta individual "de taller": partís de un uid_nfc real (leído del chip físico)
@@ -1313,6 +1387,11 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
   // Lote al que pertenece este UID — opcional: se puede registrar "suelto"
   // (sin lote) o asociarlo a un lote ya existente dado de alta antes.
   const loteId = req.body?.loteId ? Number(req.body.loteId) : null;
+  // Sobrescribir: si el UID ya está registrado, en vez de cortar con 409 se
+  // re-aplica función / modelo / vendedor / lote sobre el chip existente. El
+  // codigo_publico (y por lo tanto la URL y las claves derivadas del UID) no
+  // cambia. La activación y el dueño, si ya está activo, se conservan.
+  const sobrescribir = req.body?.sobrescribir === true || req.body?.overwrite === true;
 
   if (!uidNfc) return res.status(400).json({ error: 'Falta el UID del chip.' });
   if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
@@ -1326,8 +1405,37 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
     if (!lote) return res.status(404).json({ error: 'Lote no encontrado.' });
   }
 
-  const existente = await get('SELECT id FROM stickers WHERE uid_nfc = ?', [uidNfc]);
-  if (existente) return res.status(409).json({ error: 'Ese UID ya está registrado.' });
+  const existente = await get('SELECT id, codigo_publico, lote_id FROM stickers WHERE uid_nfc = ?', [uidNfc]);
+  if (existente && !sobrescribir) return res.status(409).json({ error: 'Ese UID ya está registrado.' });
+
+  const writePassword = deriveChipPassword(uidNfc);
+  const writePack = deriveChipPack(uidNfc);
+
+  if (existente) {
+    // El chip físico es el mismo (UID) → se conserva su codigo_publico y solo
+    // se re-aplican los campos que vengan seteados en esta pasada.
+    if (loteId && loteId !== existente.lote_id) {
+      await run('UPDATE stickers SET lote_id = ? WHERE id = ?', [loteId, existente.id]);
+      await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + 1 WHERE id = ?', [loteId]);
+    }
+    // No se toca `estado` ni `comprador_id`: si el chip ya estaba vendido /
+    // activo, sigue estándolo — sobrescribir solo re-apunta función/modelo/vendedor.
+    await transicionarSticker(existente.id, {
+      ...(modelo ? { modelo } : {}),
+      ...(funcion ? { funcion } : {}),
+      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+    });
+    return res.status(200).json({
+      id: existente.id,
+      codigoPublico: existente.codigo_publico,
+      uidNfc,
+      loteId: loteId || existente.lote_id,
+      url: `${PUBLIC_ROUTER_BASE}/v/${existente.codigo_publico}`,
+      writePassword,
+      writePack,
+      sobrescrito: true,
+    });
+  }
 
   if (codigoImprimible) {
     const codigoEnUso = await get('SELECT id FROM stickers WHERE codigo_publico = ?', [codigoImprimible]);
@@ -1335,8 +1443,6 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
   }
 
   const codigoPublico = codigoImprimible || generateCodigoPublico();
-  const writePassword = deriveChipPassword(uidNfc);
-  const writePack = deriveChipPack(uidNfc);
   const result = await run('INSERT INTO stickers (codigo_publico, uid_nfc, lote_id) VALUES (?, ?, ?)', [
     codigoPublico,
     uidNfc,
