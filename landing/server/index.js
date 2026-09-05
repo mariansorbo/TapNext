@@ -842,8 +842,8 @@ async function notificarVentaConfirmada(ventaId) {
 }
 
 // Aviso de ACTIVACIÓN GRATIS al comprador (no pagó nada). Texto distinto según
-// si la cuenta se creó recién (`cuentaNueva`) o ya existía con ese mail.
-async function notificarActivacionGratis(ventaId, { cuentaNueva }) {
+// si es su primer NextTap o ya tenía otros en la cuenta.
+async function notificarActivacionGratis(ventaId) {
   try {
     const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
     if (!venta) return;
@@ -861,6 +861,12 @@ async function notificarActivacionGratis(ventaId, { cuentaNueva }) {
       console.log(`[correo] Activación gratis ${ventaId}: el comprador no tiene mail — no se avisa.`);
       return;
     }
+    // ¿Ya tenía otros productos activos? (este ya está activo cuando llegamos acá)
+    const activos = await get(
+      'SELECT COUNT(*) AS n FROM stickers_actual WHERE comprador_id = ? AND estado = ?',
+      [venta.comprador_id, 'activo']
+    );
+    const cuentaNueva = Number(activos?.n || 0) <= items.length;
     const { subject, text, html } = mailActivacionGratis({
       items: items.map((r) => ({ codigoPublico: r.codigo_publico, modelo: r.modelo })),
       panelUrl: `${FRONTEND_URL}/mi-panel.html`,
@@ -2318,8 +2324,18 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
 // (login por código). Riesgo aceptado: alguien podría activar con un email
 // ajeno, pero hace falta tener el llavero físico en la mano.
 app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!ES_EMAIL(email)) return res.status(400).json({ error: 'Ingresá un email válido.' });
+  // Sesión de comprador verificada por OTP (Authorization: Bearer). Para la
+  // activación GRATIS es obligatoria; para la paga, el email sin verificar
+  // alcanza (Mercado Pago es la barrera).
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  let comprador = null;
+  if (bearer) {
+    const sesion = await get('SELECT * FROM sesiones WHERE token_hash = ? AND expira > NOW()', [hashValue(bearer)]);
+    if (sesion) comprador = await get('SELECT * FROM compradores WHERE id = ?', [sesion.comprador_id]);
+  }
+  const verificado = Boolean(comprador);
+  const email = (comprador?.email || String(req.body?.email || '').trim()).toLowerCase();
+  if (!verificado && !ES_EMAIL(email)) return res.status(400).json({ error: 'Ingresá un email válido.' });
 
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   const liberada = sticker ? await liberacionVigente(sticker.id) : null;
@@ -2330,11 +2346,17 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     return res.status(409).json({ error: 'Este llavero ya está activado. Entrá a "Mi panel" para editarlo.' });
   }
 
-  let comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
-  const cuentaNueva = !comprador;
+  // Activación gratis: no se activa nada hasta verificar el email por código.
+  if (liberada && liberada.gratis && !verificado) {
+    return res.status(401).json({ error: 'Verificá tu email antes de activar.', needsOtp: true });
+  }
+
   if (!comprador) {
-    const r = await run('INSERT INTO compradores (email) VALUES (?)', [email]);
-    comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
+    comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
+    if (!comprador) {
+      const r = await run('INSERT INTO compradores (email) VALUES (?)', [email]);
+      comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
+    }
   }
 
   // --- Activación liberada GRATIS: sin Mercado Pago. Activa al instante. ---
@@ -2374,7 +2396,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     });
     // Aviso por mail al comprador: activación gratis (no "compra"), con texto
     // distinto según si la cuenta ya existía o se creó recién.
-    await notificarActivacionGratis(ventaId, { cuentaNueva });
+    await notificarActivacionGratis(ventaId);
     return res.status(201).json({ liberada: true, activado: true });
   }
 

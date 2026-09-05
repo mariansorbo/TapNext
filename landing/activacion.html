@@ -95,10 +95,14 @@
           <span>Tu email</span>
           <input type="email" id="email" inputmode="email" autocomplete="email" placeholder="vos@ejemplo.com">
         </label>
+        <label id="otp-field" hidden>
+          <span>Código que te llegó por mail</span>
+          <input type="text" id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+        </label>
       </div>
       <button type="button" class="btn-primary panel-btn" id="pagar">Pagar y activar</button>
       <p class="modal-status" id="status"></p>
-      <p class="section-lead" style="margin-top:14px; font-size:.9rem;">
+      <p class="section-lead" id="form-hint" style="margin-top:14px; font-size:.9rem;">
         No hace falta confirmar nada ahora. Después, cuando entres a tu panel,
         te pedimos un código para verificar que ese email es tuyo.
       </p>

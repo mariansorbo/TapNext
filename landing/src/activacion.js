@@ -37,6 +37,9 @@ const modeloLabel = document.getElementById('modelo-label');
 const ctaDestino = document.getElementById('cta-destino');
 const precioLabel = document.getElementById('precio-label');
 const emailInput = document.getElementById('email');
+const otpField = document.getElementById('otp-field');
+const otpInput = document.getElementById('otp');
+const formHint = document.getElementById('form-hint');
 const pagarButton = document.getElementById('pagar');
 const statusEl = document.getElementById('status');
 
@@ -125,10 +128,13 @@ async function init() {
   if (info.precio != null) precioLabel.textContent = `(${formatoPrecio(info.precio)})`;
 
   if (info.liberada) {
-    // Activación liberada: gratis, sin pago.
+    // Activación gratis: se verifica el email por código antes de activar.
     const paso2 = document.querySelector('.activacion-pasos li:nth-child(2)');
-    if (paso2) paso2.innerHTML = '<b>Activación gratis</b> — sin pago, es un regalo.';
-    pagarButton.textContent = 'Activar gratis';
+    if (paso2) paso2.innerHTML = '<b>Verificá tu email</b> con el código que te mandamos — sin pago, es un regalo.';
+    pagarButton.textContent = 'Enviar código';
+    if (formHint) {
+      formHint.textContent = 'Te mandamos un código de un solo uso a ese mail. Si ya activaste otro NextTap con este email, este se suma a tu cuenta.';
+    }
   } else if (!info.pagosHabilitados) {
     setStatus('is-error', 'Los pagos todavía no están habilitados. Probá más tarde.');
     pagarButton.disabled = true;
@@ -141,6 +147,61 @@ async function init() {
   emailInput.focus();
 }
 
+let otpEnviado = false;
+
+// Activación GRATIS: pedir código → verificar → activar (2 pasos, mismo botón).
+async function flujoGratis(email) {
+  if (!otpEnviado) {
+    pagarButton.disabled = true;
+    setStatus('', 'Enviando código...');
+    try {
+      const r = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ email }) });
+      otpEnviado = true;
+      otpField.hidden = false;
+      otpInput.focus();
+      pagarButton.textContent = 'Activar gratis';
+      pagarButton.disabled = false;
+      emailInput.disabled = true;
+      if (r.debug_otp) {
+        otpInput.value = r.debug_otp;
+        setStatus('is-error', `MODO DEMO — el mail no está configurado. Tu código es ${r.debug_otp}.`);
+      } else {
+        setStatus('is-success', 'Te mandamos un código al mail. Ponelo acá (revisá spam).');
+      }
+    } catch (err) {
+      pagarButton.disabled = false;
+      setStatus('is-error', err.message);
+    }
+    return;
+  }
+
+  const code = otpInput.value.trim();
+  if (!code) {
+    setStatus('is-error', 'Ingresá el código que te llegó por mail.');
+    otpInput.focus();
+    return;
+  }
+  pagarButton.disabled = true;
+  setStatus('', 'Verificando...');
+  try {
+    const v = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
+    const data = await api(`/activacion/${encodeURIComponent(codigo)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${v.token}` },
+      body: JSON.stringify({}),
+    });
+    if (data.liberada && data.activado) {
+      // Verificado + activo → entra a Mi panel ya logueado.
+      window.location.replace(`/mi-panel.html?token=${encodeURIComponent(v.token)}`);
+      return;
+    }
+    throw new Error('No se pudo activar.');
+  } catch (err) {
+    pagarButton.disabled = false;
+    setStatus('is-error', err.message);
+  }
+}
+
 pagarButton.addEventListener('click', async () => {
   const email = emailInput.value.trim();
   if (!RE_EMAIL.test(email)) {
@@ -148,17 +209,21 @@ pagarButton.addEventListener('click', async () => {
     emailInput.focus();
     return;
   }
+
+  if (infoActual?.liberada) {
+    await flujoGratis(email);
+    return;
+  }
+
+  // --- Activación con pago: email → Mercado Pago ---
   pagarButton.disabled = true;
-  setStatus('', infoActual?.liberada ? 'Activando...' : 'Abriendo el pago...');
+  setStatus('', 'Abriendo el pago...');
   try {
     const data = await api(`/activacion/${encodeURIComponent(codigo)}`, {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
-    if (data.liberada && data.activado) {
-      // Activación liberada: ya quedó activo. A configurar el destino en Mi panel.
-      window.location.replace('/mi-panel.html');
-    } else if (data.initPoint) {
+    if (data.initPoint) {
       window.location.href = data.initPoint;
     } else {
       throw new Error('No se pudo iniciar el pago.');
@@ -170,6 +235,9 @@ pagarButton.addEventListener('click', async () => {
 });
 
 emailInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') pagarButton.click();
+});
+otpInput?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') pagarButton.click();
 });
 
