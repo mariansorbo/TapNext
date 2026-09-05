@@ -2313,6 +2313,8 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
       despues: { comprador: email, ventaId },
       motivo: liberada.motivo,
     });
+    // Mismo aviso por mail que una compra confirmada (código + link a Mi panel).
+    await notificarVentaConfirmada(ventaId);
     return res.status(201).json({ liberada: true, activado: true });
   }
 
