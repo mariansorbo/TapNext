@@ -1144,6 +1144,7 @@ function openLiberadaModal(gratis) {
     : 'El que tiene el producto lo activa pagando por Mercado Pago, sin OTP — como un lote especial pero sobre este chip. Podés reescribir el chip y forzar sobre uno que ya esté activo.';
   document.getElementById('liberada-submit').textContent = gratis ? 'Crear activación gratis' : 'Crear activación liberada';
   liberadaCodigo.value = '';
+  liberadaUidFisico = '';
   document.getElementById('liberada-motivo').value = '';
   document.getElementById('liberada-expira').value = '';
   document.getElementById('liberada-destino-valor').value = '';
@@ -1178,8 +1179,10 @@ function codigoDesdeUrl(txt) {
 
 // Escaneo NFC de un chip. Preferimos leer la URL grabada y sacar de ahí el
 // código público — funciona igual para lote especial (sin UID propio en la
-// base) que para chips reales. Si el chip no tiene URL, caemos al UID.
+// base) que para chips reales. Si el chip no tiene URL, guardamos el UID leído
+// (liberadaUidFisico) para vincularlo cuando el admin tipee el código.
 let liberadaNdefAbort = null;
+let liberadaUidFisico = '';
 document.getElementById('liberada-scan').addEventListener('click', async () => {
   if (!('NDEFReader' in window)) {
     liberadaStatus.className = 'modal-status is-error';
@@ -1200,17 +1203,22 @@ document.getElementById('liberada-scan').addEventListener('click', async () => {
         } catch { /* record no decodificable */ }
         if (codigo) break;
       }
+      const uid = String(serialNumber || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
       if (codigo) {
         liberadaCodigo.value = codigo;
+        liberadaUidFisico = uid; // lo vinculamos igual, por si todavía no está
         liberadaStatus.className = 'modal-status is-success';
         liberadaStatus.textContent = `Código leído del chip: ${codigo}`;
-      } else {
-        const uid = String(serialNumber || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
-        liberadaCodigo.value = uid;
+      } else if (uid) {
+        // Sin URL: guardamos el UID y pedimos el código para vincularlo.
+        liberadaUidFisico = uid;
+        liberadaCodigo.value = '';
+        liberadaCodigo.focus();
         liberadaStatus.className = 'modal-status';
-        liberadaStatus.textContent = uid
-          ? `El chip no tiene URL — leí el UID (${uid}). Si es de lote especial, escribí el código a mano.`
-          : 'No pude leer el chip. Escribí el código a mano.';
+        liberadaStatus.textContent = `Leí el chip (UID ${uid}). Escribí el código del producto — lo vinculo y la próxima vez lo reconozco solo.`;
+      } else {
+        liberadaStatus.className = 'modal-status is-error';
+        liberadaStatus.textContent = 'No pude leer el chip. Escribí el código a mano.';
       }
       try { liberadaNdefAbort.abort(); } catch {}
       liberadaNdefAbort = null;
@@ -1232,6 +1240,7 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
     // Puede ser el código público, un UID de chip, o una URL pegada — el
     // backend lo resuelve.
     codigo: codigoRaw,
+    uidFisico: liberadaUidFisico || undefined,
     gratis: liberadaModoGratis,
     motivo: document.getElementById('liberada-motivo').value.trim() || undefined,
     expiraDias: Number(document.getElementById('liberada-expira').value) || undefined,
@@ -1254,9 +1263,11 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
   try {
     const data = await api('/activaciones-liberadas', { method: 'POST', body: JSON.stringify(body) });
     liberadaStatus.className = 'modal-status is-success';
-    liberadaStatus.textContent = data.forzado
-      ? `Listo — reescritura maestra aplicada${data.ventaAnuladaId ? ` (venta #${data.ventaAnuladaId} anulada)` : ''}.`
-      : (data.gratis ? 'Activación gratis creada.' : 'Activación liberada creada.');
+    liberadaStatus.textContent =
+      (data.forzado
+        ? `Listo — reescritura maestra aplicada${data.ventaAnuladaId ? ` (venta #${data.ventaAnuladaId} anulada)` : ''}.`
+        : (data.gratis ? 'Activación gratis creada.' : 'Activación liberada creada.')) +
+      (data.vinculado ? ' Chip vinculado ✓ — la próxima vez el escaneo lo reconoce solo.' : '');
     liberadaResult.hidden = false;
     liberadaResult.innerHTML = `
       <div><b>Tipo:</b> ${data.gratis ? 'Gratis — se activa solo con el email' : 'Con pago — el que reciba el producto paga para activarlo'}</div>

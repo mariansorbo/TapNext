@@ -1614,6 +1614,10 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
   // gratis = true (default): se activa sin pagar. false: "activación liberada"
   // a secas — se activa pagando por Mercado Pago, sin OTP.
   const gratis = req.body?.gratis !== false;
+  // UID físico leído del chip al escanear. Si viene junto con un código y el
+  // sticker todavía no tiene uno vinculado, lo guardamos → de ahí en más el
+  // escaneo resuelve ese chip solo (clave para los de lote especial).
+  const uidFisico = String(req.body?.uidFisico || '').trim().toLowerCase() || null;
 
   if (!ident) return res.status(400).json({ error: 'Indicá el código público o el UID del chip.' });
   if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
@@ -1622,15 +1626,27 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
 
   const identLower = ident.toLowerCase();
   const sticker = await get(
-    'SELECT * FROM stickers WHERE codigo_publico = ? OR LOWER(uid_nfc) = ?',
-    [identLower, identLower]
+    'SELECT * FROM stickers WHERE codigo_publico = ? OR LOWER(uid_nfc) = ? OR LOWER(uid_fisico) = ?',
+    [identLower, identLower, identLower]
   );
   if (!sticker) {
     return res.status(404).json({
       error:
         `No encontré ningún producto con "${ident}". Si escaneaste un llavero de lote especial, ` +
-        `escribí su código a mano (el que va en el link /activacion/…) — esos chips no tienen UID propio.`,
+        `escribí su código a mano — el chip queda vinculado y la próxima vez el escaneo lo reconoce.`,
     });
+  }
+
+  // Vincular el chip físico a este sticker (una sola vez). No hace falta si el
+  // uid_nfc ya ES el UID real (chip normal) o si ya está vinculado.
+  let vinculado = false;
+  if (uidFisico && uidFisico !== identLower && uidFisico !== String(sticker.uid_nfc).toLowerCase() && !sticker.uid_fisico) {
+    const chocado = await get('SELECT codigo_publico FROM stickers WHERE LOWER(uid_fisico) = ? AND id != ?', [uidFisico, sticker.id]);
+    if (chocado) {
+      return res.status(409).json({ error: `Ese chip ya está vinculado a otro producto (${chocado.codigo_publico}).` });
+    }
+    await run('UPDATE stickers SET uid_fisico = ? WHERE id = ?', [uidFisico, sticker.id]);
+    vinculado = true;
   }
 
   if (vendedorId) {
@@ -1736,6 +1752,7 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
     activacionUrl: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`,
     forzado: actual.estado !== 'en_stock',
     ventaAnuladaId,
+    vinculado,
     gratis,
     ...claves,
   });

@@ -220,6 +220,11 @@ await db.executeMultiple(`
   -- COLUMN, así que no hace falta inspeccionar el schema a mano como con SQLite.
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS lote_id INTEGER REFERENCES lotes(id);
   ALTER TABLE stickers ADD COLUMN IF NOT EXISTS protegido_en TIMESTAMPTZ;
+  -- UID físico real del chip, cuando se lo vincula a mano (lote especial: el
+  -- uid_nfc es un sentinel "00000<codigo>", no el UID real — ver esLoteEspecial).
+  -- Una vez vinculado, escanear el chip lo resuelve por acá.
+  ALTER TABLE stickers ADD COLUMN IF NOT EXISTS uid_fisico TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_stickers_uid_fisico ON stickers(LOWER(uid_fisico)) WHERE uid_fisico IS NOT NULL;
   -- Etiqueta libre del lote (ej. "Activación Bloqueada"). Solo informativa —
   -- el comportamiento del tap lo sigue decidiendo esLoteEspecial(uid_nfc).
   ALTER TABLE lotes ADD COLUMN IF NOT EXISTS tipo TEXT;
