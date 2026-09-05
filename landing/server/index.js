@@ -314,6 +314,13 @@ app.get('/api/auth/config', (req, res) => {
       // true = manda el código por mail de verdad. false = modo demo (lo
       // devuelve en la respuesta / lo loguea). Para diagnóstico de config.
       disponible: canalVerificacion.disponible,
+      // Diagnóstico temporal: qué ve el proceso (presencia, sin exponer el valor
+      // del API key). emailFromRaw ayuda a detectar el prefijo "EMAIL_FROM=" pegado.
+      _env: {
+        resendApiKey: Boolean(process.env.RESEND_API_KEY),
+        emailFrom: Boolean(process.env.EMAIL_FROM),
+        emailFromRaw: (process.env.EMAIL_FROM || '').slice(0, 50),
+      },
     },
     destinos: DESTINO_TIPOS.map((id) => ({ id, ...DESTINO_META[id] })),
   });
