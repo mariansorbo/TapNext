@@ -1169,7 +1169,16 @@ function openLiberadaModal(gratis) {
 document.getElementById('toggle-liberada-gratis').addEventListener('click', () => openLiberadaModal(true));
 document.getElementById('toggle-liberada-pago').addEventListener('click', () => openLiberadaModal(false));
 
-// Escaneo NFC de un chip (una sola lectura) para rellenar el código/UID.
+// Saca el código público de una URL grabada (…/v/<codigo>, …/activacion/<codigo>
+// o …?c=<codigo>).
+function codigoDesdeUrl(txt) {
+  const m = String(txt || '').match(/(?:[?&]c=|\/(?:v|activacion)\/)([^/?#&\s]+)/i);
+  return m ? decodeURIComponent(m[1]).trim() : '';
+}
+
+// Escaneo NFC de un chip. Preferimos leer la URL grabada y sacar de ahí el
+// código público — funciona igual para lote especial (sin UID propio en la
+// base) que para chips reales. Si el chip no tiene URL, caemos al UID.
 let liberadaNdefAbort = null;
 document.getElementById('liberada-scan').addEventListener('click', async () => {
   if (!('NDEFReader' in window)) {
@@ -1183,12 +1192,25 @@ document.getElementById('liberada-scan').addEventListener('click', async () => {
     const ndef = new NDEFReader();
     liberadaNdefAbort = new AbortController();
     await ndef.scan({ signal: liberadaNdefAbort.signal });
-    ndef.addEventListener('reading', ({ serialNumber }) => {
-      const uid = String(serialNumber || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
-      if (uid) {
-        liberadaCodigo.value = uid;
+    ndef.addEventListener('reading', ({ message, serialNumber }) => {
+      let codigo = '';
+      for (const rec of message?.records || []) {
+        try {
+          codigo = codigoDesdeUrl(new TextDecoder().decode(rec.data));
+        } catch { /* record no decodificable */ }
+        if (codigo) break;
+      }
+      if (codigo) {
+        liberadaCodigo.value = codigo;
         liberadaStatus.className = 'modal-status is-success';
-        liberadaStatus.textContent = `UID leído: ${uid}`;
+        liberadaStatus.textContent = `Código leído del chip: ${codigo}`;
+      } else {
+        const uid = String(serialNumber || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+        liberadaCodigo.value = uid;
+        liberadaStatus.className = 'modal-status';
+        liberadaStatus.textContent = uid
+          ? `El chip no tiene URL — leí el UID (${uid}). Si es de lote especial, escribí el código a mano.`
+          : 'No pude leer el chip. Escribí el código a mano.';
       }
       try { liberadaNdefAbort.abort(); } catch {}
       liberadaNdefAbort = null;
@@ -1206,10 +1228,10 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
     liberadaStatus.textContent = 'Indicá el código público o el UID del chip.';
     return;
   }
-  // Heurística: 8+ hex sin otras letras → UID; si no, código público.
-  const esUid = /^[0-9a-f]{8,}$/i.test(codigoRaw);
   const body = {
-    [esUid ? 'uidNfc' : 'codigoPublico']: codigoRaw,
+    // Puede ser el código público, un UID de chip, o una URL pegada — el
+    // backend lo resuelve.
+    codigo: codigoRaw,
     gratis: liberadaModoGratis,
     motivo: document.getElementById('liberada-motivo').value.trim() || undefined,
     expiraDias: Number(document.getElementById('liberada-expira').value) || undefined,

@@ -1597,8 +1597,11 @@ app.patch('/api/admin/stickers/:id/candado', requireAdmin, async (req, res) => {
 // sticker que ya está activo o con dueño (reescritura maestra: anula la venta
 // anterior, huérfana al comprador, borra el destino).
 app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => {
-  const codigoPublico = String(req.body?.codigoPublico || '').trim().toLowerCase();
-  const uidNfc = String(req.body?.uidNfc || '').trim();
+  // Un solo campo `codigo`: puede ser el código público, un UID de chip, o una
+  // URL pegada (…/v/<cod>, …/activacion/<cod>, …?c=<cod>). Legacy: codigoPublico/uidNfc.
+  let ident = String(req.body?.codigo || req.body?.codigoPublico || req.body?.uidNfc || '').trim();
+  const urlMatch = ident.match(/(?:[?&]c=|\/(?:v|activacion)\/)([^/?#&\s]+)/i);
+  if (urlMatch) ident = decodeURIComponent(urlMatch[1]).trim();
   const motivo = String(req.body?.motivo || '').trim() || null;
   const expiraDias = Number(req.body?.expiraDias) || 0;
   const destinoTipo = String(req.body?.destinoTipo || '').trim() || null;
@@ -1612,16 +1615,23 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
   // a secas — se activa pagando por Mercado Pago, sin OTP.
   const gratis = req.body?.gratis !== false;
 
-  if (!codigoPublico && !uidNfc) return res.status(400).json({ error: 'Indicá el código público o el UID del chip.' });
+  if (!ident) return res.status(400).json({ error: 'Indicá el código público o el UID del chip.' });
   if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
   if (modelo && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
   if (destinoTipo && !DESTINO_TIPOS.includes(destinoTipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
 
+  const identLower = ident.toLowerCase();
   const sticker = await get(
-    `SELECT * FROM stickers WHERE ${codigoPublico ? 'codigo_publico = ?' : 'uid_nfc = ?'}`,
-    [codigoPublico || uidNfc]
+    'SELECT * FROM stickers WHERE codigo_publico = ? OR LOWER(uid_nfc) = ?',
+    [identLower, identLower]
   );
-  if (!sticker) return res.status(404).json({ error: 'No encontré ningún producto con ese código / UID.' });
+  if (!sticker) {
+    return res.status(404).json({
+      error:
+        `No encontré ningún producto con "${ident}". Si escaneaste un llavero de lote especial, ` +
+        `escribí su código a mano (el que va en el link /activacion/…) — esos chips no tienen UID propio.`,
+    });
+  }
 
   if (vendedorId) {
     const v = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
