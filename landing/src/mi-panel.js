@@ -3,19 +3,10 @@ import { applyBrand } from './brand.js';
 
 applyBrand('Mi panel');
 
-// Fallback si el backend no devuelve la config de destinos (versión vieja).
-// El backend manda label/campo/placeholder/ayuda por tipo — ver /api/auth/config.
-const DESTINO_TIPOS_FALLBACK = [
-  { id: 'whatsapp', label: 'WhatsApp', campo: 'Número de WhatsApp', placeholder: '11 2233 4455', ayuda: 'Con característica, sin el 0 ni el 15.' },
-  { id: 'instagram', label: 'Instagram', campo: 'Usuario de Instagram', placeholder: 'tunegocio', ayuda: 'Solo tu usuario, sin @ ni el link completo.' },
-  { id: 'pago', label: 'Link de pago', campo: 'Link de pago', placeholder: 'link.mercadopago.com.ar/tunegocio', ayuda: '' },
-  { id: 'menu', label: 'Menú / carta', campo: 'Link del menú', placeholder: 'tunegocio.com/menu', ayuda: '' },
-  { id: 'review', label: 'Reseñas', campo: 'Link para dejar reseña', placeholder: 'g.page/r/...', ayuda: '' },
-  { id: 'web', label: 'Web propia', campo: 'Tu sitio web', placeholder: 'tunegocio.com', ayuda: 'Le agregamos https:// solo.' },
-  { id: 'agenda', label: 'Agenda / turnos', campo: 'Link de tu agenda', placeholder: 'calendly.com/tunegocio', ayuda: '' },
-  { id: 'linktree', label: 'Linktree', campo: 'Usuario de Linktree', placeholder: 'tunegocio', ayuda: 'Solo tu usuario, sin el link completo.' },
-];
-let DESTINO_TIPOS = DESTINO_TIPOS_FALLBACK;
+// La lista de destinos (label/campo/placeholder/ayuda por tipo) es del backend:
+// el registry de `server/destinos/` es la única fuente de verdad. Ver
+// /api/auth/config. Si no carga, el formulario de edición avisa y no se abre.
+let DESTINO_TIPOS = [];
 const destinoMeta = (id) => DESTINO_TIPOS.find((t) => t.id === id) || { id, label: id, campo: 'Valor', placeholder: '', ayuda: '' };
 
 let destinoConfigCargada = false;
@@ -24,11 +15,13 @@ async function cargarDestinoConfig() {
   try {
     const res = await fetch(`${API_BASE}/api/auth/config`);
     const data = await res.json();
-    if (Array.isArray(data.destinos) && data.destinos.length) DESTINO_TIPOS = data.destinos;
+    if (Array.isArray(data.destinos) && data.destinos.length) {
+      DESTINO_TIPOS = data.destinos;
+      destinoConfigCargada = true;
+    }
   } catch {
-    /* nos quedamos con el fallback */
+    /* reintenta en la próxima apertura del formulario */
   }
-  destinoConfigCargada = true;
 }
 const ESTADO_LABELS = {
   activo: 'Activo',
@@ -228,12 +221,19 @@ function renderStickers(stickers) {
     if (sticker.estado === 'activo') {
       const editButton = card.querySelector('.sticker-edit-btn');
       const editForm = card.querySelector('.sticker-edit-form');
-      editButton.addEventListener('click', () => {
+      editButton.addEventListener('click', async () => {
         const isOpen = !editForm.hidden;
         if (isOpen) {
           editForm.hidden = true;
           editForm.innerHTML = '';
           editButton.textContent = 'Editar';
+          return;
+        }
+        await cargarDestinoConfig();
+        if (!DESTINO_TIPOS.length) {
+          editForm.hidden = false;
+          editForm.innerHTML = '<p class="modal-status is-error">No se pudo cargar la lista de destinos. Recargá la página.</p>';
+          editButton.textContent = 'Cancelar';
           return;
         }
         editForm.hidden = false;

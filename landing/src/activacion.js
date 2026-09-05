@@ -16,15 +16,6 @@ const FUNCION_CTA = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
-// Un destino guardado sin esquema ("instagram.com/x") lo toma el browser como
-// ruta relativa. Forzamos https:// para que el redirect final sea absoluto.
-function aUrlAbsoluta(valor) {
-  const s = String(valor || '').trim();
-  if (!s) return s;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
-  return 'https://' + s.replace(/^\/+/, '');
-}
-
 const loadingView = document.getElementById('loading-view');
 const errorView = document.getElementById('error-view');
 const errorText = document.getElementById('error-text');
@@ -112,7 +103,7 @@ async function init() {
   }
 
   if (info.estado === 'activo') {
-    if (info.destino) window.location.replace(aUrlAbsoluta(info.destino));
+    if (info.destino) window.location.replace(info.destino);
     else show(doneView);
     return;
   }
@@ -217,13 +208,16 @@ pagarButton.addEventListener('click', async () => {
 
   // --- Activación con pago: email → Mercado Pago ---
   pagarButton.disabled = true;
-  setStatus('', 'Abriendo el pago...');
+  setStatus('', infoActual?.liberada ? 'Activando...' : 'Abriendo el pago...');
   try {
     const data = await api(`/activacion/${encodeURIComponent(codigo)}`, {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
-    if (data.initPoint) {
+    if (data.liberada && data.activado) {
+      // Activación liberada: ya quedó activo. A configurar el destino en Mi panel.
+      window.location.replace('/mi-panel.html');
+    } else if (data.initPoint) {
       window.location.href = data.initPoint;
     } else {
       throw new Error('No se pudo iniciar el pago.');

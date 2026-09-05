@@ -3,11 +3,17 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import { db } from './db.js';
+import { db, asegurarTramosComision, TRAMOS_COMISION_DEFAULT } from './db.js';
+import {
+  calcularComisionVendedor,
+  estadoModelo,
+  tramosDeVendedor,
+  fechaAR,
+} from './comision.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
 import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
-import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, aUrlAbsoluta } from './destinos.js';
+import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -1090,6 +1096,29 @@ app.get('/api/vendedor/ventas', requireVendedor, async (req, res) => {
   );
 });
 
+// Estado de comisión del vendedor para la barra dinámica del panel. Devuelve
+// { modeloActivo: false } mientras el modelo variable no esté activo — el panel
+// simplemente no muestra la sección.
+app.get('/api/vendedor/comision', requireVendedor, async (req, res) => {
+  const c = await calcularComisionVendedor(req.vendedor.id);
+  if (!c.modeloActivo) return res.json({ modeloActivo: false });
+  res.json({
+    modeloActivo: true,
+    total: c.total,
+    pendiente: c.pendiente,
+    desde: c.desde,
+    hasta: c.hasta,
+    unidadesHoy: c.unidadesHoy,
+    deuda: c.deuda,
+    esSabadoHoy: c.esSabadoHoy,
+    extraMarginalHoy: c.extraMarginalHoy,
+    tramoActual: c.tramoActual,
+    proximoTramo: c.proximoTramo,
+    tramos: c.tramos,
+    ultimosDias: c.porDia.slice(-14),
+  });
+});
+
 app.get('/api/admin/vendedores', requireAdmin, async (req, res) => {
   const vendedores = await all(`
     SELECT v.*,
@@ -1173,6 +1202,8 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
     [nombre, codigoRef, comisionPct, whatsapp || null, email || null, aliasMp || null, passwordHash, linkToken]
   );
   const nuevoVendedorId = result.lastInsertRowid;
+  // Escala de comisión variable por defecto (inerte hasta que se active el modelo).
+  await asegurarTramosComision(nuevoVendedorId);
   // Un token de link por cada promo activa (mismo criterio que el backfill de db.js).
   const promosActivas = await all('SELECT id FROM promociones WHERE activa');
   for (const p of promosActivas) {
@@ -2026,18 +2057,181 @@ app.get('/api/admin/comisiones', requireAdmin, async (req, res) => {
     ORDER BY v.id
   `);
 
-  res.json(
-    rows.map((r) => ({
-      vendedorId: r.id,
-      nombre: r.nombre,
-      comisionPct: r.comision_pct,
-      aliasMp: r.alias_mp,
-      ventasTotales: r.ventas_totales,
-      ventasPendientes: Number(r.ventas_pendientes),
-      comisionPendiente: Math.round((r.base_pendiente * r.comision_pct) / 100),
-      comisionLiquidada: Math.round((r.base_liquidada * r.comision_pct) / 100),
-    }))
+  const modelo = await estadoModelo();
+
+  const vendedores = await Promise.all(
+    rows.map(async (r) => {
+      const base = {
+        vendedorId: r.id,
+        nombre: r.nombre,
+        comisionPct: r.comision_pct,
+        aliasMp: r.alias_mp,
+        ventasTotales: r.ventas_totales,
+        ventasPendientes: Number(r.ventas_pendientes),
+        // Cálculo % (vigente mientras el modelo variable esté inactivo).
+        comisionPendiente: Math.round((r.base_pendiente * r.comision_pct) / 100),
+        comisionLiquidada: Math.round((r.base_liquidada * r.comision_pct) / 100),
+      };
+      if (!modelo.activo) return base;
+      const c = await calcularComisionVendedor(r.id);
+      return {
+        ...base,
+        // Con el modelo activo, la comisión pendiente sale del motor por día.
+        comisionPendiente: c.pendiente,
+        comisionLiquidada: c.liquidado,
+        tramoActual: c.tramoActual,
+        deuda: c.deuda,
+        unidadesHoy: c.unidadesHoy,
+        totalPeriodo: c.total,
+      };
+    })
   );
+
+  res.json({
+    modeloActivo: modelo.activo,
+    activadoEn: modelo.activadoEn,
+    vendedores,
+  });
+});
+
+// --- Comisión variable: switch global + config por vendedor ---
+
+app.get('/api/admin/comision-modelo', requireAdmin, async (req, res) => {
+  const m = await estadoModelo();
+  res.json({ activo: m.activo, activadoEn: m.activadoEn });
+});
+
+app.post('/api/admin/comision-modelo/activar', requireAdmin, async (req, res) => {
+  // Idempotente: no repisa activado_en si ya venía activo (así reactivar no
+  // borra el historial de días ya contados).
+  await run(
+    `UPDATE comision_modelo
+        SET activo = 1,
+            activado_en = COALESCE(CASE WHEN activo = 1 THEN activado_en END, CURRENT_DATE)
+      WHERE id = 1`
+  );
+  res.json(await estadoModelo());
+});
+
+app.post('/api/admin/comision-modelo/desactivar', requireAdmin, async (req, res) => {
+  // Deja activado_en para poder reactivar sin perder el punto de partida.
+  await run('UPDATE comision_modelo SET activo = 0 WHERE id = 1');
+  res.json(await estadoModelo());
+});
+
+// Desglose por día del motor para un vendedor (drill-down del panel de Admin).
+app.get('/api/admin/vendedores/:id/comision', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT id, nombre FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  const c = await calcularComisionVendedor(vendedorId, { hasta: req.query.hasta });
+  const ausencias = await all(
+    'SELECT fecha::text AS fecha, nota FROM vendedor_ausencias WHERE vendedor_id = ? ORDER BY fecha',
+    [vendedorId]
+  );
+  res.json({ vendedor: { id: vendedor.id, nombre: vendedor.nombre }, ...c, ausencias });
+});
+
+app.get('/api/admin/vendedores/:id/comision-config', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const v = await get(
+    `SELECT id, nombre, comision_bono_finde, comision_deuda_1d, comision_deuda_2d, comision_deuda_3d
+       FROM vendedores WHERE id = ?`,
+    [vendedorId]
+  );
+  if (!v) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  await asegurarTramosComision(vendedorId);
+  res.json({
+    vendedorId: v.id,
+    nombre: v.nombre,
+    bonoFinde: v.comision_bono_finde,
+    deuda1d: v.comision_deuda_1d,
+    deuda2d: v.comision_deuda_2d,
+    deuda3d: v.comision_deuda_3d,
+    tramos: await tramosDeVendedor(vendedorId),
+  });
+});
+
+app.put('/api/admin/vendedores/:id/comision-config', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+
+  const tramos = Array.isArray(req.body?.tramos) ? req.body.tramos : null;
+  if (!tramos || tramos.length !== TRAMOS_COMISION_DEFAULT.length) {
+    return res.status(400).json({ error: `Se esperan ${TRAMOS_COMISION_DEFAULT.length} tramos.` });
+  }
+  const limpios = tramos.map((t, i) => ({
+    orden: i + 1,
+    etiqueta: String(t.etiqueta || TRAMOS_COMISION_DEFAULT[i].etiqueta).slice(0, 12),
+    desde_u: Math.round(Number(t.desde_u)),
+    hasta_u: Math.round(Number(t.hasta_u)),
+    pct: Number(t.pct),
+  }));
+  for (const t of limpios) {
+    if (![t.desde_u, t.hasta_u, t.pct].every(Number.isFinite) || t.hasta_u <= t.desde_u || t.pct < 0) {
+      return res.status(400).json({ error: 'Tramos inválidos: revisá desde/hasta/porcentaje.' });
+    }
+  }
+
+  const bonoFinde = Math.max(0, Number(req.body?.bonoFinde ?? 0.1));
+  const d1 = Math.max(0, Math.round(Number(req.body?.deuda1d ?? 5)));
+  const d2 = Math.max(0, Math.round(Number(req.body?.deuda2d ?? 10)));
+  const d3 = Math.max(0, Math.round(Number(req.body?.deuda3d ?? 15)));
+
+  await run('DELETE FROM vendedor_comision_tramos WHERE vendedor_id = ?', [vendedorId]);
+  for (const t of limpios) {
+    await run(
+      `INSERT INTO vendedor_comision_tramos (vendedor_id, orden, etiqueta, desde_u, hasta_u, pct)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [vendedorId, t.orden, t.etiqueta, t.desde_u, t.hasta_u, t.pct]
+    );
+  }
+  await run(
+    `UPDATE vendedores SET comision_bono_finde = ?, comision_deuda_1d = ?, comision_deuda_2d = ?, comision_deuda_3d = ? WHERE id = ?`,
+    [bonoFinde, d1, d2, d3, vendedorId]
+  );
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/vendedores/:id/ausencias', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  const fecha = String(req.body?.fecha || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Fecha inválida (YYYY-MM-DD).' });
+  const nota = String(req.body?.nota || '').trim().slice(0, 200) || null;
+  await run(
+    `INSERT INTO vendedor_ausencias (vendedor_id, fecha, nota) VALUES (?, ?, ?)
+     ON CONFLICT (vendedor_id, fecha) DO UPDATE SET nota = EXCLUDED.nota`,
+    [vendedorId, fecha, nota]
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/admin/vendedores/:id/ausencias/:fecha', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const fecha = String(req.params.fecha || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'Fecha inválida.' });
+  await run('DELETE FROM vendedor_ausencias WHERE vendedor_id = ? AND fecha = ?', [vendedorId, fecha]);
+  res.json({ ok: true });
+});
+
+// Registrar una liquidación del modelo variable (paga todo lo pendiente hasta hoy).
+app.post('/api/admin/vendedores/:id/comision/liquidar', requireAdmin, async (req, res) => {
+  const vendedorId = Number(req.params.id);
+  const vendedor = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+  if (!vendedor) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  const ref = String(req.body?.ref || '').trim();
+  if (!ref) return res.status(400).json({ error: 'Falta el número de operación de la transferencia.' });
+  const c = await calcularComisionVendedor(vendedorId);
+  if (!c.modeloActivo) return res.status(400).json({ error: 'El modelo variable no está activo.' });
+  if (c.pendiente <= 0) return res.status(400).json({ error: 'Este vendedor no tiene comisión pendiente.' });
+  await run(
+    'INSERT INTO vendedor_comision_liquidaciones (vendedor_id, hasta_fecha, monto, ref) VALUES (?, ?, ?, ?)',
+    [vendedorId, c.hasta, c.pendiente, ref]
+  );
+  res.json({ ok: true, monto: c.pendiente });
 });
 
 // Liquidar de una toda la comisión pendiente de un vendedor: marca todas sus
@@ -2240,18 +2434,19 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   if (sticker && sticker.estado === 'activo') {
     const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);
     if (destino) {
-      // Los destinos nuevos ya se guardan como URL absoluta. Para filas viejas
-      // (cargadas sin https://) lo forzamos acá antes de redirigir, si no el
-      // browser lo toma como ruta relativa y tira 404.
-      const valor = /^https?:\/\//i.test(destino.valor)
-        ? destino.valor
-        : aUrlAbsoluta(destino.valor) || destino.valor;
-      // Solo interponemos la pantalla si el destino es una URL http(s) normal;
-      // cualquier otra cosa (esquemas raros) se redirige directo, sin adornos.
-      if (/^https?:\/\//i.test(valor)) {
-        return res.type('html').send(pantallaRedireccion(valor));
+      // El plugin del tipo resuelve el valor guardado a la acción del tap. Hoy
+      // siempre es un redirect a una URL; filas viejas sin https:// las fuerza a
+      // absoluta el propio resolver (si no, el browser las toma como relativas).
+      const r = resolverDestino(destino.tipo, destino.valor);
+      if (r.modo === 'redirect') {
+        // Solo interponemos la pantalla si es una URL http(s) normal; cualquier
+        // otra cosa (esquemas raros) se redirige directo, sin adornos.
+        if (/^https?:\/\//i.test(r.url)) {
+          return res.type('html').send(pantallaRedireccion(r.url));
+        }
+        return res.redirect(302, r.url);
       }
-      return res.redirect(302, valor);
+      // (futuro) r.modo === 'landing' → renderizar la página de la función acá.
     }
   }
 
@@ -2294,7 +2489,10 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const modelo = sticker.modelo || 'llavero';
   const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
   const destino =
-    sticker.estado === 'activo' ? await get('SELECT valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
+    sticker.estado === 'activo' ? await get('SELECT tipo, valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
+  // El front solo hace window.location = destino, así que se lo damos ya
+  // resuelto a URL absoluta (filas viejas se guardaron sin https://).
+  const destinoUrl = destino ? resolverDestino(destino.tipo, destino.valor).url || destino.valor : null;
   res.json({
     codigo: sticker.codigo_publico,
     modelo,
@@ -2307,7 +2505,7 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     liberada: Boolean(liberada && liberada.gratis),
     precio: precioRow ? Number(precioRow.precio) : null,
     pagosHabilitados: MP_ENABLED,
-    destino: destino ? destino.valor : null,
+    destino: destinoUrl,
   });
 });
 

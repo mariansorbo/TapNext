@@ -649,3 +649,100 @@ details[open] .add-icon{transform:rotate(45deg);}
 @media (min-width:601px) and (max-width:860px){
   .option-grid.option-grid-4{grid-template-columns:repeat(2,1fr);}
 }
+
+/* ── Comisión variable — panel de Admin ─────────────────────────────── */
+.modal--wide{max-width:720px; max-height:88vh; overflow-y:auto;}
+.comision-h4{font-family:var(--display); font-weight:600; font-size:0.95rem; margin:26px 0 10px; color:var(--paper);}
+.comision-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  padding:12px 16px; border:1px solid var(--line); border-radius:12px; margin-bottom:16px;
+  background:var(--surface); font-size:0.85rem; color:var(--paper-dim);
+}
+.comision-banner b{color:var(--paper);}
+.comision-banner.is-active{border-color:var(--amber);}
+.tramo-badge{
+  display:inline-block; font-family:var(--mono); font-size:0.72rem; letter-spacing:0.02em;
+  border:1px solid var(--line); border-radius:100px; padding:3px 10px; color:var(--paper);
+}
+.tramo-badge.is-debt{border-color:#e07a7a; color:#e07a7a;}
+.tramo-badge.is-top{border-color:var(--amber); color:var(--amber);}
+.comision-ausencia-form{flex-direction:row; flex-wrap:wrap; gap:12px; margin-bottom:10px;}
+.comision-ausencia-form label{flex:1; min-width:160px;}
+.comision-ausencias-list{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.comision-ausencias-list .chip{
+  font-family:var(--mono); font-size:0.72rem; border:1px solid var(--line); border-radius:100px;
+  padding:4px 10px; color:var(--paper-dim); display:inline-flex; align-items:center; gap:8px;
+}
+.comision-ausencias-list .chip button{color:#e07a7a; font-size:0.85rem; line-height:1;}
+.comision-tramo-row{
+  display:grid; grid-template-columns:52px 1fr 1fr 1.2fr; gap:8px; align-items:center; margin-bottom:8px;
+}
+.comision-tramo-row input{
+  font:inherit; font-size:0.85rem; color:var(--paper); background:var(--surface-2);
+  border:1px solid var(--line); border-radius:6px; padding:8px 10px; width:100%;
+}
+.comision-tramo-row input:focus{outline:none; border-color:var(--violet);}
+.comision-tramo-row .comision-tramo-label{font-family:var(--mono); font-size:0.78rem; color:var(--paper-dim);}
+.comision-tramo-head{
+  display:grid; grid-template-columns:52px 1fr 1fr 1.2fr; gap:8px;
+  font-family:var(--mono); font-size:0.66rem; text-transform:uppercase; letter-spacing:0.04em;
+  color:var(--paper-dim); margin-bottom:6px;
+}
+
+/* ── Comisión variable — panel de Vendedor ──────────────────────────── */
+.comision-card{
+  border:1px solid var(--line); border-radius:16px; padding:22px; margin-bottom:26px; background:var(--surface);
+}
+.comision-top{display:flex; align-items:flex-end; justify-content:space-between; gap:12px;}
+.comision-rate{font-family:var(--display); font-weight:600; font-size:1.8rem; color:var(--paper); line-height:1;}
+.comision-rate small{font-size:0.9rem; color:var(--paper-dim); font-weight:400;}
+.comision-tag{
+  font-family:var(--mono); font-size:0.72rem; border:1px solid var(--line); border-radius:100px;
+  padding:4px 12px; color:var(--paper-dim); white-space:nowrap;
+}
+.comision-tag.is-debt{border-color:#e07a7a; color:#e07a7a;}
+
+.comision-hint{font-size:0.88rem; color:var(--paper); margin-top:16px;}
+.comision-hint.is-debt{color:#e07a7a;}
+
+.comision-scale{margin-top:38px;}
+.comision-scale.has-earned{margin-top:62px;}
+.comision-scale-earned{
+  position:absolute; top:-52px; transform:translateX(-50%);
+  font-family:var(--mono); font-size:0.72rem; font-weight:500;
+  background:#5FB760; color:#0e2b12; padding:2px 9px; border-radius:5px; white-space:nowrap;
+}
+.comision-scale-earned::after{
+  content:''; position:absolute; left:50%; bottom:-4px; transform:translateX(-50%);
+  border-left:4px solid transparent; border-right:4px solid transparent; border-top:4px solid #5FB760;
+}
+.comision-scale-strip{position:relative; display:flex; height:22px; border-radius:6px; overflow:visible; font-family:var(--mono); font-size:0.62rem;}
+.comision-scale-strip > span{display:flex; align-items:center; justify-content:center; color:#14171a;}
+.comision-scale-strip > span:first-child{border-radius:6px 0 0 6px;}
+.comision-scale-strip > span:last-child{border-radius:0 6px 6px 0;}
+/* trazo "estás acá": línea vertical de alto completo + dot + número */
+.comision-scale-marker{position:absolute; top:-6px; bottom:-6px; width:2px; background:var(--paper); z-index:2;}
+.comision-scale-marker::before{
+  content:''; position:absolute; top:-4px; left:50%; transform:translateX(-50%);
+  width:8px; height:8px; border-radius:50%; background:var(--paper);
+}
+.comision-scale-marker.is-debt, .comision-scale-marker.is-debt::before{background:#e07a7a;}
+.comision-scale-here{
+  position:absolute; top:-30px; transform:translateX(-50%);
+  font-family:var(--mono); font-size:0.66rem; background:var(--paper); color:#14171a;
+  padding:1px 7px; border-radius:4px; white-space:nowrap;
+}
+.comision-scale-here.is-debt{background:#e07a7a;}
+.comision-scale-bounds{position:relative; height:14px; margin-top:8px;}
+.comision-scale-bounds span{
+  position:absolute; transform:translateX(-50%);
+  font-family:var(--mono); font-size:0.62rem; color:var(--paper-dim);
+}
+.comision-scale-bounds span:first-child{transform:none;}
+.comision-scale-bounds span:last-child{transform:translateX(-100%);}
+
+.comision-stats{
+  display:flex; gap:26px; flex-wrap:wrap; margin-top:18px; padding-top:16px;
+  border-top:1px solid var(--line); font-size:0.78rem; color:var(--paper-dim);
+}
+.comision-stats b{display:block; color:var(--paper); font-family:var(--mono); font-size:1rem; margin-top:3px;}

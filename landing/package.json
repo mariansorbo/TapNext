@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "server": "cross-env PORT=3001 node --env-file-if-exists=.env server/index.js",
     "seed": "node server/seed.js",
+    "test": "node --test",
     "start": "node server/seed.js && node server/index.js",
     "dev:full": "concurrently -n API,VITE -c green,blue \"npm:server\" \"npm:dev\""
   },

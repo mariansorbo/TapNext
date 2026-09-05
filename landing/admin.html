@@ -147,6 +147,7 @@
     <!-- Comisiones -->
     <div class="admin-section">
       <h3>Comisiones</h3>
+      <div class="comision-banner" id="comisiones-banner"></div>
       <div class="admin-table" id="comisiones-table"></div>
     </div>
   </div>
@@ -370,6 +371,37 @@
     </div>
     <button type="button" class="btn-primary modal-submit" id="liquidar-confirm">Confirmar liquidación</button>
     <p class="modal-status" id="liquidar-status"></p>
+  </div>
+</div>
+
+<!-- Modal: detalle de comisión variable de un vendedor -->
+<div class="modal-overlay" id="comision-modal-overlay">
+  <div class="modal modal--wide">
+    <button type="button" class="modal-close" id="comision-modal-close">✕</button>
+    <h3 id="comision-modal-title">Comisión</h3>
+    <p class="modal-sub" id="comision-modal-sub"></p>
+
+    <h4 class="comision-h4">Desglose por día</h4>
+    <div class="admin-table admin-table--scroll" id="comision-desglose"></div>
+
+    <h4 class="comision-h4">Marcar día justificado</h4>
+    <div class="modal-form comision-ausencia-form">
+      <label><span>Fecha</span><input type="date" id="comision-ausencia-fecha"></label>
+      <label><span>Nota (opcional)</span><input type="text" id="comision-ausencia-nota" placeholder="Aviso previo / certificado"></label>
+    </div>
+    <button type="button" class="btn-ghost" id="comision-ausencia-add">Agregar</button>
+    <div id="comision-ausencias-list" class="comision-ausencias-list"></div>
+
+    <h4 class="comision-h4">Escala de este vendedor</h4>
+    <div id="comision-tramos-editor"></div>
+    <div class="modal-form">
+      <label><span>Bono fin de semana (fracción, ej. 0.10)</span><input type="number" step="0.01" id="comision-bono-finde"></label>
+      <label><span>Deuda si falta 1 día (unidades)</span><input type="number" id="comision-deuda-1d"></label>
+      <label><span>Deuda si falta 2 días</span><input type="number" id="comision-deuda-2d"></label>
+      <label><span>Deuda si falta 3+ días</span><input type="number" id="comision-deuda-3d"></label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="comision-config-save">Guardar escala</button>
+    <p class="modal-status" id="comision-modal-status"></p>
   </div>
 </div>
 

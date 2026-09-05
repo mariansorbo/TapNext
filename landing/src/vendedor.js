@@ -15,6 +15,9 @@ const dashboardTitle = document.getElementById('dashboard-title');
 const logoutButton = document.getElementById('logout-button');
 const stockList = document.getElementById('stock-list');
 const ventasList = document.getElementById('ventas-list');
+const comisionCard = document.getElementById('comision-card');
+
+const MONEY = (n) => `$${Number(n).toLocaleString('es-AR')}`;
 
 function getToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -55,7 +58,107 @@ function showLogin() {
 async function showDashboard() {
   loginView.hidden = true;
   dashboardView.hidden = false;
-  await Promise.all([loadStock(), loadVentas()]);
+  api('/me')
+    .then((me) => {
+      if (me?.nombre) dashboardTitle.textContent = `Buen día, ${me.nombre}`;
+    })
+    .catch(() => {});
+  await Promise.all([loadStock(), loadVentas(), loadComision()]);
+}
+
+// Rojo (deuda) a la izquierda, celeste (Base) al medio, verde (tramos altos) a
+// la derecha. Un color por tramo positivo después de Base.
+const SEG_COLORS_POS_ALTOS = ['#9CCC7A', '#5FB760', '#2F9E44', '#1E7A32'];
+const BASE_CELESTE = '#6FC3E0';
+
+async function loadComision() {
+  let c;
+  try {
+    c = await api('/comision');
+  } catch {
+    comisionCard.hidden = true;
+    return;
+  }
+  if (!c || !c.modeloActivo) {
+    comisionCard.hidden = true;
+    return;
+  }
+  comisionCard.hidden = false;
+  renderComision(c);
+}
+
+function renderComision(c) {
+  const tramos = c.tramos.slice().sort((a, b) => a.orden - b.orden);
+  const bottom = tramos[0].desde_u; // -10
+  const topSeg = tramos[tramos.length - 1];
+  const top = Math.max(topSeg.desde_u + 10, (c.tramoActual.posicion || 0) + 4);
+  const span = Math.max(1, top - bottom);
+  const pctN = (n) => (Math.max(0, Math.min(span, n - bottom)) / span) * 100;
+  const pct = (n) => `${pctN(n).toFixed(2)}%`;
+
+  const enDeuda = c.deuda > 0;
+  const pos = c.tramoActual.posicion || 0;
+  const basePct = tramos.find((t) => t.etiqueta === 'Base')?.pct || 0;
+
+  // Tira de escala: 6 segmentos, rojo → celeste → verde (verde a la derecha).
+  // Cada segmento muestra su % de comisión; abajo van los límites de unidades.
+  let altoIdx = 0;
+  const strip = tramos
+    .map((t, i) => {
+      const hasta = i === tramos.length - 1 ? top : t.hasta_u;
+      const w = ((Math.min(top, hasta) - Math.max(bottom, t.desde_u)) / span) * 100;
+      const color =
+        t.desde_u < 0
+          ? i === 0
+            ? '#b23b3b'
+            : '#e07a7a'
+          : t.etiqueta === 'Base'
+            ? BASE_CELESTE
+            : SEG_COLORS_POS_ALTOS[altoIdx++ % SEG_COLORS_POS_ALTOS.length];
+      return `<span style="width:${w}%;background:${color}">${t.pct}%</span>`;
+    })
+    .join('');
+
+  // Límites de unidades por categoría (bordes de cada segmento).
+  const bordes = [bottom, ...tramos.map((t, i) => (i === tramos.length - 1 ? null : t.hasta_u)).filter((v) => v !== null), '+'];
+  const boundsHtml = bordes
+    .map((b) => {
+      const val = b === '+' ? top : b;
+      return `<span style="left:${pct(val)}">${b === '+' ? `${topSeg.desde_u}+` : b}</span>`;
+    })
+    .join('');
+
+  const hint = enDeuda
+    ? `${c.deuda} venta${c.deuda === 1 ? '' : 's'} más y volvés al ${basePct}% durante el día de hoy`
+    : c.proximoTramo
+      ? `${c.proximoTramo.faltanU} unidad${c.proximoTramo.faltanU === 1 ? '' : 'es'} más y tu comisión pasa al ${c.proximoTramo.pct}% durante el día de hoy`
+      : 'Estás en el tramo más alto.';
+
+  const markerLeft = pct(pos);
+
+  comisionCard.innerHTML = `
+    <div class="comision-top">
+      <div class="comision-rate">${c.tramoActual.pct}% <small>de la venta</small></div>
+      ${enDeuda ? `<span class="comision-tag is-debt">deuda −${c.deuda}</span>` : ''}
+    </div>
+    ${c.esSabadoHoy ? '<div class="comision-hint" style="margin-top:8px">Hoy es sábado: +10% sobre la comisión del día.</div>' : ''}
+
+    <div class="comision-scale${c.extraMarginalHoy ? ' has-earned' : ''}">
+      <div class="comision-scale-strip">
+        ${strip}
+        <div class="comision-scale-marker${enDeuda ? ' is-debt' : ''}" style="left:${markerLeft}"></div>
+        ${c.extraMarginalHoy ? `<div class="comision-scale-earned" style="left:${markerLeft}">+${MONEY(c.extraMarginalHoy)} hoy</div>` : ''}
+        <div class="comision-scale-here${enDeuda ? ' is-debt' : ''}" style="left:${markerLeft}">${enDeuda ? `en deuda −${c.deuda}` : `llevás ${pos} u hoy`}</div>
+      </div>
+      <div class="comision-scale-bounds">${boundsHtml}</div>
+    </div>
+
+    <div class="comision-hint${enDeuda ? ' is-debt' : ''}">${hint}</div>
+
+    <div class="comision-stats">
+      <span>Vendido hoy <b>${c.unidadesHoy} u</b></span>
+      <span>Comisión del período <b>${MONEY(c.total)}</b></span>
+    </div>`;
 }
 
 loginButton.addEventListener('click', async () => {
@@ -71,7 +174,7 @@ loginButton.addEventListener('click', async () => {
   try {
     const data = await api('/login', { method: 'POST', body: JSON.stringify({ identificador, password }) });
     setToken(data.token);
-    dashboardTitle.textContent = data.vendedor.nombre ? `Hola, ${data.vendedor.nombre}` : 'Pendientes de entrega';
+    dashboardTitle.textContent = data.vendedor.nombre ? `Buen día, ${data.vendedor.nombre}` : 'Pendientes de entrega';
     loginStatus.textContent = '';
     await showDashboard();
   } catch (err) {

@@ -298,6 +298,65 @@ await db.executeMultiple(`
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidacion_ref TEXT;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidada_en TIMESTAMPTZ;
 
+  -- === Comisiones variables por tramos (ver "Comisiones variables - politica"
+  -- en el vault NextTap - Knowledge). INERTE hasta que el admin lo active:
+  -- mientras comision_modelo.activo = 0 toda la app sigue usando
+  -- vendedores.comision_pct como siempre. Al activar se sella activado_en y el
+  -- motor (server/comision.js) cuenta días y faltas desde esa fecha. ===
+  CREATE TABLE IF NOT EXISTS comision_modelo (
+    id INTEGER PRIMARY KEY,
+    activo INTEGER NOT NULL DEFAULT 0,
+    activado_en DATE
+  );
+  INSERT INTO comision_modelo (id, activo) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
+  -- Escala marginal de comisión, propia de cada vendedor. 6 filas (orden 1..6)
+  -- de menor a mayor: los dos primeros son tramos de "deuda" (desde_u negativo),
+  -- el resto es venta normal del día. pct = porcentaje de la venta que se lleva
+  -- el vendedor en ese tramo (mismo % para cualquier modelo). hasta_u del último
+  -- es un tope alto simbólico.
+  CREATE TABLE IF NOT EXISTS vendedor_comision_tramos (
+    id SERIAL PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL REFERENCES vendedores(id) ON DELETE CASCADE,
+    orden INTEGER NOT NULL,
+    etiqueta TEXT NOT NULL,
+    desde_u INTEGER NOT NULL,
+    hasta_u INTEGER NOT NULL,
+    pct REAL NOT NULL DEFAULT 50,
+    UNIQUE (vendedor_id, orden)
+  );
+  ALTER TABLE vendedor_comision_tramos ADD COLUMN IF NOT EXISTS pct REAL NOT NULL DEFAULT 50;
+
+  -- Días marcados como ausencia justificada (aviso previo / certificado). La
+  -- falta en sí es derivada: día hábil sin ninguna venta confirmada y sin fila
+  -- acá. Sábado y domingo nunca son falta.
+  CREATE TABLE IF NOT EXISTS vendedor_ausencias (
+    id SERIAL PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL REFERENCES vendedores(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    nota TEXT,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (vendedor_id, fecha)
+  );
+
+  -- Liquidaciones del modelo variable: el motor calcula por día, así que el
+  -- flag por-venta (ventas.comision_liquidada) no alcanza. Cada fila registra
+  -- que se pagó todo hasta hasta_fecha inclusive.
+  CREATE TABLE IF NOT EXISTS vendedor_comision_liquidaciones (
+    id SERIAL PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL REFERENCES vendedores(id) ON DELETE CASCADE,
+    hasta_fecha DATE NOT NULL,
+    monto REAL NOT NULL,
+    ref TEXT NOT NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  -- Parámetros del modelo variable, por vendedor.
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS comision_bono_finde REAL NOT NULL DEFAULT 0.10;
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS comision_deuda_1d INTEGER NOT NULL DEFAULT 5;
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS comision_deuda_2d INTEGER NOT NULL DEFAULT 10;
+  ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS comision_deuda_3d INTEGER NOT NULL DEFAULT 15;
+
   -- === Activación liberada (ver "Activación liberada" en el vault) ===
   -- Permiso para activar un sticker sin pasar por el flujo de venta normal.
   -- gratis = TRUE  -> se activa solo con el email, sin pagar.
@@ -393,6 +452,64 @@ for (const par of paresSinToken) {
     sql: 'INSERT INTO vendedor_promo_tokens (vendedor_id, promocion_id, token) VALUES (?, ?, ?)',
     args: [par.vendedor_id, par.promocion_id, randomBytes(6).toString('hex')],
   });
+}
+
+// Escala de comisión variable por vendedor: los 6 tramos por defecto (valores
+// del simulador "Comisiones variables" del vault) para todo vendedor que aún no
+// los tenga. Idempotente; el alta de vendedor también los crea en su endpoint.
+// pct = % de la venta que se lleva el vendedor en ese tramo (mismo % para
+// cualquier modelo). Pasos de 10 puntos alrededor de la Base (50%).
+export const TRAMOS_COMISION_DEFAULT = [
+  { orden: 1, etiqueta: '-2', desde_u: -10, hasta_u: -5, pct: 30 },
+  { orden: 2, etiqueta: '-1', desde_u: -5, hasta_u: 0, pct: 40 },
+  { orden: 3, etiqueta: 'Base', desde_u: 0, hasta_u: 20, pct: 50 },
+  { orden: 4, etiqueta: '2', desde_u: 20, hasta_u: 30, pct: 60 },
+  { orden: 5, etiqueta: '3', desde_u: 30, hasta_u: 40, pct: 70 },
+  { orden: 6, etiqueta: '4', desde_u: 40, hasta_u: 999, pct: 80 },
+];
+
+// Migración: los tramos pasaron de "$ fijo por unidad" (monto_unidad) a "% de la
+// venta" (pct). Si la columna vieja todavía existe, se limpian los tramos y se
+// re-siembran con la escala nueva (el modelo está inactivo, no hay datos en juego).
+const tramosTenianMontoUnidad = (
+  await db.execute(
+    `SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'vendedor_comision_tramos' AND column_name = 'monto_unidad'`
+  )
+).rows.length;
+if (tramosTenianMontoUnidad) {
+  await db.executeMultiple(`
+    DELETE FROM vendedor_comision_tramos;
+    ALTER TABLE vendedor_comision_tramos DROP COLUMN IF EXISTS monto_unidad;
+  `);
+  console.log('[migración comisión] tramos: $ por unidad → % de la venta (re-sembrados).');
+}
+
+export async function asegurarTramosComision(vendedorId) {
+  const yaTiene = (
+    await db.execute({
+      sql: 'SELECT 1 FROM vendedor_comision_tramos WHERE vendedor_id = ? LIMIT 1',
+      args: [vendedorId],
+    })
+  ).rows.length;
+  if (yaTiene) return;
+  for (const t of TRAMOS_COMISION_DEFAULT) {
+    await db.execute({
+      sql: `INSERT INTO vendedor_comision_tramos (vendedor_id, orden, etiqueta, desde_u, hasta_u, pct)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [vendedorId, t.orden, t.etiqueta, t.desde_u, t.hasta_u, t.pct],
+    });
+  }
+}
+
+const vendedoresSinTramos = (
+  await db.execute(
+    `SELECT id FROM vendedores v
+     WHERE NOT EXISTS (SELECT 1 FROM vendedor_comision_tramos t WHERE t.vendedor_id = v.id)`
+  )
+).rows;
+for (const v of vendedoresSinTramos) {
+  await asegurarTramosComision(v.id);
 }
 
 // Migración de datos: si `stickers` todavía tiene las columnas viejas

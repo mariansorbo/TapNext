@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db, asegurarTramosComision } from './db.js';
 
 const DEMO_WHATSAPP = '+5491122334455';
 const DEMO_VENDOR_REF = 'nacho';
@@ -16,6 +16,7 @@ if (!vendedor) {
     50,
   ]);
   vendedor = { id: Number(result.lastInsertRowid) };
+  await asegurarTramosComision(vendedor.id);
   console.log(`Vendedor demo creado (id ${vendedor.id}, ref=${DEMO_VENDOR_REF}).`);
 } else {
   console.log(`Ya existe el vendedor demo (id ${vendedor.id}, ref=${DEMO_VENDOR_REF}).`);
