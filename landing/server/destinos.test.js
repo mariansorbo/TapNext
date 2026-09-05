@@ -31,6 +31,19 @@ test('whatsapp: saca 0 nacional y 15 viejo', () => {
   assert.equal(normalizarDestino('whatsapp', 'https://wa.me/541122334455?text=hola').valor, 'https://wa.me/541122334455');
 });
 
+test('whatsapp: 15 pegado a la característica y 15 sin característica (porteño)', () => {
+  // 11 15 6179 1902  -> 11 6179 1902
+  assert.equal(normalizarDestino('whatsapp', '11 15 6179 1902').valor, 'https://wa.me/541161791902');
+  assert.equal(normalizarDestino('whatsapp', '+54 11 15 6179 1902').valor, 'https://wa.me/541161791902');
+  // 15 6179 1902 (sin el 11) -> 11 6179 1902  (era el bug: quedaba wa.me/541561791902)
+  assert.equal(normalizarDestino('whatsapp', '15 6179 1902').valor, 'https://wa.me/541161791902');
+  assert.equal(normalizarDestino('whatsapp', 'https://wa.me/541561791902').valor, 'https://wa.me/541161791902');
+  // Córdoba con 15: 351 15 123 4567 -> 351 123 4567
+  assert.equal(normalizarDestino('whatsapp', '351 15 123 4567').valor, 'https://wa.me/543511234567');
+  // Abonado que legítimamente empieza con 15 no se rompe.
+  assert.equal(normalizarDestino('whatsapp', '11 1512 3456').valor, 'https://wa.me/541115123456');
+});
+
 test('web/pago: agrega https:// si falta y valida el dominio', () => {
   assert.equal(normalizarDestino('web', 'tunegocio.com').valor, 'https://tunegocio.com/');
   assert.equal(normalizarDestino('pago', 'https://link.mercadopago.com.ar/x').valor, 'https://link.mercadopago.com.ar/x');

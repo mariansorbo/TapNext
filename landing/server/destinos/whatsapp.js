@@ -9,6 +9,21 @@ import { limpiar } from './_comun.js';
 // AR devolvemos 54 + característica + abonado (10 dígitos), sin 9, y sacamos
 // también el 0 nacional y el 15 viejo.
 //
+// Deja un número local argentino en 10 dígitos limpios (característica + abonado):
+// saca el 9 de celular, el 15 viejo pegado después de la característica, y — el
+// caso porteño — un 15 al principio sin característica (`15 6179 1902` = quiso
+// decir `11 6179 1902`; ninguna característica válida empieza con 15).
+function localAR(d) {
+  let n = d.replace(/^0/, '');
+  if (n.length === 11 && n.startsWith('9')) n = n.slice(1); // marcó con el 9
+  // 15 viejo entre la característica y el abonado: se saca solo si lo que queda
+  // da los 10 dígitos de un número completo (evita romper un abonado que
+  // legítimamente empieza con 15).
+  n = n.replace(/^(\d{2,4})15(\d+)$/, (m, a, b) => (a.length + b.length === 10 ? a + b : m));
+  n = n.replace(/^15(\d{8})$/, '11$1'); // 15<abonado> sin característica → celu porteño
+  return n;
+}
+
 // El usuario carga su número como lo marca en el celular; acá lo dejamos listo.
 export function aE164(crudo) {
   const s = limpiar(crudo);
@@ -22,16 +37,12 @@ export function aE164(crudo) {
 
   // Ya trae el código de país de Argentina.
   if (digits.startsWith('54')) {
-    let resto = digits.slice(2).replace(/^0/, ''); // 0 nacional pegado al país (raro)
-    if (resto.startsWith('9')) resto = resto.slice(1); // 9 de celular: la cuenta va sin él
-    resto = resto.replace(/^(\d{2,4})15/, '$1'); // 15 viejo después de la característica
+    const resto = localAR(digits.slice(2));
     return resto.length === 10 ? '54' + resto : null;
   }
 
   // Sin código de país: asumimos Argentina.
-  let local = digits.replace(/^0/, '');
-  if (local.length === 11 && local.startsWith('9')) local = local.slice(1); // marcó con el 9
-  local = local.replace(/^(\d{2,4})15/, '$1');
+  const local = localAR(digits);
   if (local.length === 10) return '54' + local;
 
   // Otro país: si parece un internacional plausible, lo dejamos como vino.
@@ -47,7 +58,7 @@ export default {
     label: 'WhatsApp',
     campo: 'Número de WhatsApp',
     placeholder: '11 2233 4455',
-    ayuda: 'Tu número como lo marcás en el celular. Le agregamos el 54 9 solo. También podés pegar un link wa.me/...',
+    ayuda: 'Con característica (ej: 11), como lo marcás en el celular. El resto lo armamos nosotros. También podés pegar un link wa.me/...',
   },
   normalizar(crudo) {
     const e164 = aE164(crudo);
