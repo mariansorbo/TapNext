@@ -51,9 +51,12 @@ test('web/pago: agrega https:// si falta y valida el dominio', () => {
 });
 
 test('resolverDestino: siempre da un redirect a URL absoluta', () => {
-  assert.deepEqual(resolverDestino('whatsapp', 'https://wa.me/541122334455'), {
+  // WhatsApp: redirect HTTP directo (sin pantalla de marca) a api.whatsapp.com,
+  // re-normalizando (fila vieja con 9 -> sin 9).
+  assert.deepEqual(resolverDestino('whatsapp', 'https://wa.me/5491122334455'), {
     modo: 'redirect',
-    url: 'https://wa.me/541122334455',
+    url: 'https://api.whatsapp.com/send?phone=541122334455',
+    interstitial: false,
   });
   // Fila vieja guardada sin esquema -> el resolver la fuerza a absoluta.
   assert.equal(resolverDestino('instagram', 'instagram.com/x').url, 'https://instagram.com/x');

@@ -2439,9 +2439,11 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       // absoluta el propio resolver (si no, el browser las toma como relativas).
       const r = resolverDestino(destino.tipo, destino.valor);
       if (r.modo === 'redirect') {
-        // Solo interponemos la pantalla si es una URL http(s) normal; cualquier
-        // otra cosa (esquemas raros) se redirige directo, sin adornos.
-        if (/^https?:\/\//i.test(r.url)) {
+        // Pantalla de marca solo si: es una URL http(s) normal Y el plugin no
+        // pidió redirect directo. WhatsApp lo pide (interstitial: false) porque
+        // Android no dispara "abrir en la app" tras un location.replace de JS —
+        // necesita el redirect HTTP del servidor.
+        if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
           return res.type('html').send(pantallaRedireccion(r.url));
         }
         return res.redirect(302, r.url);
