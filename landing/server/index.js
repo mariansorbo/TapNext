@@ -311,6 +311,9 @@ app.get('/api/auth/config', (req, res) => {
       nombre: canalVerificacion.nombre,
       tipoInput: canalVerificacion.tipoInput,
       placeholder: canalVerificacion.placeholder,
+      // true = manda el código por mail de verdad. false = modo demo (lo
+      // devuelve en la respuesta / lo loguea). Para diagnóstico de config.
+      disponible: canalVerificacion.disponible,
     },
     destinos: DESTINO_TIPOS.map((id) => ({ id, ...DESTINO_META[id] })),
   });
