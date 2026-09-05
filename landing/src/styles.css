@@ -250,6 +250,7 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 }
 .modal-form input:focus, .modal-form select:focus{outline:none; border-color:var(--violet);}
 .modal-form select{appearance:auto;}
+.modal-form .field-hint{font-size:0.76rem; color:var(--paper-dim); opacity:0.8; line-height:1.35;}
 .modal-form label.modal-check{flex-direction:row; align-items:flex-start; gap:10px; cursor:pointer;}
 .modal-form label.modal-check input{width:auto; margin-top:2px; flex:none;}
 .modal-form label.modal-check span{line-height:1.4;}

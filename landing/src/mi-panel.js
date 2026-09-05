@@ -3,16 +3,33 @@ import { applyBrand } from './brand.js';
 
 applyBrand('Mi panel');
 
-const DESTINO_TIPOS = [
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'instagram', label: 'Instagram' },
-  { id: 'pago', label: 'Pago' },
-  { id: 'menu', label: 'Menú' },
-  { id: 'review', label: 'Reseña' },
-  { id: 'web', label: 'Web propia' },
-  { id: 'agenda', label: 'Agenda' },
-  { id: 'linktree', label: 'LinkTree' },
+// Fallback si el backend no devuelve la config de destinos (versión vieja).
+// El backend manda label/campo/placeholder/ayuda por tipo — ver /api/auth/config.
+const DESTINO_TIPOS_FALLBACK = [
+  { id: 'whatsapp', label: 'WhatsApp', campo: 'Número de WhatsApp', placeholder: '11 2233 4455', ayuda: 'Con característica, sin el 0 ni el 15.' },
+  { id: 'instagram', label: 'Instagram', campo: 'Usuario de Instagram', placeholder: 'tunegocio', ayuda: 'Solo tu usuario, sin @ ni el link completo.' },
+  { id: 'pago', label: 'Link de pago', campo: 'Link de pago', placeholder: 'link.mercadopago.com.ar/tunegocio', ayuda: '' },
+  { id: 'menu', label: 'Menú / carta', campo: 'Link del menú', placeholder: 'tunegocio.com/menu', ayuda: '' },
+  { id: 'review', label: 'Reseñas', campo: 'Link para dejar reseña', placeholder: 'g.page/r/...', ayuda: '' },
+  { id: 'web', label: 'Web propia', campo: 'Tu sitio web', placeholder: 'tunegocio.com', ayuda: 'Le agregamos https:// solo.' },
+  { id: 'agenda', label: 'Agenda / turnos', campo: 'Link de tu agenda', placeholder: 'calendly.com/tunegocio', ayuda: '' },
+  { id: 'linktree', label: 'Linktree', campo: 'Usuario de Linktree', placeholder: 'tunegocio', ayuda: 'Solo tu usuario, sin el link completo.' },
 ];
+let DESTINO_TIPOS = DESTINO_TIPOS_FALLBACK;
+const destinoMeta = (id) => DESTINO_TIPOS.find((t) => t.id === id) || { id, label: id, campo: 'Valor', placeholder: '', ayuda: '' };
+
+let destinoConfigCargada = false;
+async function cargarDestinoConfig() {
+  if (destinoConfigCargada) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/config`);
+    const data = await res.json();
+    if (Array.isArray(data.destinos) && data.destinos.length) DESTINO_TIPOS = data.destinos;
+  } catch {
+    /* nos quedamos con el fallback */
+  }
+  destinoConfigCargada = true;
+}
 const ESTADO_LABELS = {
   activo: 'Activo',
   vendido_pendiente: 'Vendido, sin activar',
@@ -170,6 +187,7 @@ logoutButton.addEventListener('click', async () => {
 async function loadStickers() {
   stickerList.innerHTML = '<p class="section-lead">Cargando...</p>';
   try {
+    await cargarDestinoConfig();
     const stickers = await api('/me/stickers');
     renderStickers(stickers);
   } catch (err) {
@@ -188,7 +206,7 @@ function renderStickers(stickers) {
     const card = document.createElement('div');
     card.className = 'sticker-card';
 
-    const destinoTipo = DESTINO_TIPOS.find((t) => t.id === sticker.destino?.tipo);
+    const destinoTipo = sticker.destino?.tipo ? destinoMeta(sticker.destino.tipo) : null;
     card.innerHTML = `
       <div class="sticker-card-head">
         <div>
@@ -220,20 +238,36 @@ function renderStickers(stickers) {
         }
         editForm.hidden = false;
         editButton.textContent = 'Cancelar';
+        const tipoInicial = sticker.destino?.tipo || DESTINO_TIPOS[0].id;
+        const metaInicial = destinoMeta(tipoInicial);
         editForm.innerHTML = `
           <label>
             <span>Tipo de destino</span>
             <select class="edit-tipo">
-              ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${sticker.destino?.tipo === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
+              ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${tipoInicial === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
             </select>
           </label>
           <label>
-            <span>Valor</span>
-            <input type="text" class="edit-valor" value="${sticker.destino?.valor || ''}" placeholder="wa.me/... / instagram.com/... / etc.">
+            <span class="edit-valor-label">${metaInicial.campo}</span>
+            <input type="text" class="edit-valor" value="${sticker.destino?.valor || ''}" placeholder="${metaInicial.placeholder}">
+            <small class="field-hint edit-valor-hint"${metaInicial.ayuda ? '' : ' hidden'}>${metaInicial.ayuda}</small>
           </label>
           <button type="button" class="btn-primary modal-submit edit-save-btn">Guardar</button>
           <p class="modal-status edit-status"></p>
         `;
+
+        // Al cambiar la función, el campo de valor cambia de etiqueta/ejemplo.
+        const tipoSel = editForm.querySelector('.edit-tipo');
+        const valorLabel = editForm.querySelector('.edit-valor-label');
+        const valorInput = editForm.querySelector('.edit-valor');
+        const valorHint = editForm.querySelector('.edit-valor-hint');
+        tipoSel.addEventListener('change', () => {
+          const m = destinoMeta(tipoSel.value);
+          valorLabel.textContent = m.campo;
+          valorInput.placeholder = m.placeholder;
+          valorHint.textContent = m.ayuda || '';
+          valorHint.hidden = !m.ayuda;
+        });
 
         editForm.querySelector('.edit-save-btn').addEventListener('click', async () => {
           const tipo = editForm.querySelector('.edit-tipo').value;

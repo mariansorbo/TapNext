@@ -7,12 +7,12 @@ import { db } from './db.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
 import { enviarCorreo, mailCompraComprador, mailVentaVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
+import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, aUrlAbsoluta } from './destinos.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
 const OTP_THROTTLE_SECONDS = 30;
 const SESSION_TTL_MINUTES = 30;
-const DESTINO_TIPOS = ['whatsapp', 'instagram', 'pago', 'menu', 'review', 'web', 'agenda', 'linktree'];
 
 // Lote especial: stickers ya impresos sobre un material que NO admite candado
 // físico (no se puede write-lock el chip) y que NO llevan ningún ID impreso.
@@ -279,6 +279,7 @@ app.get('/api/auth/config', (req, res) => {
       tipoInput: canalVerificacion.tipoInput,
       placeholder: canalVerificacion.placeholder,
     },
+    destinos: DESTINO_TIPOS.map((id) => ({ id, ...DESTINO_META[id] })),
   });
 });
 
@@ -425,10 +426,11 @@ app.get('/api/me/stickers', requireAuth, async (req, res) => {
 app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   const stickerId = Number(req.params.id);
   const tipo = String(req.body?.tipo || '').trim();
-  const valor = String(req.body?.valor || '').trim();
 
   if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
-  if (!valor) return res.status(400).json({ error: 'Falta el valor del destino.' });
+  const norm = normalizarDestino(tipo, req.body?.valor);
+  if (norm.error) return res.status(400).json({ error: norm.error });
+  const valor = norm.valor;
 
   const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
   if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
@@ -602,6 +604,11 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     // El valor del destino (el link/handle real) es opcional acá a propósito:
     // el comprador puede pagar y activar el NFC ahora, y configurar recién
     // desde su panel a dónde redirige — no hace falta decidirlo antes de pagar.
+    // Pero si lo cargó, lo validamos ya (y se guarda normalizado más abajo).
+    if (String(item?.destinoValor || '').trim()) {
+      const norm = normalizarDestino(destinoTipo, item.destinoValor);
+      if (norm.error) return res.status(400).json({ error: norm.error });
+    }
   }
 
   // Resuelve vendedor + promo por el token del link presencial (acepta el token
@@ -672,7 +679,9 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
       sticker.id,
       precio,
       String(item.destinoTipo).trim(),
-      String(item.destinoValor || '').trim() || null,
+      String(item.destinoValor || '').trim()
+        ? normalizarDestino(String(item.destinoTipo).trim(), item.destinoValor).valor || null
+        : null,
     ]);
   }
 
@@ -819,10 +828,14 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // usar/editar desde su panel apenas quiera (ver mi-panel.js).
       for (const item of items) {
         if (item.destino_valor) {
+          // Ya debería venir normalizado desde /api/ventas, pero re-normalizamos
+          // por las dudas (ventas viejas, cargas manuales) y caemos al crudo si
+          // no valida — mejor un destino raro que ninguno.
+          const norm = normalizarDestino(item.destino_tipo, item.destino_valor);
           await db.execute({
             sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
              ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
-            args: [item.sticker_id, item.destino_tipo, item.destino_valor],
+            args: [item.sticker_id, item.destino_tipo, norm.valor || aUrlAbsoluta(item.destino_valor) || item.destino_valor],
           });
         }
         await transicionarSticker(item.sticker_id, { estado: 'activo' });
@@ -1909,12 +1922,18 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   if (sticker && sticker.estado === 'activo') {
     const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);
     if (destino) {
+      // Los destinos nuevos ya se guardan como URL absoluta. Para filas viejas
+      // (cargadas sin https://) lo forzamos acá antes de redirigir, si no el
+      // browser lo toma como ruta relativa y tira 404.
+      const valor = /^https?:\/\//i.test(destino.valor)
+        ? destino.valor
+        : aUrlAbsoluta(destino.valor) || destino.valor;
       // Solo interponemos la pantalla si el destino es una URL http(s) normal;
       // cualquier otra cosa (esquemas raros) se redirige directo, sin adornos.
-      if (/^https?:\/\//i.test(destino.valor)) {
-        return res.type('html').send(pantallaRedireccion(destino.valor));
+      if (/^https?:\/\//i.test(valor)) {
+        return res.type('html').send(pantallaRedireccion(valor));
       }
-      return res.redirect(302, destino.valor);
+      return res.redirect(302, valor);
     }
   }
 

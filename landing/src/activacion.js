@@ -16,6 +16,15 @@ const FUNCION_CTA = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
+// Un destino guardado sin esquema ("instagram.com/x") lo toma el browser como
+// ruta relativa. Forzamos https:// para que el redirect final sea absoluto.
+function aUrlAbsoluta(valor) {
+  const s = String(valor || '').trim();
+  if (!s) return s;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return s;
+  return 'https://' + s.replace(/^\/+/, '');
+}
+
 const loadingView = document.getElementById('loading-view');
 const errorView = document.getElementById('error-view');
 const errorText = document.getElementById('error-text');
@@ -99,7 +108,7 @@ async function init() {
   }
 
   if (info.estado === 'activo') {
-    if (info.destino) window.location.replace(info.destino);
+    if (info.destino) window.location.replace(aUrlAbsoluta(info.destino));
     else show(doneView);
     return;
   }
