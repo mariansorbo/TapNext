@@ -1039,9 +1039,10 @@ async function loadLiberadas() {
     const rows = await api('/activaciones-liberadas');
     renderTable(
       container,
-      ['Código', 'Estado', 'Motivo', 'Usada por', 'Vence', ''],
+      ['Código', 'Tipo', 'Estado', 'Motivo', 'Usada por', 'Vence', ''],
       rows.map((r) => `<tr>
         <td><b>${r.codigoPublico}</b></td>
+        <td>${r.gratis ? 'Gratis' : 'Con pago'}</td>
         <td>${LIBERADA_ESTADO_LABELS[r.estado] || r.estado}</td>
         <td>${r.motivo || '<span class="admin-muted">—</span>'}</td>
         <td>${r.compradorEmail || '<span class="admin-muted">—</span>'}</td>
@@ -1138,7 +1139,14 @@ liberadaForzar.addEventListener('change', () => {
   liberadaConfirmLabel.hidden = !liberadaForzar.checked;
 });
 
-function openLiberadaModal() {
+let liberadaModoGratis = true;
+function openLiberadaModal(gratis) {
+  liberadaModoGratis = gratis;
+  document.getElementById('liberada-modal-title').textContent = gratis ? 'Activación gratis' : 'Activación liberada (con pago)';
+  document.getElementById('liberada-modal-sub').textContent = gratis
+    ? 'El que tiene el producto lo activa con su email, sin pagar. Podés reescribir el chip y forzar sobre uno que ya esté activo.'
+    : 'El que tiene el producto lo activa pagando por Mercado Pago, sin OTP — como un lote especial pero sobre este chip. Podés reescribir el chip y forzar sobre uno que ya esté activo.';
+  document.getElementById('liberada-submit').textContent = gratis ? 'Crear activación gratis' : 'Crear activación liberada';
   liberadaCodigo.value = '';
   document.getElementById('liberada-motivo').value = '';
   document.getElementById('liberada-expira').value = '';
@@ -1164,7 +1172,8 @@ function openLiberadaModal() {
 
   liberadaOverlay.classList.add('is-open');
 }
-document.getElementById('toggle-liberada').addEventListener('click', openLiberadaModal);
+document.getElementById('toggle-liberada-gratis').addEventListener('click', () => openLiberadaModal(true));
+document.getElementById('toggle-liberada-pago').addEventListener('click', () => openLiberadaModal(false));
 
 // Escaneo NFC de un chip (una sola lectura) para rellenar el código/UID.
 let liberadaNdefAbort = null;
@@ -1207,6 +1216,7 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
   const esUid = /^[0-9a-f]{8,}$/i.test(codigoRaw);
   const body = {
     [esUid ? 'uidNfc' : 'codigoPublico']: codigoRaw,
+    gratis: liberadaModoGratis,
     motivo: document.getElementById('liberada-motivo').value.trim() || undefined,
     expiraDias: Number(document.getElementById('liberada-expira').value) || undefined,
     forzar: liberadaForzar.checked,
@@ -1231,9 +1241,10 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
     liberadaStatus.className = 'modal-status is-success';
     liberadaStatus.textContent = data.forzado
       ? `Listo — reescritura maestra aplicada${data.ventaAnuladaId ? ` (venta #${data.ventaAnuladaId} anulada)` : ''}.`
-      : 'Activación liberada creada.';
+      : (data.gratis ? 'Activación gratis creada.' : 'Activación liberada creada.');
     liberadaResult.hidden = false;
     liberadaResult.innerHTML = `
+      <div><b>Tipo:</b> ${data.gratis ? 'Gratis — se activa solo con el email' : 'Con pago — el que reciba el producto paga para activarlo'}</div>
       <div><b>Código:</b> ${data.codigoPublico}</div>
       <div><b>URL a grabar en el chip:</b><br>${data.url}
         <button type="button" class="row-btn" data-lib-copy="${data.url}">copiar</button></div>

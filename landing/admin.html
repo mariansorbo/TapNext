@@ -51,8 +51,11 @@
           <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
             <span class="add-icon">+</span> Lote especial
           </button>
-          <button type="button" class="admin-add-btn" id="toggle-liberada" title="Activación gratis: el que tiene el producto lo activa sin pagar. Podés reescribir el chip y forzar sobre uno ya activo (reescritura maestra, tenés la clave master).">
-            <span class="add-icon">🎁</span> Activación liberada
+          <button type="button" class="admin-add-btn" id="toggle-liberada-pago" title="Activación liberada: el que tiene el producto lo activa PAGANDO, sin OTP (como un lote especial pero sobre un chip cualquiera). Con reescritura maestra.">
+            <span class="add-icon">🔓</span> Activación liberada
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-liberada-gratis" title="Activación gratis: el que tiene el producto lo activa SIN pagar, solo con su email. Con reescritura maestra.">
+            <span class="add-icon">🎁</span> Activación gratis
           </button>
           <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
             <span class="add-icon">$</span> Precios
@@ -269,8 +272,8 @@
 <div class="modal-overlay" id="liberada-modal-overlay">
   <div class="modal">
     <button type="button" class="modal-close" id="liberada-modal-close">✕</button>
-    <h3>Activación liberada</h3>
-    <p class="modal-sub">Activación gratis de un producto: el que lo tiene en la mano lo activa con su email, sin pasar por Mercado Pago. Podés además reescribir el chip y forzar sobre uno que ya esté activo.</p>
+    <h3 id="liberada-modal-title">Activación liberada</h3>
+    <p class="modal-sub" id="liberada-modal-sub"></p>
     <div class="modal-form">
       <label>
         <span>Código público o UID del chip</span>

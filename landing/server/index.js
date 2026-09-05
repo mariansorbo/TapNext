@@ -872,6 +872,13 @@ app.post('/api/pagos/webhook', async (req, res) => {
           });
         }
         await transicionarSticker(item.sticker_id, { estado: 'activo' });
+        // Si este sticker se activó vía una "activación liberada con pago",
+        // marcamos esa liberación como usada (la gratis se marca en el POST).
+        await run(
+          `UPDATE activaciones_liberadas SET usada_en = NOW(), usada_por_comprador_id = ?, venta_id = ?
+            WHERE sticker_id = ? AND gratis = FALSE AND usada_en IS NULL AND revocada_en IS NULL`,
+          [venta.comprador_id, ventaId, item.sticker_id]
+        );
       }
       // Aviso por mail (best-effort) al comprador y al vendedor con el/los
       // codigo_publico que corresponden a esta venta — es el ID que el
@@ -1602,6 +1609,9 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
   const loteId = req.body?.loteId ? Number(req.body.loteId) : null;
   const forzar = req.body?.forzar === true;
   const confirmCodigo = String(req.body?.confirmCodigo || '').trim().toLowerCase();
+  // gratis = true (default): se activa sin pagar. false: "activación liberada"
+  // a secas — se activa pagando por Mercado Pago, sin OTP.
+  const gratis = req.body?.gratis !== false;
 
   if (!codigoPublico && !uidNfc) return res.status(400).json({ error: 'Indicá el código público o el UID del chip.' });
   if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
@@ -1700,12 +1710,12 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
   const expiraEn = expiraDias > 0 ? new Date(Date.now() + expiraDias * 86_400_000).toISOString() : null;
 
   const r = await run(
-    `INSERT INTO activaciones_liberadas (sticker_id, motivo, destino_tipo, destino_valor, vendedor_id, expira_en)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [sticker.id, motivo, destinoTipo, destinoValor, vendedorLiberacion, expiraEn]
+    `INSERT INTO activaciones_liberadas (sticker_id, motivo, destino_tipo, destino_valor, vendedor_id, expira_en, gratis)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [sticker.id, motivo, destinoTipo, destinoValor, vendedorLiberacion, expiraEn, gratis]
   );
   await registrarEventoAdmin(sticker.id, 'liberacion', {
-    despues: { motivo, destino: destinoValor ? `${destinoTipo}:${destinoValor}` : null, expiraEn, forzado: actual.estado !== 'en_stock' },
+    despues: { modo: gratis ? 'gratis' : 'con pago', motivo, destino: destinoValor ? `${destinoTipo}:${destinoValor}` : null, expiraEn, forzado: actual.estado !== 'en_stock' },
     motivo,
   });
 
@@ -1720,6 +1730,7 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
     activacionUrl: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`,
     forzado: actual.estado !== 'en_stock',
     ventaAnuladaId,
+    gratis,
     ...claves,
   });
 });
@@ -1743,6 +1754,7 @@ app.get('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => {
       codigoPublico: r.codigo_publico,
       stickerEstado: r.sticker_estado,
       motivo: r.motivo,
+      gratis: r.gratis,
       destino: r.destino_valor ? { tipo: r.destino_tipo, valor: r.destino_valor } : null,
       vendedorNombre: r.vendedor_nombre,
       compradorEmail: r.comprador_email,
@@ -2227,8 +2239,9 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     // en_stock (activable) | vendido_pendiente (pago sin confirmar) | activo
     estado: sticker.estado,
     yaActivado: sticker.estado === 'activo',
-    // Activación liberada vigente → gratis, sin Mercado Pago.
-    liberada: Boolean(liberada),
+    // Activación liberada GRATIS vigente → sin Mercado Pago. Una liberada con
+    // pago (gratis = false) sigue el flujo normal de pago, así que acá va false.
+    liberada: Boolean(liberada && liberada.gratis),
     precio: precioRow ? Number(precioRow.precio) : null,
     pagosHabilitados: MP_ENABLED,
     destino: destino ? destino.valor : null,
@@ -2259,8 +2272,8 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
   }
 
-  // --- Activación liberada: gratis, sin Mercado Pago. Activa al instante. ---
-  if (liberada) {
+  // --- Activación liberada GRATIS: sin Mercado Pago. Activa al instante. ---
+  if (liberada && liberada.gratis) {
     const vendedorId = liberada.vendedor_id || (await vendedorEspecialId());
     const funcionFinal = liberada.destino_tipo || sticker.funcion || 'instagram';
     const ventaRes = await run(
@@ -2303,7 +2316,8 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
   if (!precioRow) return res.status(409).json({ error: `No hay precio definido para ${modelo}.` });
   const precio = Number(precioRow.precio);
-  const vendedorId = await vendedorEspecialId();
+  // Liberada con pago: se atribuye al vendedor de la liberación si tiene uno.
+  const vendedorId = (liberada && liberada.vendedor_id) || (await vendedorEspecialId());
 
   // Reusar la venta pendiente si ya había un pago sin terminar para este
   // sticker (aunque lo hubiera empezado otro email: posesión física manda).

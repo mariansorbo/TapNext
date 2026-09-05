@@ -294,9 +294,13 @@ await db.executeMultiple(`
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidada_en TIMESTAMPTZ;
 
   -- === Activación liberada (ver "Activación liberada" en el vault) ===
-  -- Permiso para activar un sticker GRATIS, sin pasar por Mercado Pago. Mientras
-  -- haya una fila vigente (usada_en IS NULL, revocada_en IS NULL, sin vencer)
-  -- para un sticker, POST /api/activacion/:codigo lo activa directo.
+  -- Permiso para activar un sticker sin pasar por el flujo de venta normal.
+  -- gratis = TRUE  -> se activa solo con el email, sin pagar.
+  -- gratis = FALSE -> "activación liberada" a secas: se activa pagando por
+  --                   Mercado Pago (como un lote especial) pero sobre un chip
+  --                   cualquiera, sin OTP, quien lo tiene en la mano.
+  -- Mientras haya una fila vigente (usada_en IS NULL, revocada_en IS NULL, sin
+  -- vencer), POST /api/activacion/:codigo usa esta vía.
   CREATE TABLE IF NOT EXISTS activaciones_liberadas (
     id SERIAL PRIMARY KEY,
     sticker_id INTEGER NOT NULL REFERENCES stickers(id) ON DELETE CASCADE,
@@ -312,6 +316,7 @@ await db.executeMultiple(`
     venta_id INTEGER REFERENCES ventas(id)
   );
   CREATE INDEX IF NOT EXISTS idx_activ_liberada_sticker ON activaciones_liberadas(sticker_id);
+  ALTER TABLE activaciones_liberadas ADD COLUMN IF NOT EXISTS gratis BOOLEAN NOT NULL DEFAULT TRUE;
 
   -- Bitácora de acciones manuales/destructivas del admin sobre un sticker
   -- (liberación, reescritura maestra, revocación, uso de una liberada).
