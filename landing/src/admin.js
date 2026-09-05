@@ -1120,7 +1120,6 @@ const liberadaFuncion = document.getElementById('liberada-funcion');
 const liberadaModelo = document.getElementById('liberada-modelo');
 const liberadaVendedor = document.getElementById('liberada-vendedor');
 const liberadaForzar = document.getElementById('liberada-forzar');
-const liberadaConfirmLabel = document.getElementById('liberada-confirm-label');
 const liberadaStatus = document.getElementById('liberada-status');
 const liberadaResult = document.getElementById('liberada-result');
 
@@ -1135,9 +1134,6 @@ liberadaOverlay.addEventListener('click', (e) => { if (e.target === liberadaOver
 liberadaReescribir.addEventListener('change', () => {
   liberadaReescribirCampos.hidden = !liberadaReescribir.checked;
 });
-liberadaForzar.addEventListener('change', () => {
-  liberadaConfirmLabel.hidden = !liberadaForzar.checked;
-});
 
 let liberadaModoGratis = true;
 function openLiberadaModal(gratis) {
@@ -1151,11 +1147,9 @@ function openLiberadaModal(gratis) {
   document.getElementById('liberada-motivo').value = '';
   document.getElementById('liberada-expira').value = '';
   document.getElementById('liberada-destino-valor').value = '';
-  document.getElementById('liberada-confirm').value = '';
   liberadaReescribir.checked = false;
   liberadaReescribirCampos.hidden = true;
   liberadaForzar.checked = false;
-  liberadaConfirmLabel.hidden = true;
   liberadaStatus.textContent = '';
   liberadaStatus.className = 'modal-status';
   liberadaResult.hidden = true;
@@ -1220,7 +1214,6 @@ document.getElementById('liberada-submit').addEventListener('click', async () =>
     motivo: document.getElementById('liberada-motivo').value.trim() || undefined,
     expiraDias: Number(document.getElementById('liberada-expira').value) || undefined,
     forzar: liberadaForzar.checked,
-    confirmCodigo: document.getElementById('liberada-confirm').value.trim() || undefined,
   };
   const destinoValor = document.getElementById('liberada-destino-valor').value.trim();
   if (liberadaReescribir.checked) {

@@ -1608,7 +1608,6 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
   const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
   const loteId = req.body?.loteId ? Number(req.body.loteId) : null;
   const forzar = req.body?.forzar === true;
-  const confirmCodigo = String(req.body?.confirmCodigo || '').trim().toLowerCase();
   // gratis = true (default): se activa sin pagar. false: "activación liberada"
   // a secas — se activa pagando por Mercado Pago, sin OTP.
   const gratis = req.body?.gratis !== false;
@@ -1650,9 +1649,6 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
       return res.status(409).json({
         error: `Este producto está "${actual.estado}". Marcá "reescritura maestra" para forzar la liberación igual.`,
       });
-    }
-    if (confirmCodigo !== sticker.codigo_publico) {
-      return res.status(400).json({ error: 'Para forzar, escribí el código público exacto en el campo de confirmación.' });
     }
 
     const antes = await snapshotSticker(sticker.id);
