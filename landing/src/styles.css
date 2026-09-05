@@ -220,14 +220,18 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
 /* LEAD MODAL */
 .modal-overlay{
   position:fixed; inset:0; background:rgba(20,23,26,0.72);
-  display:flex; align-items:center; justify-content:center;
+  display:flex; align-items:flex-start; justify-content:center;
   padding:24px; z-index:100;
   opacity:0; pointer-events:none;
+  overflow-y:auto; overscroll-behavior:contain;
   transition:opacity .2s ease;
 }
 .modal-overlay.is-open{opacity:1; pointer-events:auto;}
 .modal{
   position:relative; width:100%; max-width:420px;
+  /* margin:auto centra en vertical cuando el modal entra en pantalla, y deja
+     scrollear el overlay cuando es más alto que el viewport (celular). */
+  margin:auto;
   background:var(--surface); border:1px solid var(--line); border-radius:18px;
   padding:36px 32px; box-shadow:0 40px 80px -20px rgba(0,0,0,0.6);
   transform:translateY(12px); transition:transform .2s ease;
