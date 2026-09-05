@@ -133,3 +133,56 @@ Ver tus ventas: ${panelUrl}`;
 <p><a href="${esc(panelUrl)}">Ver tus ventas</a></p>`;
   return { subject, text, html };
 }
+
+/**
+ * Arma el mail para el COMPRADOR de una ACTIVACIÓN GRATIS (no pagó nada).
+ * `cuentaNueva`: true si la cuenta se creó con este mail recién; false si ya existía.
+ * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string, cuentaNueva: boolean }} data
+ */
+export function mailActivacionGratis({ items, panelUrl, cuentaNueva }) {
+  const lineasText = items.map((it) => `  • ${nombreModelo(it.modelo)} — ID: ${it.codigoPublico}`).join('\n');
+  const lineasHtml = items
+    .map(
+      (it) =>
+        `<li><strong>${esc(nombreModelo(it.modelo))}</strong> — ID: <code style="font-size:16px;font-weight:700;letter-spacing:1px">${esc(it.codigoPublico)}</code></li>`
+    )
+    .join('');
+  const plural = items.length > 1;
+  const subject = plural
+    ? `Tus NextTap ya están activos — IDs ${items.map((i) => i.codigoPublico).join(', ')}`
+    : `Tu NextTap ya está activo — ID ${items[0].codigoPublico}`;
+
+  const cuentaText = cuentaNueva
+    ? 'Te creamos una cuenta con este mail. La primera vez que entres a tu panel te pedimos un código de verificación que te llega por mail.'
+    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá con el mismo mail de siempre.`;
+  const cuentaHtml = cuentaNueva
+    ? `Te creamos una cuenta con este mail. La primera vez que entres a <a href="${esc(panelUrl)}">tu panel</a> te pedimos un código de verificación que te llega por mail.`
+    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá a <a href="${esc(panelUrl)}">tu panel</a> con el mismo mail de siempre.`;
+  const ojoText = cuentaNueva
+    ? 'Si no activaste ningún NextTap, ignorá este mensaje.'
+    : 'Si no fuiste vos, entrá a tu panel a revisar — alguien activó un NextTap con tu mail.';
+
+  const text = `${plural ? 'Tus NextTap ya están activos' : 'Tu NextTap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.
+
+${plural ? 'Tus productos' : 'Tu producto'}:
+
+${lineasText}
+
+Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID impreso en tu'} producto.
+
+Para elegir a dónde lleva cuando alguien lo apoya en el teléfono, entrá a tu panel:
+${panelUrl}
+
+${cuentaText}
+
+${ojoText}`;
+
+  const html = `<p>${plural ? 'Tus NextTap ya están activos' : 'Tu NextTap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.</p>
+<p>${plural ? 'Tus productos' : 'Tu producto'}:</p>
+<ul>${lineasHtml}</ul>
+<p>Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID impreso en tu'} producto.</p>
+<p>Para elegir a dónde lleva, entrá a <a href="${esc(panelUrl)}">tu panel</a>.</p>
+<p>${cuentaHtml}</p>
+<p style="color:#666;font-size:13px">${ojoText}</p>`;
+  return { subject, text, html };
+}

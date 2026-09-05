@@ -5,7 +5,7 @@ import { randomBytes, createHmac } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db } from './db.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
-import { enviarCorreo, mailCompraComprador, mailVentaVendedor } from './correo.js';
+import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, aUrlAbsoluta } from './destinos.js';
 
@@ -831,6 +831,37 @@ async function notificarVentaConfirmada(ventaId) {
     }
   } catch (err) {
     console.error(`[correo] Error armando los avisos de la venta ${ventaId}:`, err.message);
+  }
+}
+
+// Aviso de ACTIVACIÓN GRATIS al comprador (no pagó nada). Texto distinto según
+// si la cuenta se creó recién (`cuentaNueva`) o ya existía con ese mail.
+async function notificarActivacionGratis(ventaId, { cuentaNueva }) {
+  try {
+    const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+    if (!venta) return;
+    const items = await all(
+      `SELECT s.codigo_publico, s.modelo
+         FROM venta_items vi JOIN stickers_actual s ON s.id = vi.sticker_id
+        WHERE vi.venta_id = ? ORDER BY vi.id`,
+      [ventaId]
+    );
+    if (!items.length) return;
+    const comprador = venta.comprador_id
+      ? await get('SELECT email FROM compradores WHERE id = ?', [venta.comprador_id])
+      : null;
+    if (!comprador?.email) {
+      console.log(`[correo] Activación gratis ${ventaId}: el comprador no tiene mail — no se avisa.`);
+      return;
+    }
+    const { subject, text, html } = mailActivacionGratis({
+      items: items.map((r) => ({ codigoPublico: r.codigo_publico, modelo: r.modelo })),
+      panelUrl: `${FRONTEND_URL}/mi-panel.html`,
+      cuentaNueva,
+    });
+    await enviarCorreo({ to: comprador.email, subject, text, html });
+  } catch (err) {
+    console.error(`[correo] Error armando el aviso de activación gratis ${ventaId}:`, err.message);
   }
 }
 
@@ -2293,6 +2324,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   }
 
   let comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
+  const cuentaNueva = !comprador;
   if (!comprador) {
     const r = await run('INSERT INTO compradores (email) VALUES (?)', [email]);
     comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
@@ -2333,8 +2365,9 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
       despues: { comprador: email, ventaId },
       motivo: liberada.motivo,
     });
-    // Mismo aviso por mail que una compra confirmada (código + link a Mi panel).
-    await notificarVentaConfirmada(ventaId);
+    // Aviso por mail al comprador: activación gratis (no "compra"), con texto
+    // distinto según si la cuenta ya existía o se creó recién.
+    await notificarActivacionGratis(ventaId, { cuentaNueva });
     return res.status(201).json({ liberada: true, activado: true });
   }
 
