@@ -48,6 +48,7 @@ function getCodigo() {
 }
 const codigo = getCodigo();
 const params = new URLSearchParams(window.location.search);
+let infoActual = null;
 
 async function api(path, options = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {
@@ -118,11 +119,17 @@ async function init() {
     return;
   }
 
+  infoActual = info;
   modeloLabel.textContent = info.modelo || 'llavero';
   ctaDestino.textContent = FUNCION_CTA[info.funcion] || 'tu contenido';
   if (info.precio != null) precioLabel.textContent = `(${formatoPrecio(info.precio)})`;
 
-  if (!info.pagosHabilitados) {
+  if (info.liberada) {
+    // Activación liberada: gratis, sin pago.
+    const paso2 = document.querySelector('.activacion-pasos li:nth-child(2)');
+    if (paso2) paso2.innerHTML = '<b>Activación gratis</b> — sin pago, es un regalo.';
+    pagarButton.textContent = 'Activar gratis';
+  } else if (!info.pagosHabilitados) {
     setStatus('is-error', 'Los pagos todavía no están habilitados. Probá más tarde.');
     pagarButton.disabled = true;
   }
@@ -142,13 +149,16 @@ pagarButton.addEventListener('click', async () => {
     return;
   }
   pagarButton.disabled = true;
-  setStatus('', 'Abriendo el pago...');
+  setStatus('', infoActual?.liberada ? 'Activando...' : 'Abriendo el pago...');
   try {
     const data = await api(`/activacion/${encodeURIComponent(codigo)}`, {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
-    if (data.initPoint) {
+    if (data.liberada && data.activado) {
+      // Activación liberada: ya quedó activo. A configurar el destino en Mi panel.
+      window.location.replace('/mi-panel.html');
+    } else if (data.initPoint) {
       window.location.href = data.initPoint;
     } else {
       throw new Error('No se pudo iniciar el pago.');

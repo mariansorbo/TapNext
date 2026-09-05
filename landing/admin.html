@@ -51,6 +51,9 @@
           <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
             <span class="add-icon">+</span> Lote especial
           </button>
+          <button type="button" class="admin-add-btn" id="toggle-liberada" title="Activación gratis: el que tiene el producto lo activa sin pagar. Podés reescribir el chip y forzar sobre uno ya activo (reescritura maestra, tenés la clave master).">
+            <span class="add-icon">🎁</span> Activación liberada
+          </button>
           <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
             <span class="add-icon">$</span> Precios
           </button>
@@ -77,6 +80,13 @@
       <h3>Productos asignados</h3>
       <p class="section-lead" style="margin:0 0 16px;">En poder de un vendedor, todavía sin vender.</p>
       <div class="admin-table admin-table--scroll" id="asignados-table"></div>
+    </div>
+
+    <!-- Activaciones liberadas: activación gratis, sin Mercado Pago -->
+    <div class="admin-section">
+      <h3>Activaciones liberadas</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Permisos de activación gratis. El que tiene el producto lo activa con su email, sin pagar.</p>
+      <div class="admin-table admin-table--scroll" id="liberadas-table"></div>
     </div>
 
     <!-- Vendedores: a quién se le asigna el stock (paso 4 del flujo) -->
@@ -252,6 +262,73 @@
     <button type="button" class="btn-primary modal-submit" id="create-individual-button">Registrar NFC</button>
     <p class="modal-status" id="individual-status"></p>
     <div class="wizard-summary" id="individual-result" hidden></div>
+  </div>
+</div>
+
+<!-- Modal: activación liberada (activación gratis + reescritura del chip) -->
+<div class="modal-overlay" id="liberada-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="liberada-modal-close">✕</button>
+    <h3>Activación liberada</h3>
+    <p class="modal-sub">Activación gratis de un producto: el que lo tiene en la mano lo activa con su email, sin pasar por Mercado Pago. Podés además reescribir el chip y forzar sobre uno que ya esté activo.</p>
+    <div class="modal-form">
+      <label>
+        <span>Código público o UID del chip</span>
+        <input type="text" id="liberada-codigo" placeholder="abc123 o 04a2b3c4d5e6">
+      </label>
+      <button type="button" class="btn-ghost" id="liberada-scan" style="margin:-4px 0 8px;">📡 Escanear chip (Chrome Android)</button>
+      <label>
+        <span>Motivo (opcional)</span>
+        <input type="text" id="liberada-motivo" placeholder="regalo / demo / garantía / prueba">
+      </label>
+      <label>
+        <span>Vence en (días — opcional, vacío = no vence)</span>
+        <input type="number" id="liberada-expira" min="1" placeholder="30">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="liberada-reescribir">
+        <span>Reescribir el chip: re-aplicar función / modelo / vendedor y grabar la URL</span>
+      </label>
+      <div id="liberada-reescribir-campos" hidden>
+        <label>
+          <span>Función</span>
+          <select id="liberada-funcion"><option value="">Sin cambiar</option></select>
+        </label>
+        <label>
+          <span>Modelo</span>
+          <select id="liberada-modelo"><option value="">Sin cambiar</option></select>
+        </label>
+        <label>
+          <span>Vendedor (a quién se atribuye la activación)</span>
+          <select id="liberada-vendedor"><option value="">Vendedor por defecto</option></select>
+        </label>
+      </div>
+      <label>
+        <span>Destino pre-cargado (opcional — si lo dejás vacío, lo elige el que activa)</span>
+        <input type="text" id="liberada-destino-valor" placeholder="Ej. instagram.com/minegocio">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="liberada-forzar">
+        <span><b>Reescritura maestra</b>: forzar aunque el producto ya esté activo o con dueño. Anula la venta anterior y huérfana al comprador.</span>
+      </label>
+      <label id="liberada-confirm-label" hidden>
+        <span>Escribí el código público exacto para confirmar el forzado</span>
+        <input type="text" id="liberada-confirm" placeholder="abc123">
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="liberada-submit">Crear activación liberada</button>
+    <p class="modal-status" id="liberada-status"></p>
+    <div class="wizard-summary" id="liberada-result" hidden></div>
+  </div>
+</div>
+
+<!-- Modal: historial de acciones del admin sobre un sticker -->
+<div class="modal-overlay" id="historial-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="historial-modal-close">✕</button>
+    <h3 id="historial-modal-title">Historial</h3>
+    <p class="modal-sub" id="historial-modal-sub"></p>
+    <div class="admin-table" id="historial-modal-table"></div>
   </div>
 </div>
 

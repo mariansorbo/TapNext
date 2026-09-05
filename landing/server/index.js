@@ -176,6 +176,39 @@ async function transicionarSticker(stickerId, patch) {
   return siguiente;
 }
 
+// --- Activación liberada (ver "Activación liberada" en el vault NextTap - Knowledge) ---
+// Una liberación es un permiso para activar un sticker GRATIS (sin Mercado Pago).
+// Está "vigente" mientras no se usó, no se revocó y no venció.
+async function liberacionVigente(stickerId) {
+  return get(
+    `SELECT * FROM activaciones_liberadas
+      WHERE sticker_id = ? AND usada_en IS NULL AND revocada_en IS NULL
+        AND (expira_en IS NULL OR expira_en > NOW())
+      ORDER BY id DESC LIMIT 1`,
+    [stickerId]
+  );
+}
+
+// Foto del estado actual de un sticker, para el antes/después de la bitácora.
+async function snapshotSticker(stickerId) {
+  const s = await get(
+    'SELECT estado, funcion, modelo, vendedor_id, comprador_id FROM stickers_actual WHERE id = ?',
+    [stickerId]
+  );
+  if (!s) return null;
+  const d = await get('SELECT tipo, valor FROM destinos WHERE sticker_id = ?', [stickerId]);
+  return { ...s, destino: d ? `${d.tipo}:${d.valor}` : null };
+}
+
+// Bitácora de acciones manuales del admin (sticker_eventos_admin) — el "porqué"
+// que sticker_estados no guarda.
+async function registrarEventoAdmin(stickerId, tipo, { antes = null, despues = null, motivo = null } = {}) {
+  await run(
+    `INSERT INTO sticker_eventos_admin (sticker_id, tipo, antes, despues, motivo) VALUES (?, ?, ?, ?, ?)`,
+    [stickerId, tipo, antes ? JSON.stringify(antes) : null, despues ? JSON.stringify(despues) : null, motivo || null]
+  );
+}
+
 // --- Auth: OTP passwordless, canal de verificación intercambiable (RF-12/RF-13) ---
 //
 // El código de un solo uso se manda por el canal activo (`canalVerificacion`:
@@ -1549,6 +1582,214 @@ app.patch('/api/admin/stickers/:id/candado', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Activación liberada: activar un producto GRATIS (sin Mercado Pago) ---
+// Ver "Activación liberada" en el vault NextTap - Knowledge.
+
+// Crea la instancia de activación liberada para un sticker. Opcionalmente
+// re-aplica función/modelo/vendedor/lote (reescritura), y con `forzar` pisa un
+// sticker que ya está activo o con dueño (reescritura maestra: anula la venta
+// anterior, huérfana al comprador, borra el destino).
+app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => {
+  const codigoPublico = String(req.body?.codigoPublico || '').trim().toLowerCase();
+  const uidNfc = String(req.body?.uidNfc || '').trim();
+  const motivo = String(req.body?.motivo || '').trim() || null;
+  const expiraDias = Number(req.body?.expiraDias) || 0;
+  const destinoTipo = String(req.body?.destinoTipo || '').trim() || null;
+  const destinoValorRaw = String(req.body?.destinoValor || '').trim();
+  const funcion = String(req.body?.funcion || '').trim();
+  const modelo = String(req.body?.modelo || '').trim();
+  const vendedorId = req.body?.vendedorId ? Number(req.body.vendedorId) : null;
+  const loteId = req.body?.loteId ? Number(req.body.loteId) : null;
+  const forzar = req.body?.forzar === true;
+  const confirmCodigo = String(req.body?.confirmCodigo || '').trim().toLowerCase();
+
+  if (!codigoPublico && !uidNfc) return res.status(400).json({ error: 'Indicá el código público o el UID del chip.' });
+  if (funcion && !DESTINO_TIPOS.includes(funcion)) return res.status(400).json({ error: 'Función inválida.' });
+  if (modelo && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (destinoTipo && !DESTINO_TIPOS.includes(destinoTipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
+
+  const sticker = await get(
+    `SELECT * FROM stickers WHERE ${codigoPublico ? 'codigo_publico = ?' : 'uid_nfc = ?'}`,
+    [codigoPublico || uidNfc]
+  );
+  if (!sticker) return res.status(404).json({ error: 'No encontré ningún producto con ese código / UID.' });
+
+  if (vendedorId) {
+    const v = await get('SELECT id FROM vendedores WHERE id = ?', [vendedorId]);
+    if (!v) return res.status(404).json({ error: 'Vendedor no encontrado.' });
+  }
+  if (loteId) {
+    const l = await get('SELECT id FROM lotes WHERE id = ?', [loteId]);
+    if (!l) return res.status(404).json({ error: 'Lote no encontrado.' });
+  }
+
+  // Destino pre-cargado (opcional): si viene, se normaliza ya.
+  let destinoValor = null;
+  if (destinoValorRaw) {
+    if (!destinoTipo) return res.status(400).json({ error: 'Elegí el tipo del destino pre-cargado.' });
+    const norm = normalizarDestino(destinoTipo, destinoValorRaw);
+    if (norm.error) return res.status(400).json({ error: norm.error });
+    destinoValor = norm.valor;
+  }
+
+  const actual = await get('SELECT * FROM stickers_actual WHERE id = ?', [sticker.id]);
+  let ventaAnuladaId = null;
+
+  if (actual.estado !== 'en_stock') {
+    if (!forzar) {
+      return res.status(409).json({
+        error: `Este producto está "${actual.estado}". Marcá "reescritura maestra" para forzar la liberación igual.`,
+      });
+    }
+    if (confirmCodigo !== sticker.codigo_publico) {
+      return res.status(400).json({ error: 'Para forzar, escribí el código público exacto en el campo de confirmación.' });
+    }
+
+    const antes = await snapshotSticker(sticker.id);
+
+    // Anular la venta confirmada vigente de este sticker (si la hay).
+    const ventaVieja = await get(
+      `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
+        WHERE vi.sticker_id = ? AND v.estado_pago = 'confirmado' AND v.anulada_en IS NULL
+        ORDER BY v.id DESC LIMIT 1`,
+      [sticker.id]
+    );
+    if (ventaVieja) {
+      // Si la comisión todavía estaba pendiente, además la sacamos del cálculo
+      // (estado_pago -> 'anulado'). Si ya estaba liquidada, se deja 'confirmado':
+      // la plata ya se transfirió, no se revierte.
+      await run(
+        `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra'
+         ${ventaVieja.comision_liquidada ? '' : ", estado_pago = 'anulado'"} WHERE id = ?`,
+        [ventaVieja.id]
+      );
+      ventaAnuladaId = ventaVieja.id;
+    }
+
+    // Ventas pendientes (pago sin terminar) de este sticker: quedarían huérfanas.
+    await run(
+      `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra', estado_pago = 'anulado'
+        WHERE estado_pago = 'pendiente' AND anulada_en IS NULL
+          AND id IN (SELECT venta_id FROM venta_items WHERE sticker_id = ?)`,
+      [sticker.id]
+    );
+
+    await run('DELETE FROM destinos WHERE sticker_id = ?', [sticker.id]);
+    await transicionarSticker(sticker.id, { estado: 'en_stock', comprador_id: null });
+    await registrarEventoAdmin(sticker.id, 'reescritura_maestra', {
+      antes,
+      despues: await snapshotSticker(sticker.id),
+      motivo: ventaAnuladaId ? `${motivo || ''} (venta #${ventaAnuladaId} anulada)`.trim() : motivo,
+    });
+  }
+
+  // Reescritura opcional de función / modelo / vendedor / lote.
+  if (funcion || modelo || vendedorId) {
+    await transicionarSticker(sticker.id, {
+      ...(modelo ? { modelo } : {}),
+      ...(funcion ? { funcion } : {}),
+      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+    });
+  }
+  if (loteId && loteId !== sticker.lote_id) {
+    await run('UPDATE stickers SET lote_id = ? WHERE id = ?', [loteId, sticker.id]);
+    await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + 1 WHERE id = ?', [loteId]);
+  }
+
+  const vendedorLiberacion = vendedorId || (await vendedorEspecialId());
+  const expiraEn = expiraDias > 0 ? new Date(Date.now() + expiraDias * 86_400_000).toISOString() : null;
+
+  const r = await run(
+    `INSERT INTO activaciones_liberadas (sticker_id, motivo, destino_tipo, destino_valor, vendedor_id, expira_en)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [sticker.id, motivo, destinoTipo, destinoValor, vendedorLiberacion, expiraEn]
+  );
+  await registrarEventoAdmin(sticker.id, 'liberacion', {
+    despues: { motivo, destino: destinoValor ? `${destinoTipo}:${destinoValor}` : null, expiraEn, forzado: actual.estado !== 'en_stock' },
+    motivo,
+  });
+
+  const claves = CHIP_MASTER_SECRET && sticker.uid_nfc && !esLoteEspecial(sticker.uid_nfc)
+    ? { writePassword: deriveChipPassword(sticker.uid_nfc), writePack: deriveChipPack(sticker.uid_nfc) }
+    : {};
+
+  res.status(201).json({
+    id: r.lastInsertRowid,
+    codigoPublico: sticker.codigo_publico,
+    url: `${PUBLIC_ROUTER_BASE}/v/${sticker.codigo_publico}`,
+    activacionUrl: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`,
+    forzado: actual.estado !== 'en_stock',
+    ventaAnuladaId,
+    ...claves,
+  });
+});
+
+app.get('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT a.*, s.codigo_publico, s.uid_nfc, sa.estado AS sticker_estado,
+      v.nombre AS vendedor_nombre, c.email AS comprador_email
+    FROM activaciones_liberadas a
+    JOIN stickers s ON s.id = a.sticker_id
+    LEFT JOIN stickers_actual sa ON sa.id = a.sticker_id
+    LEFT JOIN vendedores v ON v.id = a.vendedor_id
+    LEFT JOIN compradores c ON c.id = a.usada_por_comprador_id
+    ORDER BY a.id DESC
+  `);
+  const ahora = Date.now();
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      stickerId: r.sticker_id,
+      codigoPublico: r.codigo_publico,
+      stickerEstado: r.sticker_estado,
+      motivo: r.motivo,
+      destino: r.destino_valor ? { tipo: r.destino_tipo, valor: r.destino_valor } : null,
+      vendedorNombre: r.vendedor_nombre,
+      compradorEmail: r.comprador_email,
+      creadaEn: r.creada_en,
+      usadaEn: r.usada_en,
+      revocadaEn: r.revocada_en,
+      expiraEn: r.expira_en,
+      estado: r.revocada_en
+        ? 'revocada'
+        : r.usada_en
+          ? 'usada'
+          : r.expira_en && new Date(r.expira_en).getTime() < ahora
+            ? 'vencida'
+            : 'vigente',
+    }))
+  );
+});
+
+app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const row = await get('SELECT * FROM activaciones_liberadas WHERE id = ?', [id]);
+  if (!row) return res.status(404).json({ error: 'Activación liberada no encontrada.' });
+  if (row.usada_en) return res.status(409).json({ error: 'Esta activación liberada ya se usó — no se puede revocar.' });
+  if (row.revocada_en) return res.status(409).json({ error: 'Ya estaba revocada.' });
+  await run('UPDATE activaciones_liberadas SET revocada_en = NOW() WHERE id = ?', [id]);
+  await registrarEventoAdmin(row.sticker_id, 'revocacion_liberacion', { motivo: row.motivo });
+  res.status(204).end();
+});
+
+// Bitácora de acciones manuales del admin sobre un sticker.
+app.get('/api/admin/stickers/:id/historial', requireAdmin, async (req, res) => {
+  const stickerId = Number(req.params.id);
+  const rows = await all(
+    'SELECT tipo, antes, despues, motivo, creado_en FROM sticker_eventos_admin WHERE sticker_id = ? ORDER BY id DESC',
+    [stickerId]
+  );
+  res.json(
+    rows.map((r) => ({
+      tipo: r.tipo,
+      antes: r.antes,
+      despues: r.despues,
+      motivo: r.motivo,
+      creadoEn: r.creado_en,
+    }))
+  );
+});
+
 // Asignar (o quitar, mandando vendedorId vacío) el vendedor de un NFC en stock —
 // independiente de si ya tiene modelo definido o no.
 app.patch('/api/admin/stickers/:id/asignar', requireAdmin, async (req, res) => {
@@ -1690,6 +1931,8 @@ app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
       monto: r.monto,
       estadoPago: r.estado_pago,
       comisionLiquidada: Boolean(r.comision_liquidada),
+      anulada: Boolean(r.anulada_en),
+      anuladaMotivo: r.anulada_motivo || null,
       fecha: r.fecha,
     }))
   );
@@ -1937,9 +2180,13 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     }
   }
 
-  // Lote especial todavía sin activar (o con el pago sin confirmar): el tap
-  // lleva a la pantalla de activación para verificar el email y pagar.
-  if (sticker && esLoteEspecial(sticker.uid_nfc) && sticker.estado !== 'activo') {
+  // Todavía sin activar y activable sin vendedor (lote especial, o con una
+  // activación liberada vigente): el tap lleva a la pantalla de activación.
+  if (
+    sticker &&
+    sticker.estado !== 'activo' &&
+    (esLoteEspecial(sticker.uid_nfc) || (await liberacionVigente(sticker.id)))
+  ) {
     return res.redirect(302, `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`);
   }
 
@@ -1958,7 +2205,15 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
 
 app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
-  if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
+  if (!sticker) {
+    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+  }
+  const liberada = await liberacionVigente(sticker.id);
+  // Servible si: es lote especial, tiene una liberación (vigente o ya usada, para
+  // que la redirección post-activación siga funcionando), o ya está activo.
+  const tuvoLiberacion =
+    liberada || (await get('SELECT 1 FROM activaciones_liberadas WHERE sticker_id = ? LIMIT 1', [sticker.id]));
+  if (!esLoteEspecial(sticker.uid_nfc) && !tuvoLiberacion && sticker.estado !== 'activo') {
     return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
   }
   const modelo = sticker.modelo || 'llavero';
@@ -1972,6 +2227,8 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     // en_stock (activable) | vendido_pendiente (pago sin confirmar) | activo
     estado: sticker.estado,
     yaActivado: sticker.estado === 'activo',
+    // Activación liberada vigente → gratis, sin Mercado Pago.
+    liberada: Boolean(liberada),
     precio: precioRow ? Number(precioRow.precio) : null,
     pagosHabilitados: MP_ENABLED,
     destino: destino ? destino.valor : null,
@@ -1984,13 +2241,12 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
 // (login por código). Riesgo aceptado: alguien podría activar con un email
 // ajeno, pero hace falta tener el llavero físico en la mano.
 app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
-  if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
-
   const email = String(req.body?.email || '').trim().toLowerCase();
   if (!ES_EMAIL(email)) return res.status(400).json({ error: 'Ingresá un email válido.' });
 
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
-  if (!sticker || !esLoteEspecial(sticker.uid_nfc)) {
+  const liberada = sticker ? await liberacionVigente(sticker.id) : null;
+  if (!sticker || (!esLoteEspecial(sticker.uid_nfc) && !liberada)) {
     return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
   }
   if (sticker.estado === 'activo') {
@@ -2002,6 +2258,46 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     const r = await run('INSERT INTO compradores (email) VALUES (?)', [email]);
     comprador = await get('SELECT * FROM compradores WHERE id = ?', [r.lastInsertRowid]);
   }
+
+  // --- Activación liberada: gratis, sin Mercado Pago. Activa al instante. ---
+  if (liberada) {
+    const vendedorId = liberada.vendedor_id || (await vendedorEspecialId());
+    const funcionFinal = liberada.destino_tipo || sticker.funcion || 'instagram';
+    const ventaRes = await run(
+      `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago) VALUES (?, ?, 0, 'confirmado')`,
+      [vendedorId, comprador.id]
+    );
+    const ventaId = ventaRes.lastInsertRowid;
+    await run(
+      'INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, 0, ?, ?)',
+      [ventaId, sticker.id, liberada.destino_tipo || null, liberada.destino_valor || null]
+    );
+    await transicionarSticker(sticker.id, {
+      comprador_id: comprador.id,
+      funcion: funcionFinal,
+      estado: 'activo',
+      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
+    });
+    if (liberada.destino_tipo && liberada.destino_valor) {
+      const norm = normalizarDestino(liberada.destino_tipo, liberada.destino_valor);
+      await db.execute({
+        sql: `INSERT INTO destinos (sticker_id, tipo, valor, actualizado_en) VALUES (?, ?, ?, NOW())
+              ON CONFLICT(sticker_id) DO UPDATE SET tipo = excluded.tipo, valor = excluded.valor, actualizado_en = NOW()`,
+        args: [sticker.id, liberada.destino_tipo, norm.valor || liberada.destino_valor],
+      });
+    }
+    await run(
+      'UPDATE activaciones_liberadas SET usada_en = NOW(), usada_por_comprador_id = ?, venta_id = ? WHERE id = ?',
+      [comprador.id, ventaId, liberada.id]
+    );
+    await registrarEventoAdmin(sticker.id, 'activacion_liberada_usada', {
+      despues: { comprador: email, ventaId },
+      motivo: liberada.motivo,
+    });
+    return res.status(201).json({ liberada: true, activado: true });
+  }
+
+  if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
 
   const modelo = sticker.modelo || 'llavero';
   const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);

@@ -56,7 +56,7 @@ async function showDashboard() {
 
 async function loadAll() {
   await loadVendedores();
-  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones()]);
+  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas()]);
 }
 
 loginButton.addEventListener('click', async () => {
@@ -871,10 +871,12 @@ async function loadVentas() {
           }</td>
           <td>${v.vendedorNombre || '—'}</td>
           <td>${MONEY(v.monto)}</td>
-          <td>${v.estadoPago}</td>
+          <td>${v.estadoPago}${v.anulada ? ` <span class="admin-tag">Anulada${v.anuladaMotivo === 'reescritura_maestra' ? ' · reescritura' : ''}</span>` : ''}</td>
           <td>${v.fecha}</td>
           <td>${
-            v.estadoPago === 'confirmado' && !v.comisionLiquidada
+            v.anulada
+              ? (v.comisionLiquidada ? '✓ liquidada (antes de anular)' : '—')
+              : v.estadoPago === 'confirmado' && !v.comisionLiquidada
               ? `<button type="button" class="row-btn liquidar-btn" data-id="${v.id}">Liquidar</button>`
               : v.comisionLiquidada
                 ? '✓ liquidada'
@@ -1024,6 +1026,247 @@ document.getElementById('liquidar-confirm').addEventListener('click', async () =
   } catch (err) {
     liquidarStatus.className = 'modal-status is-error';
     liquidarStatus.textContent = err.message;
+  }
+});
+
+// --- Activación liberada: activación gratis + reescritura del chip ------------
+// Ver "Activación liberada" en el vault NextTap - Knowledge.
+const LIBERADA_ESTADO_LABELS = { vigente: 'Vigente', usada: 'Usada', vencida: 'Vencida', revocada: 'Revocada' };
+
+async function loadLiberadas() {
+  const container = document.getElementById('liberadas-table');
+  try {
+    const rows = await api('/activaciones-liberadas');
+    renderTable(
+      container,
+      ['Código', 'Estado', 'Motivo', 'Usada por', 'Vence', ''],
+      rows.map((r) => `<tr>
+        <td><b>${r.codigoPublico}</b></td>
+        <td>${LIBERADA_ESTADO_LABELS[r.estado] || r.estado}</td>
+        <td>${r.motivo || '<span class="admin-muted">—</span>'}</td>
+        <td>${r.compradorEmail || '<span class="admin-muted">—</span>'}</td>
+        <td>${r.expiraEn ? FECHA(r.expiraEn) : '<span class="admin-muted">no vence</span>'}</td>
+        <td>
+          <button type="button" class="row-btn ver-historial-btn" data-id="${r.stickerId}" data-cod="${r.codigoPublico}">Ver historial</button>
+          ${r.estado === 'vigente' ? `<button type="button" class="row-btn danger revocar-liberada-btn" data-id="${r.id}">Revocar</button>` : ''}
+        </td>
+      </tr>`)
+    );
+    container.querySelectorAll('.revocar-liberada-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('¿Revocar esta activación liberada? No se va a poder usar.')) return;
+        btn.disabled = true;
+        try {
+          await api(`/activaciones-liberadas/${btn.dataset.id}`, { method: 'DELETE' });
+          await loadLiberadas();
+        } catch (err) {
+          btn.disabled = false;
+          alert(err.message);
+        }
+      });
+    });
+    container.querySelectorAll('.ver-historial-btn').forEach((btn) => {
+      btn.addEventListener('click', () => openHistorialModal(btn.dataset.id, btn.dataset.cod));
+    });
+  } catch (err) {
+    container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
+  }
+}
+
+// Modal "Ver historial" — bitácora de acciones del admin sobre un sticker.
+const historialOverlay = document.getElementById('historial-modal-overlay');
+document.getElementById('historial-modal-close').addEventListener('click', () => historialOverlay.classList.remove('is-open'));
+historialOverlay.addEventListener('click', (e) => { if (e.target === historialOverlay) historialOverlay.classList.remove('is-open'); });
+
+const EVENTO_LABELS = {
+  liberacion: 'Liberación creada',
+  reescritura_maestra: 'Reescritura maestra',
+  revocacion_liberacion: 'Liberación revocada',
+  activacion_liberada_usada: 'Activación liberada usada',
+};
+
+async function openHistorialModal(stickerId, codigo) {
+  document.getElementById('historial-modal-title').textContent = `Historial — ${codigo}`;
+  document.getElementById('historial-modal-sub').textContent = 'Acciones manuales del admin sobre este producto.';
+  const table = document.getElementById('historial-modal-table');
+  table.innerHTML = '<p class="admin-empty">Cargando...</p>';
+  historialOverlay.classList.add('is-open');
+  try {
+    const eventos = await api(`/stickers/${stickerId}/historial`);
+    const resumen = (o) => (o ? Object.entries(o).map(([k, v]) => `${k}: ${v == null ? '—' : v}`).join(' · ') : '—');
+    renderTable(
+      table,
+      ['Fecha', 'Acción', 'Antes', 'Después', 'Motivo'],
+      eventos.map((e) => `<tr>
+        <td>${FECHA(e.creadoEn)}</td>
+        <td>${EVENTO_LABELS[e.tipo] || e.tipo}</td>
+        <td style="font-size:.8rem;">${resumen(e.antes)}</td>
+        <td style="font-size:.8rem;">${resumen(e.despues)}</td>
+        <td>${e.motivo || '—'}</td>
+      </tr>`)
+    );
+  } catch (err) {
+    table.innerHTML = `<p class="admin-empty">${err.message}</p>`;
+  }
+}
+
+// Modal "Activación liberada"
+const liberadaOverlay = document.getElementById('liberada-modal-overlay');
+const liberadaCodigo = document.getElementById('liberada-codigo');
+const liberadaReescribir = document.getElementById('liberada-reescribir');
+const liberadaReescribirCampos = document.getElementById('liberada-reescribir-campos');
+const liberadaFuncion = document.getElementById('liberada-funcion');
+const liberadaModelo = document.getElementById('liberada-modelo');
+const liberadaVendedor = document.getElementById('liberada-vendedor');
+const liberadaForzar = document.getElementById('liberada-forzar');
+const liberadaConfirmLabel = document.getElementById('liberada-confirm-label');
+const liberadaStatus = document.getElementById('liberada-status');
+const liberadaResult = document.getElementById('liberada-result');
+
+function closeLiberadaModal() {
+  liberadaOverlay.classList.remove('is-open');
+  try { if (liberadaNdefAbort) liberadaNdefAbort.abort(); } catch {}
+  liberadaNdefAbort = null;
+}
+document.getElementById('liberada-modal-close').addEventListener('click', closeLiberadaModal);
+liberadaOverlay.addEventListener('click', (e) => { if (e.target === liberadaOverlay) closeLiberadaModal(); });
+
+liberadaReescribir.addEventListener('change', () => {
+  liberadaReescribirCampos.hidden = !liberadaReescribir.checked;
+});
+liberadaForzar.addEventListener('change', () => {
+  liberadaConfirmLabel.hidden = !liberadaForzar.checked;
+});
+
+function openLiberadaModal() {
+  liberadaCodigo.value = '';
+  document.getElementById('liberada-motivo').value = '';
+  document.getElementById('liberada-expira').value = '';
+  document.getElementById('liberada-destino-valor').value = '';
+  document.getElementById('liberada-confirm').value = '';
+  liberadaReescribir.checked = false;
+  liberadaReescribirCampos.hidden = true;
+  liberadaForzar.checked = false;
+  liberadaConfirmLabel.hidden = true;
+  liberadaStatus.textContent = '';
+  liberadaStatus.className = 'modal-status';
+  liberadaResult.hidden = true;
+
+  liberadaFuncion.innerHTML =
+    '<option value="">Sin cambiar</option>' +
+    Object.entries(FUNCION_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  liberadaModelo.innerHTML =
+    '<option value="">Sin cambiar</option>' +
+    ['llavero', 'tarjeta', 'placa'].map((m) => `<option value="${m}">${m[0].toUpperCase() + m.slice(1)}</option>`).join('');
+  liberadaVendedor.innerHTML =
+    '<option value="">Vendedor por defecto</option>' +
+    vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('');
+
+  liberadaOverlay.classList.add('is-open');
+}
+document.getElementById('toggle-liberada').addEventListener('click', openLiberadaModal);
+
+// Escaneo NFC de un chip (una sola lectura) para rellenar el código/UID.
+let liberadaNdefAbort = null;
+document.getElementById('liberada-scan').addEventListener('click', async () => {
+  if (!('NDEFReader' in window)) {
+    liberadaStatus.className = 'modal-status is-error';
+    liberadaStatus.textContent = 'Este navegador no soporta Web NFC. Usá Chrome en Android.';
+    return;
+  }
+  liberadaStatus.className = 'modal-status';
+  liberadaStatus.textContent = 'Acercá el chip al teléfono…';
+  try {
+    const ndef = new NDEFReader();
+    liberadaNdefAbort = new AbortController();
+    await ndef.scan({ signal: liberadaNdefAbort.signal });
+    ndef.addEventListener('reading', ({ serialNumber }) => {
+      const uid = String(serialNumber || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+      if (uid) {
+        liberadaCodigo.value = uid;
+        liberadaStatus.className = 'modal-status is-success';
+        liberadaStatus.textContent = `UID leído: ${uid}`;
+      }
+      try { liberadaNdefAbort.abort(); } catch {}
+      liberadaNdefAbort = null;
+    });
+  } catch (err) {
+    liberadaStatus.className = 'modal-status is-error';
+    liberadaStatus.textContent = `No se pudo leer el chip: ${err.message}`;
+  }
+});
+
+document.getElementById('liberada-submit').addEventListener('click', async () => {
+  const codigoRaw = liberadaCodigo.value.trim();
+  if (!codigoRaw) {
+    liberadaStatus.className = 'modal-status is-error';
+    liberadaStatus.textContent = 'Indicá el código público o el UID del chip.';
+    return;
+  }
+  // Heurística: 8+ hex sin otras letras → UID; si no, código público.
+  const esUid = /^[0-9a-f]{8,}$/i.test(codigoRaw);
+  const body = {
+    [esUid ? 'uidNfc' : 'codigoPublico']: codigoRaw,
+    motivo: document.getElementById('liberada-motivo').value.trim() || undefined,
+    expiraDias: Number(document.getElementById('liberada-expira').value) || undefined,
+    forzar: liberadaForzar.checked,
+    confirmCodigo: document.getElementById('liberada-confirm').value.trim() || undefined,
+  };
+  const destinoValor = document.getElementById('liberada-destino-valor').value.trim();
+  if (liberadaReescribir.checked) {
+    if (liberadaFuncion.value) body.funcion = liberadaFuncion.value;
+    if (liberadaModelo.value) body.modelo = liberadaModelo.value;
+    if (liberadaVendedor.value) body.vendedorId = liberadaVendedor.value;
+  }
+  if (destinoValor) {
+    body.destinoValor = destinoValor;
+    body.destinoTipo = liberadaFuncion.value || undefined;
+  }
+
+  liberadaStatus.className = 'modal-status';
+  liberadaStatus.textContent = 'Creando...';
+  liberadaResult.hidden = true;
+  try {
+    const data = await api('/activaciones-liberadas', { method: 'POST', body: JSON.stringify(body) });
+    liberadaStatus.className = 'modal-status is-success';
+    liberadaStatus.textContent = data.forzado
+      ? `Listo — reescritura maestra aplicada${data.ventaAnuladaId ? ` (venta #${data.ventaAnuladaId} anulada)` : ''}.`
+      : 'Activación liberada creada.';
+    liberadaResult.hidden = false;
+    liberadaResult.innerHTML = `
+      <div><b>Código:</b> ${data.codigoPublico}</div>
+      <div><b>URL a grabar en el chip:</b><br>${data.url}
+        <button type="button" class="row-btn" data-lib-copy="${data.url}">copiar</button></div>
+      <div><b>Link de activación (para compartir):</b><br>${data.activacionUrl}
+        <button type="button" class="row-btn" data-lib-copy="${data.activacionUrl}">copiar</button></div>
+      ${data.writePassword ? `<div><b>PWD_AUTH:</b> <span class="grabar-key">${data.writePassword}</span> · <b>PACK:</b> <span class="grabar-key">${data.writePack}</span></div>` : ''}
+      ${liberadaReescribir.checked && 'NDEFReader' in window ? '<button type="button" class="btn-primary" id="liberada-grabar-url" style="width:100%; margin-top:10px;">Grabar URL en el chip ahora</button>' : ''}
+    `;
+    liberadaResult.querySelectorAll('[data-lib-copy]').forEach((b) => {
+      b.addEventListener('click', (e) => copiar(b.dataset.libCopy, e.currentTarget));
+    });
+    const grabarBtn = document.getElementById('liberada-grabar-url');
+    if (grabarBtn) {
+      grabarBtn.addEventListener('click', async () => {
+        grabarBtn.disabled = true;
+        liberadaStatus.textContent = 'Acercá el chip y mantenelo pegado…';
+        liberadaStatus.className = 'modal-status';
+        try {
+          const ndef = new NDEFReader();
+          await ndef.write({ records: [{ recordType: 'url', data: data.url }] }, { overwrite: true });
+          liberadaStatus.className = 'modal-status is-success';
+          liberadaStatus.textContent = 'URL grabada en el chip.';
+        } catch (err) {
+          grabarBtn.disabled = false;
+          liberadaStatus.className = 'modal-status is-error';
+          liberadaStatus.textContent = `No se pudo grabar: ${err.message}. Si el chip tiene candado, desbloquealo con NFC Tools usando el PWD_AUTH.`;
+        }
+      });
+    }
+    await Promise.all([loadLiberadas(), loadStickers(), loadVentas()]);
+  } catch (err) {
+    liberadaStatus.className = 'modal-status is-error';
+    liberadaStatus.textContent = err.message;
   }
 });
 

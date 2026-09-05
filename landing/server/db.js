@@ -292,6 +292,45 @@ await db.executeMultiple(`
   -- se hizo. Se completan al confirmar la liquidación desde el panel de Admin.
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidacion_ref TEXT;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS liquidada_en TIMESTAMPTZ;
+
+  -- === Activación liberada (ver "Activación liberada" en el vault) ===
+  -- Permiso para activar un sticker GRATIS, sin pasar por Mercado Pago. Mientras
+  -- haya una fila vigente (usada_en IS NULL, revocada_en IS NULL, sin vencer)
+  -- para un sticker, POST /api/activacion/:codigo lo activa directo.
+  CREATE TABLE IF NOT EXISTS activaciones_liberadas (
+    id SERIAL PRIMARY KEY,
+    sticker_id INTEGER NOT NULL REFERENCES stickers(id) ON DELETE CASCADE,
+    motivo TEXT,
+    destino_tipo TEXT,
+    destino_valor TEXT,
+    vendedor_id INTEGER REFERENCES vendedores(id),
+    expira_en TIMESTAMPTZ,
+    creada_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    usada_en TIMESTAMPTZ,
+    usada_por_comprador_id INTEGER REFERENCES compradores(id),
+    revocada_en TIMESTAMPTZ,
+    venta_id INTEGER REFERENCES ventas(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_activ_liberada_sticker ON activaciones_liberadas(sticker_id);
+
+  -- Bitácora de acciones manuales/destructivas del admin sobre un sticker
+  -- (liberación, reescritura maestra, revocación, uso de una liberada).
+  -- sticker_estados versiona el estado pero no el porqué ni el antes/después.
+  CREATE TABLE IF NOT EXISTS sticker_eventos_admin (
+    id SERIAL PRIMARY KEY,
+    sticker_id INTEGER NOT NULL REFERENCES stickers(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL,
+    antes JSONB,
+    despues JSONB,
+    motivo TEXT,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_sticker_eventos_sticker ON sticker_eventos_admin(sticker_id);
+
+  -- Anulación de una venta (ej. reescritura maestra sobre un chip activo). No se
+  -- borra la fila: se marca, conservando historial y plata.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS anulada_en TIMESTAMPTZ;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS anulada_motivo TEXT;
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este
