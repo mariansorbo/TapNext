@@ -67,20 +67,20 @@ export default {
       : { error: 'Poné un número de WhatsApp válido (con característica) o un link wa.me/...' };
   },
   resolver(valor) {
-    // Re-normaliza: así las filas viejas guardadas con el 9 (wa.me/549…) también
-    // se corrigen al redirigir, sin migración.
-    //
-    // `interstitial: false` + URL api.whatsapp.com directa: el tap tiene que ser
-    // un redirect HTTP del servidor, no la pantalla de marca con location.replace
-    // — Android solo dispara "abrir en la app de WhatsApp" para navegaciones del
-    // servidor / con gesto del usuario, no para redirects hechos por JS. Con la
-    // pantalla de por medio, Chrome carga la web y el botón "Abrir aplicación"
-    // (esquema whatsapp://) abre la app sin la conversación.
+    // Re-normaliza (arregla filas viejas guardadas con el 9, sin migrar).
     const e164 = aE164(valor);
+    if (!e164) return { modo: 'redirect', url: valor, interstitial: false };
+    // `modo: 'app'`: la pantalla de /v/ abre la app directo con un intent de
+    // Android al paquete com.whatsapp — sin pasar por la web de WhatsApp, cuyo
+    // botón "Abrir aplicación" tiene un timer que cae a la página de descarga si
+    // la app tarda en arrancar (bug de esa página, no nuestro). Si WhatsApp no
+    // está instalado, el intent cae solo a `web`.
     return {
-      modo: 'redirect',
-      url: e164 ? `https://api.whatsapp.com/send?phone=${e164}` : valor,
-      interstitial: false,
+      modo: 'app',
+      web: `https://api.whatsapp.com/send?phone=${e164}`,
+      intent: `intent://send?phone=${e164}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(
+        `https://api.whatsapp.com/send?phone=${e164}`
+      )};end`,
     };
   },
   preview(valor) {

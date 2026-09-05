@@ -28,11 +28,15 @@ export { aUrlAbsoluta };
  *           - textos para el formulario del front (una etiqueta/ejemplo por función)
  * @property {(crudo: string) => {valor: string} | {error: string}} normalizar
  *           - valida + normaliza lo que tipeó el usuario; `error` es un mensaje para él
- * @property {(valor: string) => {modo: 'redirect', url: string, interstitial?: boolean} | {modo: 'landing', datos: object}} resolver
- *           - qué hace el tap con un valor ya normalizado. Hoy todos son `redirect`;
- *             `modo` deja lugar para funciones que necesiten una landing (vCard, WiFi).
- *             `interstitial: false` → redirect HTTP directo, sin la pantalla de
- *             marca (WhatsApp lo necesita para que Android abra la app)
+ * @property {(valor: string) => (
+ *     {modo: 'redirect', url: string, interstitial?: boolean}
+ *   | {modo: 'app', web: string, intent: string}
+ *   | {modo: 'landing', datos: object}
+ *   )} resolver
+ *           - qué hace el tap con un valor ya normalizado.
+ *             `redirect`: manda a `url` (con o sin la pantalla de marca — `interstitial: false`).
+ *             `app` (WhatsApp): abre la app con un `intent://` de Android, `web` de fallback.
+ *             `landing`: deja lugar para funciones que rendericen una página (vCard, WiFi).
  * @property {(valor: string) => string} preview  - frase legible de qué va a pasar
  */
 

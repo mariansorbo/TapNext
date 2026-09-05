@@ -2383,6 +2383,52 @@ function pantallaRedireccion(destino) {
 </html>`;
 }
 
+// Lanzador de app (hoy solo WhatsApp): en Android navega a un intent:// que abre
+// la app directo (paquete com.whatsapp), sin pasar por la web de WhatsApp — cuyo
+// botón "Abrir aplicación" tiene un timer que, si la app tarda en arrancar, cae a
+// la página de descarga. En iOS / desktop va a la URL web normal. Si el intent no
+// resuelve (app no instalada), Android usa el browser_fallback_url embebido.
+function pantallaApp({ web, intent }) {
+  const webJs = JSON.stringify(String(web)).replace(/</g, '\\u003c');
+  const intentJs = JSON.stringify(String(intent)).replace(/</g, '\\u003c');
+  const webHtml = String(web).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NextTap</title>
+<style>
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{background:var(--ink);color:var(--paper);
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
+    min-height:100svh;padding:32px 24px;text-align:center;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.4rem,14vw,4rem);letter-spacing:-.03em}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
+  a.btn{display:inline-block;background:var(--paper);color:var(--ink);text-decoration:none;
+    font-weight:600;padding:14px 30px;border-radius:999px;font-size:1rem}
+  p{color:rgba(237,239,233,.5);font-size:.8rem}
+</style>
+</head>
+<body>
+  <div class="mark">Next<span class="tap">Tap</span></div>
+  <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
+  <p>Si no abre solo, tocá el botón.</p>
+  <script>
+  (function(){
+    var web=${webJs}, intent=${intentJs};
+    var target=/Android/i.test(navigator.userAgent)?intent:web;
+    document.getElementById('go').setAttribute('href', target);
+    try{ window.location.href = target; }catch(e){}
+  })();
+  </script>
+</body>
+</html>`;
+}
+
 // Pantalla para un chip que todavía no lleva a ningún lado: recién programado
 // en el taller, o en stock de un vendedor sin vender. Estos son de venta
 // presencial: NO se autoactivan (a diferencia del lote especial). Quien lo
@@ -2438,11 +2484,13 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       // siempre es un redirect a una URL; filas viejas sin https:// las fuerza a
       // absoluta el propio resolver (si no, el browser las toma como relativas).
       const r = resolverDestino(destino.tipo, destino.valor);
+      if (r.modo === 'app') {
+        // WhatsApp: pantalla mínima que abre la app con un intent:// de Android.
+        return res.type('html').send(pantallaApp(r));
+      }
       if (r.modo === 'redirect') {
-        // Pantalla de marca solo si: es una URL http(s) normal Y el plugin no
-        // pidió redirect directo. WhatsApp lo pide (interstitial: false) porque
-        // Android no dispara "abrir en la app" tras un location.replace de JS —
-        // necesita el redirect HTTP del servidor.
+        // Pantalla de marca solo si es una URL http(s) normal y el plugin no
+        // pidió redirect directo (interstitial: false).
         if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
           return res.type('html').send(pantallaRedireccion(r.url));
         }
@@ -2493,8 +2541,13 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const destino =
     sticker.estado === 'activo' ? await get('SELECT tipo, valor FROM destinos WHERE sticker_id = ?', [sticker.id]) : null;
   // El front solo hace window.location = destino, así que se lo damos ya
-  // resuelto a URL absoluta (filas viejas se guardaron sin https://).
-  const destinoUrl = destino ? resolverDestino(destino.tipo, destino.valor).url || destino.valor : null;
+  // resuelto a URL absoluta (filas viejas se guardaron sin https://). Para
+  // WhatsApp (modo 'app') usamos la URL web — el front no dispara intents.
+  let destinoUrl = null;
+  if (destino) {
+    const r = resolverDestino(destino.tipo, destino.valor);
+    destinoUrl = r.web || r.url || destino.valor;
+  }
   res.json({
     codigo: sticker.codigo_publico,
     modelo,

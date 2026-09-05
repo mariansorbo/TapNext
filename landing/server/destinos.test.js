@@ -50,14 +50,15 @@ test('web/pago: agrega https:// si falta y valida el dominio', () => {
   assert.ok(normalizarDestino('web', 'no-es-un-dominio').error);
 });
 
-test('resolverDestino: siempre da un redirect a URL absoluta', () => {
-  // WhatsApp: redirect HTTP directo (sin pantalla de marca) a api.whatsapp.com,
-  // re-normalizando (fila vieja con 9 -> sin 9).
-  assert.deepEqual(resolverDestino('whatsapp', 'https://wa.me/5491122334455'), {
-    modo: 'redirect',
-    url: 'https://api.whatsapp.com/send?phone=541122334455',
-    interstitial: false,
-  });
+test('resolverDestino: whatsapp -> modo app (intent Android + fallback web)', () => {
+  const r = resolverDestino('whatsapp', 'https://wa.me/5491122334455'); // fila vieja con 9
+  assert.equal(r.modo, 'app');
+  assert.equal(r.web, 'https://api.whatsapp.com/send?phone=541122334455');
+  assert.match(r.intent, /^intent:\/\/send\?phone=541122334455#Intent;.*package=com\.whatsapp/);
+  assert.match(r.intent, /browser_fallback_url=/);
+});
+
+test('resolverDestino: el resto da un redirect a URL absoluta', () => {
   // Fila vieja guardada sin esquema -> el resolver la fuerza a absoluta.
   assert.equal(resolverDestino('instagram', 'instagram.com/x').url, 'https://instagram.com/x');
   assert.equal(resolverDestino('web', 'tunegocio.com/menu').url, 'https://tunegocio.com/menu');
