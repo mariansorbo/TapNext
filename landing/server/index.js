@@ -2383,11 +2383,13 @@ function pantallaRedireccion(destino) {
 </html>`;
 }
 
-// Lanzador de app (hoy solo WhatsApp): en Android navega a un intent:// que abre
-// la app directo (paquete com.whatsapp), sin pasar por la web de WhatsApp — cuyo
-// botón "Abrir aplicación" tiene un timer que, si la app tarda en arrancar, cae a
-// la página de descarga. En iOS / desktop va a la URL web normal. Si el intent no
-// resuelve (app no instalada), Android usa el browser_fallback_url embebido.
+// Lanzador de app (hoy solo WhatsApp). Se ve igual que pantallaRedireccion (marca
+// + barrita), pero por debajo: en Android navega a un intent:// que abre la app
+// directo (paquete com.whatsapp), sin pasar por la web de WhatsApp — cuyo botón
+// "Abrir aplicación" tiene un timer que, si la app arranca en frío y tarda, cae a
+// la página de descarga. En iOS / desktop va a la URL web. El intent se dispara
+// apenas carga (así el arranque en frío corre en paralelo con la animación); si a
+// los ~2.5 s seguimos visibles (Android bloqueó el salto), aparece un botón.
 function pantallaApp({ web, intent }) {
   const webJs = JSON.stringify(String(web)).replace(/</g, '\\u003c');
   const intentJs = JSON.stringify(String(intent)).replace(/</g, '\\u003c');
@@ -2398,31 +2400,56 @@ function pantallaApp({ web, intent }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NextTap</title>
+<noscript><meta http-equiv="refresh" content="0;url=${webHtml}"></noscript>
 <style>
-  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1200ms}
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%}
   body{background:var(--ink);color:var(--paper);
     font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
-    min-height:100svh;padding:32px 24px;text-align:center;-webkit-font-smoothing:antialiased}
-  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.4rem,14vw,4rem);letter-spacing:-.03em}
-  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
-  a.btn{display:inline-block;background:var(--paper);color:var(--ink);text-decoration:none;
-    font-weight:600;padding:14px 30px;border-radius:999px;font-size:1rem}
-  p{color:rgba(237,239,233,.5);font-size:.8rem}
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;
+    min-height:100svh;overflow:hidden;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;
+    font-size:clamp(2.9rem,17vw,5.5rem);letter-spacing:-.03em;
+    opacity:0;transform:translateY(10px) scale(.95);
+    animation:rise .45s cubic-bezier(.2,.7,.2,1) forwards}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;
+    border-radius:.16em;clip-path:inset(0 100% 0 0);
+    animation:wipe .5s .14s cubic-bezier(.4,0,.1,1) forwards}
+  .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:rgba(237,239,233,.16);
+    overflow:hidden;opacity:0;animation:rise .3s .25s forwards}
+  .bar i{display:block;height:100%;background:var(--violet);
+    transform:translateX(-100%);animation:fill var(--dur) .2s linear forwards}
+  .cta{position:fixed;left:0;right:0;text-align:center;
+    bottom:calc(env(safe-area-inset-bottom) + 22px);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.04em;
+    color:rgba(237,239,233,.42);opacity:0;animation:rise .4s .5s forwards}
+  .btn{display:none;background:var(--paper);color:var(--ink);text-decoration:none;
+    font-weight:600;padding:13px 28px;border-radius:999px;font-size:1rem}
+  body.stuck .bar,body.stuck .cta{display:none}
+  body.stuck .btn{display:inline-block}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
+  @keyframes fill{to{transform:translateX(0)}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
 </style>
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="bar"><i></i></div>
   <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
-  <p>Si no abre solo, tocá el botón.</p>
+  <a class="cta" href="https://next-tap.tech">tu Instagram en un toque &middot; next-tap.tech</a>
   <script>
   (function(){
     var web=${webJs}, intent=${intentJs};
     var target=/Android/i.test(navigator.userAgent)?intent:web;
     document.getElementById('go').setAttribute('href', target);
-    try{ window.location.href = target; }catch(e){}
+    var go=function(){ try{ location.href=target; }catch(e){} };
+    setTimeout(go,120);
+    addEventListener('pointerdown',go);
+    setTimeout(function(){
+      if(document.visibilityState==='visible') document.body.classList.add('stuck');
+    },2600);
   })();
   </script>
 </body>
