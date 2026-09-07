@@ -2466,11 +2466,21 @@ function pantallaApp({ web, intent }) {
 // tapea solo ve que es real pero está sin activar — sin botones de acción,
 // solo un link de texto a la marca. HTML autónomo, mismo criterio que
 // pantallaRedireccion (un request, sin bundle).
-function pantallaNoActivado(codigo) {
-  const codigoHtml = String(codigo || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function pantallaNoActivado(codigo, cola = null) {
+  const esc = (v) =>
+    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const codigoHtml = esc(codigo);
   const codigoLinea = codigoHtml
     ? `<p class="codigo">C&oacute;digo del chip: <b>${codigoHtml}</b></p>`
+    : '';
+  // Bloque solo visible cuando el chip está en el stock de un vendedor: su
+  // posición en la cola de entrega + el combo + el vendedor asignado.
+  const colaBloque = cola
+    ? `<div class="cola">
+         <div class="cola-pos">#${cola.posicion}<span class="cola-de"> de ${cola.total}</span></div>
+         <div class="cola-combo">${esc(cola.combo)}</div>
+         ${cola.vendedor ? `<div class="cola-vendedor">Stock de ${esc(cola.vendedor)}</div>` : ''}
+       </div>`
     : '';
   return `<!doctype html>
 <html lang="es">
@@ -2493,12 +2503,18 @@ function pantallaNoActivado(codigo) {
   p.codigo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;color:rgba(237,239,233,.5)}
   p.codigo b{color:var(--paper);letter-spacing:.06em}
   a.link{color:rgba(237,239,233,.5);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;letter-spacing:.03em;text-decoration:none;margin-top:6px}
+  .cola{border:1px solid rgba(123,92,255,.4);background:rgba(123,92,255,.1);border-radius:14px;padding:16px 24px;display:flex;flex-direction:column;gap:4px;align-items:center}
+  .cola-pos{font-size:clamp(1.8rem,9vw,2.6rem);font-weight:700;letter-spacing:-.02em;color:var(--paper)}
+  .cola-de{font-size:.5em;font-weight:500;color:rgba(237,239,233,.55)}
+  .cola-combo{font-size:.95rem;color:var(--paper)}
+  .cola-vendedor{font-size:.82rem;color:rgba(237,239,233,.55)}
 </style>
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
   <h1>Este sticker todav&iacute;a no est&aacute; activado.</h1>
   <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
+  ${colaBloque}
   ${codigoLinea}
   <a class="link" href="https://next-tap.tech">next-tap.tech</a>
 </body>
@@ -2544,7 +2560,43 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // Chip real todavía sin activar (recién grabado en el taller, o en stock de
   // un vendedor sin vender), o un código que no reconocemos: pantalla "sin
   // activar" + invitación a comprar, en vez de tirar a la landing sin contexto.
-  return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo));
+  // Si está en el stock de un vendedor, sumamos su posición en la cola de
+  // entrega (mismo criterio que reservarUnidad) — así el vendedor tapea una
+  // unidad con el iPhone y la pantalla le dice qué número tiene y de qué combo.
+  let cola = null;
+  if (sticker && sticker.estado === 'en_stock' && sticker.vendedor_id) {
+    const esSuelto = !sticker.modelo;
+    const modeloClause = esSuelto ? 'modelo IS NULL' : 'modelo = ?';
+    const funcionClause = sticker.funcion ? 'funcion = ?' : 'funcion IS NULL';
+    const comboArgs = [sticker.vendedor_id];
+    if (!esSuelto) comboArgs.push(sticker.modelo);
+    if (sticker.funcion) comboArgs.push(sticker.funcion);
+
+    const anteriores = await get(
+      `SELECT COUNT(*) AS n FROM stickers_actual
+         WHERE estado = 'en_stock' AND vendedor_id = ? AND ${modeloClause} AND ${funcionClause}
+           AND (creado_en < ? OR (creado_en = ? AND id < ?))`,
+      [...comboArgs, sticker.creado_en, sticker.creado_en, sticker.id]
+    );
+    const total = await get(
+      `SELECT COUNT(*) AS n FROM stickers_actual
+         WHERE estado = 'en_stock' AND vendedor_id = ? AND ${modeloClause} AND ${funcionClause}`,
+      comboArgs
+    );
+    const vendedorRow = await get('SELECT nombre FROM vendedores WHERE id = ?', [sticker.vendedor_id]);
+    const modeloLabel = sticker.modelo
+      ? sticker.modelo.charAt(0).toUpperCase() + sticker.modelo.slice(1)
+      : 'Suelto';
+    cola = {
+      posicion: Number(anteriores.n) + 1,
+      total: Number(total.n),
+      combo: sticker.funcion
+        ? `${modeloLabel} · ${DESTINO_META[sticker.funcion]?.label || sticker.funcion}`
+        : modeloLabel,
+      vendedor: vendedorRow?.nombre || null,
+    };
+  }
+  return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola));
 });
 
 // --- Activación del lote especial: verificás tu email → pagás → editás ---

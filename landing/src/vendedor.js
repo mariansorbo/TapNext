@@ -241,9 +241,14 @@ const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', s
 const comboNombre = (modelo, funcion) =>
   `${MODELO_LABEL[modelo] || modelo}${funcion ? ` · ${FUNC_LABEL[funcion] || funcion}` : ' · sin función'}`;
 
-// Cuántas "próximas a entregar" se resaltan por combo — son las que conviene
-// tener separadas en un bolsillo aparte para no revisar todo el stock al vender.
-const PROXIMAS = 3;
+// Cuántas "próximas a entregar" se muestran por combo antes del "ver más" — son
+// las que conviene tener separadas en un bolsillo aparte para no revisar todo el
+// stock al vender.
+const PROXIMAS = 5;
+
+// Combos con la lista completa desplegada (por "ver más"). Se guarda entre
+// refrescos del poll para que no se colapse sola mientras el vendedor mira.
+const combosAbiertos = new Set();
 
 // grupos: [{ modelo, funcion, unidades: [{ posicion, codigoPublico }] }]
 function renderStock(grupos) {
@@ -253,25 +258,38 @@ function renderStock(grupos) {
   }
   stockList.innerHTML = '';
   grupos.forEach((g) => {
-    const proximas = g.unidades.slice(0, PROXIMAS);
-    const resto = g.unidades.length - proximas.length;
+    const key = `${g.modelo}__${g.funcion || ''}`;
+    const abierto = combosAbiertos.has(key);
+    const extra = g.unidades.slice(PROXIMAS);
     const card = document.createElement('div');
     card.className = 'sticker-card combo-entrega';
+    const unidadHtml = (u, oculta) =>
+      `<div class="combo-entrega-unidad${oculta ? ' is-extra' : ''}"${oculta ? ' hidden' : ''}>` +
+      `<span class="combo-entrega-pos">#${u.posicion}</span>` +
+      `<span class="sticker-code pickup-id">${u.codigoPublico}</span></div>`;
     card.innerHTML = `
       <div class="combo-entrega-head">
         <b>${comboNombre(g.modelo, g.funcion)}</b>
         <span class="combo-entrega-total">${g.unidades.length} en stock</span>
       </div>
       <div class="combo-entrega-proximas">
-        ${proximas
-          .map(
-            (u) =>
-              `<div class="combo-entrega-unidad"><span class="combo-entrega-pos">#${u.posicion}</span><span class="sticker-code pickup-id">${u.codigoPublico}</span></div>`
-          )
-          .join('')}
+        ${g.unidades.slice(0, PROXIMAS).map((u) => unidadHtml(u, false)).join('')}
+        ${extra.map((u) => unidadHtml(u, !abierto)).join('')}
       </div>
-      ${resto > 0 ? `<div class="combo-entrega-resto">+${resto} más en el montón</div>` : ''}
+      ${extra.length ? `<button type="button" class="btn-ghost combo-entrega-mas">${abierto ? 'Ver menos' : `Ver las otras ${extra.length}`}</button>` : ''}
     `;
+    const btn = card.querySelector('.combo-entrega-mas');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const ahora = !combosAbiertos.has(key);
+        if (ahora) combosAbiertos.add(key);
+        else combosAbiertos.delete(key);
+        card.querySelectorAll('.combo-entrega-unidad.is-extra').forEach((el) => {
+          el.hidden = !ahora;
+        });
+        btn.textContent = ahora ? 'Ver menos' : `Ver las otras ${extra.length}`;
+      });
+    }
     stockList.appendChild(card);
   });
 }

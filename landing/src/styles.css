@@ -515,6 +515,7 @@ body.modal-open{overflow:hidden;}
   min-width:2.2em;
 }
 .combo-entrega-resto{margin-top:12px; font-size:0.8rem; color:var(--paper-dim);}
+.combo-entrega-mas{margin-top:14px; font-size:0.85rem; padding:6px 0;}
 
 /* ADMIN (admin.html) */
 .admin-section{margin-top:48px; padding-top:32px; border-top:1px solid var(--line); max-width:900px;}
