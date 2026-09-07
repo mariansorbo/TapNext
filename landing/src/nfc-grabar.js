@@ -305,7 +305,9 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
         configStatus.textContent = 'Creando el lote…';
         loteActual = await api('/lotes', {
           method: 'POST',
-          body: JSON.stringify({ tipo: loteTipoInput.value.trim() || undefined }),
+          // El lote nace en modo "bloqueada" (venta con vendedor). El modo de
+          // cada chip se cambia después con los botones del inventario.
+          body: JSON.stringify({ tipo: loteTipoInput.value.trim() || undefined, modo_activacion: 'bloqueada' }),
         });
       } else {
         const txt = loteSel.options[loteSel.selectedIndex].textContent;

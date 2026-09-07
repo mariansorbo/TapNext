@@ -15,6 +15,7 @@ import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGra
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { montarConsolaSticker } from './consola-sticker.js';
+import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -1313,12 +1314,20 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
   const rows = await all(`
     SELECT s.id, s.codigo_publico, s.uid_nfc, s.estado, s.funcion, s.modelo, s.protegido_en, s.creado_en, s.vigente_desde,
       s.lote_id, l.nombre AS lote_nombre, l.cantidad AS lote_cantidad, l.creado_en AS lote_creado_en, l.tipo AS lote_tipo,
+      l.modo_activacion AS lote_modo_activacion,
       v.nombre AS vendedor_nombre, v.codigo_ref AS vendedor_ref,
-      c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre
+      c.whatsapp AS comprador_whatsapp, c.nombre AS comprador_nombre,
+      lib.id AS lib_id, lib.gratis AS lib_gratis
     FROM stickers_actual s
     LEFT JOIN lotes l ON l.id = s.lote_id
     LEFT JOIN vendedores v ON v.id = s.vendedor_id
     LEFT JOIN compradores c ON c.id = s.comprador_id
+    LEFT JOIN LATERAL (
+      SELECT a.id, a.gratis FROM activaciones_liberadas a
+      WHERE a.sticker_id = s.id AND a.usada_en IS NULL AND a.revocada_en IS NULL
+        AND (a.expira_en IS NULL OR a.expira_en > NOW())
+      ORDER BY a.id DESC LIMIT 1
+    ) lib ON TRUE
     ORDER BY s.id DESC
   `);
   res.json(
@@ -1348,6 +1357,11 @@ app.get('/api/admin/stickers', requireAdmin, async (req, res) => {
       // sentinel), 'normal' (tanda registrada junta desde el panel), o
       // 'suelto' (chip cargado de a uno en el taller, sin lote).
       loteTipo: esLoteEspecial(r.uid_nfc) ? 'especial' : (r.lote_id ? 'normal' : 'suelto'),
+      // Modo de activación: el real, derivado de la liberación vigente (o su
+      // ausencia); `liberacionId` es la fila a revocar para volver a 'bloqueada'.
+      modoActivacion: modoDeLiberacion(r.lib_id ? { gratis: r.lib_gratis } : null),
+      liberacionId: r.lib_id || null,
+      loteModoActivacion: r.lote_modo_activacion || null,
       vendedor: r.vendedor_nombre ? { nombre: r.vendedor_nombre, codigoRef: r.vendedor_ref } : null,
       comprador: r.comprador_whatsapp ? { whatsapp: r.comprador_whatsapp, nombre: r.comprador_nombre } : null,
     }))
@@ -1459,7 +1473,11 @@ app.post('/api/admin/stickers/lote-especial', requireAdmin, async (req, res) => 
     loteId = loteExistente.id;
     await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + ? WHERE id = ?', [specs.length, loteId]);
   } else {
-    const loteResult = await run('INSERT INTO lotes (nombre, cantidad) VALUES (?, ?)', [nombre, specs.length]);
+    // Un lote especial se activa por posesión pagando → modo 'liberada'.
+    const loteResult = await run(
+      "INSERT INTO lotes (nombre, modo_activacion, cantidad) VALUES (?, 'liberada', ?)",
+      [nombre, specs.length]
+    );
     loteId = loteResult.lastInsertRowid;
   }
   const vendedorId = await vendedorEspecialId();
@@ -1608,14 +1626,16 @@ app.post('/api/admin/stickers/individual', requireAdmin, async (req, res) => {
 // /stickers/individual), así el taller sabe qué lote está escribiendo.
 app.get('/api/admin/lotes', requireAdmin, async (req, res) => {
   const rows = await all(`
-    SELECT l.id, l.nombre, l.tipo, l.creado_en, COUNT(s.id) AS chips
+    SELECT l.id, l.nombre, l.tipo, l.modo_activacion, l.creado_en, COUNT(s.id) AS chips
     FROM lotes l
     LEFT JOIN stickers s ON s.lote_id = l.id
-    GROUP BY l.id, l.nombre, l.tipo, l.creado_en
+    GROUP BY l.id, l.nombre, l.tipo, l.modo_activacion, l.creado_en
     ORDER BY l.id DESC
   `);
   res.json(rows.map((r) => ({
-    id: r.id, nombre: r.nombre, tipo: r.tipo || null, creadoEn: r.creado_en, chips: Number(r.chips) || 0,
+    id: r.id, nombre: r.nombre, tipo: r.tipo || null,
+    modoActivacion: r.modo_activacion || 'bloqueada',
+    creadoEn: r.creado_en, chips: Number(r.chips) || 0,
   })));
 });
 
@@ -1623,8 +1643,16 @@ app.post('/api/admin/lotes', requireAdmin, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim()
     || `Taller ${new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
   const tipo = String(req.body?.tipo || '').trim() || null;
-  const result = await run('INSERT INTO lotes (nombre, tipo, cantidad) VALUES (?, ?, 0)', [nombre, tipo]);
-  res.status(201).json({ id: result.lastInsertRowid, nombre, tipo });
+  // Modo de activación por defecto del lote. El asistente de grabado manda
+  // 'bloqueada' explícito; el modo real de cada chip se puede cambiar después.
+  const modoActivacion = MODOS_ACTIVACION.includes(String(req.body?.modo_activacion || req.body?.modoActivacion || '').trim())
+    ? String(req.body.modo_activacion || req.body.modoActivacion).trim()
+    : 'bloqueada';
+  const result = await run(
+    'INSERT INTO lotes (nombre, tipo, modo_activacion, cantidad) VALUES (?, ?, ?, 0)',
+    [nombre, tipo, modoActivacion]
+  );
+  res.status(201).json({ id: result.lastInsertRowid, nombre, tipo, modoActivacion });
 });
 
 // Editar nombre / tipo (etiqueta libre) de un lote existente.
@@ -1675,6 +1703,16 @@ app.patch('/api/admin/stickers/:id/candado', requireAdmin, async (req, res) => {
 
 // --- Activación liberada: activar un producto GRATIS (sin Mercado Pago) ---
 // Ver "Activación liberada" en el vault NextTap - Knowledge.
+
+// Helpers que server/modo-activacion.js necesita inyectados. El núcleo de la
+// creación de liberaciones (con reescritura maestra) vive en ese módulo y se
+// comparte entre este endpoint y los de cambio de modo.
+const MODO_DEPS = {
+  get, all, run, liberacionVigente, snapshotSticker, transicionarSticker,
+  registrarEventoAdmin, vendedorEspecialId, deriveChipPassword, deriveChipPack,
+  esLoteEspecial, normalizarDestino,
+  CHIP_MASTER_SECRET, PUBLIC_ROUTER_BASE, FRONTEND_URL,
+};
 
 // Crea la instancia de activación liberada para un sticker. Opcionalmente
 // re-aplica función/modelo/vendedor/lote (reescritura), y con `forzar` pisa un
@@ -1742,104 +1780,20 @@ app.post('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => 
     if (!l) return res.status(404).json({ error: 'Lote no encontrado.' });
   }
 
-  // Destino pre-cargado (opcional): si viene, se normaliza ya.
-  let destinoValor = null;
-  if (destinoValorRaw) {
-    if (!destinoTipo) return res.status(400).json({ error: 'Elegí el tipo del destino pre-cargado.' });
-    const norm = normalizarDestino(destinoTipo, destinoValorRaw);
-    if (norm.error) return res.status(400).json({ error: norm.error });
-    destinoValor = norm.valor;
-  }
-
-  const actual = await get('SELECT * FROM stickers_actual WHERE id = ?', [sticker.id]);
-  let ventaAnuladaId = null;
-
-  if (actual.estado !== 'en_stock') {
-    if (!forzar) {
-      return res.status(409).json({
-        error: `Este producto está "${actual.estado}". Marcá "reescritura maestra" para forzar la liberación igual.`,
-      });
-    }
-
-    const antes = await snapshotSticker(sticker.id);
-
-    // Anular la venta confirmada vigente de este sticker (si la hay).
-    const ventaVieja = await get(
-      `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
-        WHERE vi.sticker_id = ? AND v.estado_pago = 'confirmado' AND v.anulada_en IS NULL
-        ORDER BY v.id DESC LIMIT 1`,
-      [sticker.id]
-    );
-    if (ventaVieja) {
-      // Si la comisión todavía estaba pendiente, además la sacamos del cálculo
-      // (estado_pago -> 'anulado'). Si ya estaba liquidada, se deja 'confirmado':
-      // la plata ya se transfirió, no se revierte.
-      await run(
-        `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra'
-         ${ventaVieja.comision_liquidada ? '' : ", estado_pago = 'anulado'"} WHERE id = ?`,
-        [ventaVieja.id]
-      );
-      ventaAnuladaId = ventaVieja.id;
-    }
-
-    // Ventas pendientes (pago sin terminar) de este sticker: quedarían huérfanas.
-    await run(
-      `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra', estado_pago = 'anulado'
-        WHERE estado_pago = 'pendiente' AND anulada_en IS NULL
-          AND id IN (SELECT venta_id FROM venta_items WHERE sticker_id = ?)`,
-      [sticker.id]
-    );
-
-    await run('DELETE FROM destinos WHERE sticker_id = ?', [sticker.id]);
-    await transicionarSticker(sticker.id, { estado: 'en_stock', comprador_id: null });
-    await registrarEventoAdmin(sticker.id, 'reescritura_maestra', {
-      antes,
-      despues: await snapshotSticker(sticker.id),
-      motivo: ventaAnuladaId ? `${motivo || ''} (venta #${ventaAnuladaId} anulada)`.trim() : motivo,
-    });
-  }
-
-  // Reescritura opcional de función / modelo / vendedor / lote.
-  if (funcion || modelo || vendedorId) {
-    await transicionarSticker(sticker.id, {
-      ...(modelo ? { modelo } : {}),
-      ...(funcion ? { funcion } : {}),
-      ...(vendedorId ? { vendedor_id: vendedorId } : {}),
-    });
-  }
+  // Mover el sticker a otro lote (opcional, propio de este endpoint).
   if (loteId && loteId !== sticker.lote_id) {
     await run('UPDATE stickers SET lote_id = ? WHERE id = ?', [loteId, sticker.id]);
     await run('UPDATE lotes SET cantidad = COALESCE(cantidad, 0) + 1 WHERE id = ?', [loteId]);
+    sticker.lote_id = loteId;
   }
 
-  const vendedorLiberacion = vendedorId || (await vendedorEspecialId());
-  const expiraEn = expiraDias > 0 ? new Date(Date.now() + expiraDias * 86_400_000).toISOString() : null;
-
-  const r = await run(
-    `INSERT INTO activaciones_liberadas (sticker_id, motivo, destino_tipo, destino_valor, vendedor_id, expira_en, gratis)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [sticker.id, motivo, destinoTipo, destinoValor, vendedorLiberacion, expiraEn, gratis]
-  );
-  await registrarEventoAdmin(sticker.id, 'liberacion', {
-    despues: { modo: gratis ? 'gratis' : 'con pago', motivo, destino: destinoValor ? `${destinoTipo}:${destinoValor}` : null, expiraEn, forzado: actual.estado !== 'en_stock' },
-    motivo,
+  // El núcleo (reescritura maestra + insert de la liberación) vive en
+  // server/modo-activacion.js y se comparte con POST /stickers/:id/modo.
+  const { status, body } = await crearLiberacion(MODO_DEPS, {
+    sticker, gratis, motivo, funcion, modelo, vendedorId,
+    destinoTipo, destinoValorRaw, expiraDias, forzar,
   });
-
-  const claves = CHIP_MASTER_SECRET && sticker.uid_nfc && !esLoteEspecial(sticker.uid_nfc)
-    ? { writePassword: deriveChipPassword(sticker.uid_nfc), writePack: deriveChipPack(sticker.uid_nfc) }
-    : {};
-
-  res.status(201).json({
-    id: r.lastInsertRowid,
-    codigoPublico: sticker.codigo_publico,
-    url: `${PUBLIC_ROUTER_BASE}/v/${sticker.codigo_publico}`,
-    activacionUrl: `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`,
-    forzado: actual.estado !== 'en_stock',
-    ventaAnuladaId,
-    vinculado,
-    gratis,
-    ...claves,
-  });
+  return res.status(status).json({ ...body, vinculado });
 });
 
 app.get('/api/admin/activaciones-liberadas', requireAdmin, async (req, res) => {
@@ -1890,6 +1844,10 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
   await registrarEventoAdmin(row.sticker_id, 'revocacion_liberacion', { motivo: row.motivo });
   res.status(204).end();
 });
+
+// Modo de activación (bloqueada / liberada / gratis) por sticker y por lote.
+// Ver server/modo-activacion.js.
+app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
 
 // Bitácora de acciones manuales del admin sobre un sticker.
 app.get('/api/admin/stickers/:id/historial', requireAdmin, async (req, res) => {

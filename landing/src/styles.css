@@ -578,6 +578,17 @@ body.modal-open{overflow:hidden;}
 details[open] .add-icon{transform:rotate(45deg);}
 .admin-table .row-btn.danger:hover{border-color:#e07a7a; color:#e07a7a;}
 
+/* Celda "Modo" del inventario: tag del modo actual + botones para cambiarlo. */
+.modo-cell{white-space:nowrap;}
+.modo-cell .admin-tag{margin-left:0;}
+.modo-tag.modo-bloqueada{color:var(--paper-dim); border-color:var(--line);}
+.modo-tag.modo-liberada{color:#e0b64a; border-color:#e0b64a;}
+.modo-tag.modo-gratis{color:#5ec08a; border-color:#5ec08a;}
+.modo-btns{display:inline-flex; gap:4px; margin-left:8px; vertical-align:middle;}
+.admin-table .modo-btn{padding:4px 8px; font-size:0.9rem; line-height:1;}
+.admin-table .modo-btn.is-current{border-color:var(--violet); opacity:1; cursor:default;}
+.admin-table .modo-btn:disabled:not(.is-current){opacity:0.4;}
+
 /* Diagrama de flujo del ciclo de vida del producto (debajo del título del admin) */
 .admin-flow{
   display:flex; align-items:stretch; gap:0; margin:32px 0 8px; overflow-x:auto; padding-bottom:8px;

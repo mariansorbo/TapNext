@@ -228,6 +228,12 @@ await db.executeMultiple(`
   -- Etiqueta libre del lote (ej. "Activación Bloqueada"). Solo informativa —
   -- el comportamiento del tap lo sigue decidiendo esLoteEspecial(uid_nfc).
   ALTER TABLE lotes ADD COLUMN IF NOT EXISTS tipo TEXT;
+  -- Modo de activación por defecto del lote: 'bloqueada' (necesita vendedor +
+  -- pago/OTP), 'liberada' (activa por posesión pagando) o 'gratis' (activa por
+  -- posesión sin pagar). El modo real de cada sticker se deriva de si tiene una
+  -- activación liberada vigente (ver modoActivacionDe en server/modo-activacion.js);
+  -- esta columna es la intención por defecto y el objetivo del cambio masivo.
+  ALTER TABLE lotes ADD COLUMN IF NOT EXISTS modo_activacion TEXT NOT NULL DEFAULT 'bloqueada';
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS email TEXT;
   ALTER TABLE compradores ADD COLUMN IF NOT EXISTS google_id TEXT;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_google_id ON compradores(google_id);

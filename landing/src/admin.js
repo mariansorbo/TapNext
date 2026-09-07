@@ -2,6 +2,7 @@ import './styles.css';
 import { applyBrand } from './brand.js';
 import { initNfcGrabar } from './nfc-grabar.js';
 import { initConsolaSticker } from './consola-sticker.js';
+import { modoCeldaHtml, wireModoButtons, MODO_INFO } from './modo-activacion-ui.js';
 
 applyBrand('Admin');
 
@@ -428,15 +429,17 @@ function openStockModal(vendedor) {
   stockModalSub.textContent = `${asignados.length} sticker${asignados.length === 1 ? '' : 's'} en total.`;
   renderTable(
     stockModalTable,
-    ['Código', 'Función', 'Modelo', 'Estado'],
-    asignados.map(
-      (s) => `<tr>
+    ['Código', 'Función', 'Modelo', 'Estado', 'Modo'],
+    asignados.map((s) => {
+      const m = MODO_INFO[s.modoActivacion || 'bloqueada'] || MODO_INFO.bloqueada;
+      return `<tr>
         <td><b>${s.codigoPublico}</b></td>
         <td>${FUNCION_LABELS[s.funcion] || '—'}</td>
         <td>${s.modelo || '—'}</td>
         <td>${ESTADO_LABELS[s.estado] || s.estado}</td>
-      </tr>`
-    )
+        <td><span class="admin-tag modo-tag modo-${s.modoActivacion || 'bloqueada'}">${m.icon} ${m.label}</span></td>
+      </tr>`;
+    })
   );
   stockModalOverlay.classList.add('is-open');
 }
@@ -500,6 +503,11 @@ async function loadStickers() {
   }
 }
 
+// Refresco de las tablas afectadas por un cambio de modo de activación.
+function reloadInventarioYLiberadas() {
+  return Promise.all([loadStickers(), loadLiberadas()]);
+}
+
 const FUNCION_OPTIONS = Object.entries(FUNCION_LABELS)
   .map(([id, label]) => `<option value="${id}">${label}</option>`)
   .join('');
@@ -550,12 +558,13 @@ function renderCrudosTable() {
         <td>${FECHA(s.creadoEn)}</td>
         <td><span class="admin-tag">${s.loteTipoNombre || LOTE_TIPO_LABELS[s.loteTipo] || s.loteTipo}</span></td>
         <td>${loteCell}</td>
+        ${modoCeldaHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`;
     })
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Creado</th><th>Tipo</th><th>Lote</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Creado</th><th>Tipo</th><th>Lote</th><th>Modo</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-funcion-select').forEach((select) => {
     const s = crudos.find((c) => String(c.id) === select.dataset.id);
@@ -592,6 +601,7 @@ function renderCrudosTable() {
     });
   });
   wireDeleteButtons(container);
+  wireModoButtons(container, api, reloadInventarioYLiberadas);
 }
 
 function renderProductosTable() {
@@ -620,12 +630,13 @@ function renderProductosTable() {
             ${vendedoresCache.map((v) => `<option value="${v.id}">${v.nombre} (${v.codigoRef})</option>`).join('')}
           </select>
         </td>
+        ${modoCeldaHtml(s)}
         <td><button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button></td>
       </tr>`
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th></th><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Modo</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.row-vendedor-select').forEach((select) => {
     select.addEventListener('change', async () => {
@@ -648,6 +659,7 @@ function renderProductosTable() {
   });
   updateBulkAssignBar();
   wireDeleteButtons(container);
+  wireModoButtons(container, api, reloadInventarioYLiberadas);
 }
 
 const bulkAssignBar = document.getElementById('bulk-assign-bar');
@@ -707,6 +719,7 @@ function renderAsignadosTable() {
         <td>${s.vendedor.nombre} (${s.vendedor.codigoRef})</td>
         <td>Asignado, sin vender</td>
         <td>${s.asignadoEn ? new Date(s.asignadoEn).toLocaleDateString('es-AR') : '—'}</td>
+        ${modoCeldaHtml(s)}
         <td>
           <button type="button" class="row-btn quitar-vendedor-btn" data-id="${s.id}">Quitar vendedor</button>
           <button type="button" class="row-btn danger delete-sticker-btn" data-id="${s.id}">Eliminar</button>
@@ -715,7 +728,7 @@ function renderAsignadosTable() {
     )
     .join('');
 
-  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  container.innerHTML = `<table><thead><tr><th>Código</th><th>Función</th><th>Modelo</th><th>Vendedor</th><th>Estado</th><th>Fecha de asignación</th><th>Modo</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
 
   container.querySelectorAll('.quitar-vendedor-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -730,6 +743,7 @@ function renderAsignadosTable() {
     });
   });
   wireDeleteButtons(container);
+  wireModoButtons(container, api, reloadInventarioYLiberadas);
 }
 
 function wireDeleteButtons(container) {
