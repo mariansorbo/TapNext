@@ -14,6 +14,7 @@ import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.
 import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
+import { montarConsolaSticker } from './consola-sticker.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -214,6 +215,18 @@ async function registrarEventoAdmin(stickerId, tipo, { antes = null, despues = n
     [stickerId, tipo, antes ? JSON.stringify(antes) : null, despues ? JSON.stringify(despues) : null, motivo || null]
   );
 }
+
+// Consola de stickers (modal "Editar sticker" del panel) — módulo aparte para
+// no entreverar este archivo. Ver server/consola-sticker.js.
+montarConsolaSticker(app, {
+  get,
+  run,
+  requireAdmin,
+  transicionarSticker,
+  registrarEventoAdmin,
+  esLoteEspecial,
+  DESTINO_TIPOS,
+});
 
 // --- Auth: OTP passwordless, canal de verificación intercambiable (RF-12/RF-13) ---
 //

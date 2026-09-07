@@ -1,6 +1,7 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
 import { initNfcGrabar } from './nfc-grabar.js';
+import { initConsolaSticker } from './consola-sticker.js';
 
 applyBrand('Admin');
 
@@ -1311,6 +1312,12 @@ initNfcGrabar({
   api,
   getVendedores: () => vendedoresCache,
   onSaved: () => { loadStickers(); },
+});
+
+initConsolaSticker({
+  api,
+  getVendedores: () => vendedoresCache,
+  onChange: () => { loadStickers(); },
 });
 
 if (getToken()) {

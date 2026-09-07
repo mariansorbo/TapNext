@@ -57,6 +57,9 @@
           <button type="button" class="admin-add-btn" id="toggle-liberada-gratis" title="Activación gratis: el que tiene el producto lo activa SIN pagar, solo con su email. Con reescritura maestra.">
             <span class="add-icon">🎁</span> Activación gratis
           </button>
+          <button type="button" class="admin-add-btn" id="toggle-consola-sticker" title="Editar sticker: cargá un código, mirá su estado en el ciclo y corregí vendedor / función / modelo en tanda. Para cuando tenés un pedazo de stock en la mano.">
+            <span class="add-icon">✏️</span> Editar sticker
+          </button>
           <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
             <span class="add-icon">$</span> Precios
           </button>
@@ -329,6 +332,46 @@
     <h3 id="historial-modal-title">Historial</h3>
     <p class="modal-sub" id="historial-modal-sub"></p>
     <div class="admin-table" id="historial-modal-table"></div>
+  </div>
+</div>
+
+<!-- Modal: consola "Editar sticker" (edición en tanda) -->
+<div class="modal-overlay" id="consola-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="consola-modal-close">✕</button>
+    <h3>Editar sticker</h3>
+    <p class="modal-sub">Cargá un código, corregí lo que haga falta y guardá. El foco vuelve al código para seguir con el siguiente chip.</p>
+    <div class="modal-form">
+      <label>
+        <span>Código / UID / URL</span>
+        <input type="text" id="consola-q" placeholder="abc123, 04a2b3c4… o link pegado" autocomplete="off">
+      </label>
+    </div>
+    <button type="button" class="btn-ghost" id="consola-scan" style="margin:4px 0 8px;">📡 Escanear chip (Chrome Android)</button>
+    <p class="modal-status" id="consola-status"></p>
+    <div id="consola-panel" hidden>
+      <div class="wizard-summary" id="consola-estado"></div>
+      <div class="modal-form">
+        <label>
+          <span>Vendedor</span>
+          <select id="consola-vendedor"></select>
+        </label>
+        <label>
+          <span>Función</span>
+          <select id="consola-funcion"></select>
+        </label>
+        <label>
+          <span>Modelo</span>
+          <select id="consola-modelo"></select>
+        </label>
+        <label>
+          <span>Motivo del cambio</span>
+          <input type="text" id="consola-motivo" placeholder="asigno stock a Ana / corrijo función mal cargada" autocomplete="off">
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="consola-guardar">Guardar cambios</button>
+    </div>
+    <div class="admin-table" id="consola-log"></div>
   </div>
 </div>
 
