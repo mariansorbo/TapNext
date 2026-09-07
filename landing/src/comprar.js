@@ -537,16 +537,15 @@ async function checkReturnFromMercadoPago() {
       if (!token) break;
       const venta = await api(`/ventas/${ventaId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (venta.estadoPago === 'confirmado') {
-        // Mostramos el ID de cada sticker para que el comprador pueda cotejarlo
-        // contra el que le entrega el vendedor en mano — si no coincide, es la
-        // señal de que se equivocaron de imprimible.
+        // Mostramos el ID de cada sticker: es el que el vendedor ya tiene
+        // marcado para entregarte — pedí la unidad con ese código.
         const detalle = venta.items
           .map((it) => `<div><b>${it.modelo}</b>: tu ID es <code class="pickup-id">${it.stickerCodigo}</code></div>`)
           .join('');
         successSummary.innerHTML = `
           ${venta.items.length > 1 ? 'Tus stickers ya están activos.' : 'Tu sticker ya está activo.'}
           ${detalle}
-          <div class="wizard-pay-note">Fijate que el ID que te entregue el vendedor coincida con este — así te asegurás de llevarte el que es. Te llevamos a tu panel para configurar el destino...</div>
+          <div class="wizard-pay-note">Pedile al vendedor la unidad con este código — ya la tiene marcada para vos. Te llevamos a tu panel para configurar el destino...</div>
         `;
         setTimeout(() => {
           window.location.href = '/mi-panel.html';

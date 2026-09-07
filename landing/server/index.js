@@ -643,6 +643,37 @@ app.get('/api/public/precios', async (req, res) => {
 // {modelo, destinoTipo, destinoValor} — uno por sticker que se quiere
 // comprar en esta misma transacción. El envío (si aplica) es único por
 // venta, no por item.
+
+// Reserva UNA unidad `en_stock` para un item de venta, respetando la cola de
+// entrega: dentro del combo (vendedor + modelo + función) siempre sale primero
+// la más vieja en stock — la "#1" que ve el vendedor en su panel. Recién si no
+// hay, afloja el criterio: cualquier función de ese modelo del vendedor y, por
+// último, stock global sin vendedor asignado.
+// `excluir` = ids ya reservados en la misma venta, para no clavar dos veces la
+// misma unidad cuando se compran varias del mismo combo.
+async function reservarUnidad({ vendedorId, modelo, funcion, excluir = [] }) {
+  const esSuelto = modelo === 'suelto';
+  const cond = [`estado = 'en_stock'`, esSuelto ? 'modelo IS NULL' : 'modelo = ?'];
+  const baseArgs = esSuelto ? [] : [modelo];
+  if (excluir.length) cond.push('id <> ALL(?)');
+  const exclArgs = excluir.length ? [excluir] : [];
+  const orden = 'ORDER BY creado_en ASC, id ASC LIMIT 1';
+
+  const intentos = [];
+  if (vendedorId && funcion) intentos.push(['vendedor_id = ? AND funcion = ?', [vendedorId, funcion]]);
+  if (vendedorId) intentos.push(['vendedor_id = ?', [vendedorId]]);
+  intentos.push(['TRUE', []]);
+
+  for (const [extraClause, extraArgs] of intentos) {
+    const row = await get(
+      `SELECT * FROM stickers_actual WHERE ${cond.join(' AND ')} AND ${extraClause} ${orden}`,
+      [...baseArgs, ...exclArgs, ...extraArgs]
+    );
+    if (row) return row;
+  }
+  return null;
+}
+
 app.post('/api/ventas', requireAuth, async (req, res) => {
   if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
 
@@ -691,19 +722,15 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   const reservados = [];
   for (const item of items) {
     const modelo = String(item.modelo).trim();
-    const esSuelto = modelo === 'suelto';
-    const modeloClause = esSuelto ? 'modelo IS NULL' : 'modelo = ?';
-    const modeloArgs = esSuelto ? [] : [modelo];
-    const sticker =
-      (vendedor &&
-        (await get(`SELECT * FROM stickers_actual WHERE estado = ? AND ${modeloClause} AND vendedor_id = ? LIMIT 1`, [
-          'en_stock',
-          ...modeloArgs,
-          vendedor.id,
-        ]))) ||
-      (await get(`SELECT * FROM stickers_actual WHERE estado = ? AND ${modeloClause} LIMIT 1`, ['en_stock', ...modeloArgs]));
+    const funcion = String(item.destinoTipo || '').trim() || null;
+    const sticker = await reservarUnidad({
+      vendedorId: vendedor?.id || null,
+      modelo,
+      funcion,
+      excluir: reservados.map((r) => r.sticker.id),
+    });
 
-    if (!sticker || reservados.some((r) => r.sticker.id === sticker.id)) {
+    if (!sticker) {
       return res.status(409).json({ error: `No hay stock disponible de ${modelo} en este momento.` });
     }
     const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
@@ -1069,20 +1096,26 @@ app.get('/api/vendedor/me', requireVendedor, (req, res) => {
 // Stock que el admin le asignó a este vendedor y todavía no vendió — lo que
 // tiene físicamente consigo para vender.
 app.get('/api/vendedor/stock', requireVendedor, async (req, res) => {
+  // Mismo orden que usa la reserva de venta (reservarUnidad): la más vieja en
+  // stock de cada combo es la "#1", la próxima que se entrega.
   const rows = await all(
     `SELECT id, codigo_publico, modelo, funcion FROM stickers_actual
-       WHERE vendedor_id = ? AND etapa = 'en_vendedor'
-       ORDER BY id`,
+       WHERE vendedor_id = ? AND etapa = 'en_vendedor' AND estado = 'en_stock'
+       ORDER BY modelo, funcion, creado_en ASC, id ASC`,
     [req.vendedor.id]
   );
-  res.json(
-    rows.map((r) => ({
-      id: r.id,
-      codigoPublico: r.codigo_publico,
-      modelo: r.modelo || 'suelto',
-      funcion: r.funcion,
-    }))
-  );
+  // Agrupado por combo (modelo + función), con la posición en la cola de
+  // entrega. La posición es dinámica: al venderse la #1, la #2 pasa a ser #1.
+  const grupos = new Map();
+  for (const r of rows) {
+    const modelo = r.modelo || 'suelto';
+    const funcion = r.funcion || null;
+    const key = `${modelo}__${funcion || ''}`;
+    if (!grupos.has(key)) grupos.set(key, { modelo, funcion, unidades: [] });
+    const g = grupos.get(key);
+    g.unidades.push({ posicion: g.unidades.length + 1, codigoPublico: r.codigo_publico, id: r.id });
+  }
+  res.json([...grupos.values()]);
 });
 
 // Ventas ya confirmadas (pagadas) de este vendedor — el codigo_publico de cada

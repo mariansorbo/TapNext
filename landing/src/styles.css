@@ -502,6 +502,20 @@ body.modal-open{overflow:hidden;}
 .sticker-destino-empty{font-family:var(--mono); font-size:0.82rem;}
 .sticker-edit-form{margin-top:18px; display:flex; flex-direction:column; gap:14px;}
 
+/* Panel de vendedor — "¿Qué entrego?" (combos con cola de entrega) */
+.combo-entrega-head{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  font-family:var(--display); font-size:1rem;
+}
+.combo-entrega-total{font-family:var(--body); font-size:0.8rem; color:var(--paper-dim); white-space:nowrap;}
+.combo-entrega-proximas{margin-top:14px; display:flex; flex-direction:column; gap:8px;}
+.combo-entrega-unidad{display:flex; align-items:center; gap:10px;}
+.combo-entrega-pos{
+  font-family:var(--mono); font-size:0.8rem; font-weight:600; color:var(--paper-dim);
+  min-width:2.2em;
+}
+.combo-entrega-resto{margin-top:12px; font-size:0.8rem; color:var(--paper-dim);}
+
 /* ADMIN (admin.html) */
 .admin-section{margin-top:48px; padding-top:32px; border-top:1px solid var(--line); max-width:900px;}
 .admin-section:first-of-type{margin-top:40px;}

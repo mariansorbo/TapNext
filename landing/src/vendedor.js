@@ -50,7 +50,27 @@ async function api(path, options = {}) {
   return data;
 }
 
+// Poll del panel: mientras el vendedor lo tiene abierto, las ventas nuevas y el
+// stock se refrescan solos sin que tenga que recargar la página.
+const POLL_MS = 10_000;
+let pollTimer = null;
+
+function stopPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+function startPoll() {
+  stopPoll();
+  pollTimer = setInterval(() => {
+    if (dashboardView.hidden) return;
+    loadStock({ silencioso: true });
+    loadVentas({ silencioso: true });
+    loadComision();
+  }, POLL_MS);
+}
+
 function showLogin() {
+  stopPoll();
   loginView.hidden = false;
   dashboardView.hidden = true;
 }
@@ -64,6 +84,7 @@ async function showDashboard() {
     })
     .catch(() => {});
   await Promise.all([loadStock(), loadVentas(), loadComision()]);
+  startPoll();
 }
 
 // Rojo (deuda) a la izquierda, celeste (Base) al medio, verde (tramos altos) a
@@ -196,44 +217,67 @@ logoutButton.addEventListener('click', async () => {
   showLogin();
 });
 
-async function loadStock() {
-  stockList.innerHTML = '<p class="section-lead">Cargando...</p>';
+// `silencioso` = refresco por poll: no muestra "Cargando..." ni pisa la vista si falla.
+async function loadStock({ silencioso = false } = {}) {
+  if (!silencioso) stockList.innerHTML = '<p class="section-lead">Cargando...</p>';
   try {
-    const stock = await api('/stock');
-    renderStock(stock);
+    const grupos = await api('/stock');
+    renderStock(grupos);
   } catch (err) {
     if (err.message.includes('expirada') || err.message.includes('autenticación')) {
       clearToken();
       showLogin();
       return;
     }
-    stockList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
+    if (!silencioso) stockList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
   }
 }
 
-function renderStock(stock) {
-  if (!stock.length) {
+const FUNC_LABEL = {
+  whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
+  review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
+};
+const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', suelto: 'Suelto' };
+const comboNombre = (modelo, funcion) =>
+  `${MODELO_LABEL[modelo] || modelo}${funcion ? ` · ${FUNC_LABEL[funcion] || funcion}` : ' · sin función'}`;
+
+// Cuántas "próximas a entregar" se resaltan por combo — son las que conviene
+// tener separadas en un bolsillo aparte para no revisar todo el stock al vender.
+const PROXIMAS = 3;
+
+// grupos: [{ modelo, funcion, unidades: [{ posicion, codigoPublico }] }]
+function renderStock(grupos) {
+  if (!Array.isArray(grupos) || !grupos.length) {
     stockList.innerHTML = '<p class="section-lead">No tenés stock asignado todavía.</p>';
     return;
   }
   stockList.innerHTML = '';
-  stock.forEach((s) => {
+  grupos.forEach((g) => {
+    const proximas = g.unidades.slice(0, PROXIMAS);
+    const resto = g.unidades.length - proximas.length;
     const card = document.createElement('div');
-    card.className = 'sticker-card';
+    card.className = 'sticker-card combo-entrega';
     card.innerHTML = `
-      <div class="sticker-card-head">
-        <div>
-          <div class="sticker-code pickup-id">${s.codigoPublico}</div>
-          <div class="sticker-meta">${s.modelo}</div>
-        </div>
+      <div class="combo-entrega-head">
+        <b>${comboNombre(g.modelo, g.funcion)}</b>
+        <span class="combo-entrega-total">${g.unidades.length} en stock</span>
       </div>
+      <div class="combo-entrega-proximas">
+        ${proximas
+          .map(
+            (u) =>
+              `<div class="combo-entrega-unidad"><span class="combo-entrega-pos">#${u.posicion}</span><span class="sticker-code pickup-id">${u.codigoPublico}</span></div>`
+          )
+          .join('')}
+      </div>
+      ${resto > 0 ? `<div class="combo-entrega-resto">+${resto} más en el montón</div>` : ''}
     `;
     stockList.appendChild(card);
   });
 }
 
-async function loadVentas() {
-  ventasList.innerHTML = '<p class="section-lead">Cargando...</p>';
+async function loadVentas({ silencioso = false } = {}) {
+  if (!silencioso) ventasList.innerHTML = '<p class="section-lead">Cargando...</p>';
   try {
     const ventas = await api('/ventas');
     renderVentas(ventas);
@@ -243,7 +287,7 @@ async function loadVentas() {
       showLogin();
       return;
     }
-    ventasList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
+    if (!silencioso) ventasList.innerHTML = `<p class="modal-status is-error">${err.message}</p>`;
   }
 }
 
