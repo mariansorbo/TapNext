@@ -509,6 +509,25 @@ body.modal-open{overflow:hidden;}
 .sticker-funcion-fija{margin:0; font-size:0.86rem; color:var(--paper-dim);}
 .sticker-funcion-fija b{color:var(--paper);}
 
+/* Panel "Entrega" (despacho de venta presencial) */
+.despacho-card{
+  margin-top:18px; padding:20px; border-radius:14px; text-align:center;
+  border:1px solid rgba(123,92,255,0.35); background:rgba(123,92,255,0.08);
+  display:flex; flex-direction:column; gap:8px;
+}
+.despacho-chip{font-family:var(--mono); font-size:0.8rem; color:var(--paper-dim); letter-spacing:0.03em;}
+.despacho-codigo{
+  font-family:var(--mono); font-size:3rem; font-weight:700; letter-spacing:0.14em;
+  color:var(--amber);
+}
+.despacho-mail{font-size:1.05rem; color:var(--paper); word-break:break-all;}
+.despacho-sub{font-size:0.82rem; color:var(--paper-dim);}
+.despacho-ya{font-size:1rem; color:var(--paper);}
+.despacho-acciones{display:flex; gap:10px; margin-top:12px;}
+.despacho-acciones button{flex:1;}
+.despacho-manual{display:flex; gap:8px; margin-top:16px;}
+.despacho-manual input{flex:1;}
+
 /* Panel de vendedor — "¿Qué entrego?" (combos con cola de entrega) */
 .combo-entrega-head{
   display:flex; align-items:baseline; justify-content:space-between; gap:12px;

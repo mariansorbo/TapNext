@@ -2,6 +2,7 @@ import './styles.css';
 import { applyBrand } from './brand.js';
 import { initNfcGrabar } from './nfc-grabar.js';
 import { initConsolaSticker } from './consola-sticker.js';
+import { initDespacho } from './despacho.js';
 import { modoCeldaHtml, wireModoButtons, MODO_INFO } from './modo-activacion-ui.js';
 
 applyBrand('Admin');
@@ -1333,6 +1334,8 @@ initConsolaSticker({
   getVendedores: () => vendedoresCache,
   onChange: () => { loadStickers(); },
 });
+
+initDespacho({ api });
 
 if (getToken()) {
   showDashboard().catch(() => showLogin());

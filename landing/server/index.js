@@ -16,6 +16,7 @@ import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verif
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { montarConsolaSticker } from './consola-sticker.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
+import { crearDespachoRouter } from './despacho.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -1015,8 +1016,13 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // varios stickers a la vez. El destino es opcional: si el comprador no
       // lo cargó al pagar, el sticker igual queda "activo" y disponible para
       // usar/editar desde su panel apenas quiera (ver mi-panel.js).
+      // Venta presencial con cola de entrega: el sticker NO se activa acá —
+      // queda 'vendido_pendiente' hasta que el vendedor lo despache (late
+      // binding). El destino también se aplica recién en la entrega.
+      const enColaDeEntrega = !!venta.vendedor_id;
+
       for (const item of items) {
-        if (item.destino_valor) {
+        if (!enColaDeEntrega && item.destino_valor) {
           // Ya debería venir normalizado desde /api/ventas, pero re-normalizamos
           // por las dudas (ventas viejas, cargas manuales) y caemos al crudo si
           // no valida — mejor un destino raro que ninguno.
@@ -1027,7 +1033,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
             args: [item.sticker_id, item.destino_tipo, norm.valor || aUrlAbsoluta(item.destino_valor) || item.destino_valor],
           });
         }
-        await transicionarSticker(item.sticker_id, { estado: 'activo' });
+        if (!enColaDeEntrega) await transicionarSticker(item.sticker_id, { estado: 'activo' });
         // Si este sticker se activó vía una "activación liberada con pago",
         // marcamos esa liberación como usada (la gratis se marca en el POST).
         await run(
@@ -1950,6 +1956,15 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
 // Modo de activación (bloqueada / liberada / gratis) por sticker y por lote.
 // Ver server/modo-activacion.js.
 app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
+
+// Cola de entrega y botón de despacho (late binding). Ver server/despacho.js y
+// "Cola de entrega y botón de despacho" en el vault. El router aplica
+// requireAdmin / requireVendedor por ruta.
+const DESPACHO_DEPS = {
+  get, all, run, transicionarSticker, registrarEventoAdmin, normalizarDestino,
+  aUrlAbsoluta, isoInMinutes, RETIRO_TTL_MIN, requireAdmin, requireVendedor,
+};
+app.use('/api', crearDespachoRouter(DESPACHO_DEPS));
 
 // Bitácora de acciones manuales del admin sobre un sticker.
 app.get('/api/admin/stickers/:id/historial', requireAdmin, async (req, res) => {

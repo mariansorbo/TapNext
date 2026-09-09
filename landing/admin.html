@@ -48,6 +48,9 @@
           <button type="button" class="admin-add-btn" id="open-grabar-button" title="Programar chips NFC en tanda desde el celular (Chrome Android). El registro se crea al leer y grabar cada chip.">
             <span class="add-icon">🔧</span> Grabar chips NFC
           </button>
+          <button type="button" class="admin-add-btn" id="open-despacho-button" title="Entrega presencial: dejá el lector escaneando, tapeá cualquier llavero del combo y el panel te dice a quién entregárselo (código de retiro). Chrome en Android.">
+            <span class="add-icon">🚚</span> Entrega
+          </button>
           <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
             <span class="add-icon">+</span> Lote especial
           </button>
@@ -465,6 +468,23 @@
     <h3 id="links-modal-title">Links de venta</h3>
     <p class="modal-sub">Cada cara del llavero del vendedor apunta a uno de estos. Los de promo aplican el descuento de a pares.</p>
     <div id="links-modal-list" style="display:flex; flex-direction:column; gap:18px; margin:6px 0 4px;"></div>
+  </div>
+</div>
+
+<!-- Modal: panel "Entrega" (despacho de venta presencial, Web NFC) -->
+<div class="modal-overlay" id="despacho-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="despacho-modal-close">✕</button>
+    <h3>Entrega</h3>
+    <p class="modal-sub">Dejá el lector escaneando y tapeá cualquier llavero del combo que te pidieron. El panel te muestra a quién le toca (código de retiro) — se lo pedís, lo confirma, y tocás "Entregar". Chrome en Android con NFC.</p>
+    <button type="button" class="btn-primary modal-submit" id="despacho-start">Empezar a escanear</button>
+    <p class="modal-status" id="despacho-status"></p>
+    <div class="despacho-card" id="despacho-card" hidden></div>
+    <p class="modal-status is-error" id="despacho-outbox" hidden></p>
+    <div class="despacho-manual">
+      <input type="text" id="despacho-manual-codigo" placeholder="o ingresá el código del chip a mano">
+      <button type="button" class="btn-ghost" id="despacho-manual-btn">Buscar</button>
+    </div>
   </div>
 </div>
 
