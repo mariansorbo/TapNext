@@ -406,6 +406,39 @@ await db.executeMultiple(`
   -- borra la fila: se marca, conservando historial y plata.
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS anulada_en TIMESTAMPTZ;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS anulada_motivo TEXT;
+
+  -- === Cola de entrega y botón de despacho (ver "Cola de entrega y botón de
+  -- despacho" en el vault). Late binding: la unidad física se ata al pedido en
+  -- la ENTREGA, no en el pago. Al pagar se reserva una unidad sólo para
+  -- descontar stock; en el despacho el vendedor tapea CUALQUIER unidad del combo
+  -- y el sistema re-apunta el venta_item a la tapeada (libera la original). ===
+  -- Código de retiro: 4 dígitos que el comprador ve en la pantalla de compra
+  -- exitosa y le muestra al vendedor. La verificación es siempre server-side
+  -- (no hay estado compartido entre el dispositivo del vendedor y el del
+  -- comprador). Se genera al confirmarse el pago (webhook).
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS codigo_retiro TEXT;
+  -- Token opaco largo, guardado en el localStorage del comprador y en el link
+  -- del mail de confirmación — para "ver mi compra" sin re-verificar.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS token_comprador TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_token_comprador ON ventas(token_comprador) WHERE token_comprador IS NOT NULL;
+  -- Estado de entrega presencial de la venta:
+  --   pendiente  -> pagada, esperando en la cola del combo
+  --   entregado  -> el vendedor despachó todas sus unidades
+  --   ausente    -> se llamó al comprador y no apareció; vuelve al fondo de la cola
+  -- Online con envío no usa esto (queda NULL).
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS retiro_estado TEXT;
+  -- Momento en que el código de retiro deja de ser válido (no-show). Al vencer,
+  -- el pedido pasa a 'ausente' y se recalcula al fondo de la cola.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS retiro_expira_en TIMESTAMPTZ;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entregada_en TIMESTAMPTZ;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entregada_por_vendedor_id INTEGER REFERENCES vendedores(id);
+  -- Cuándo el comprador llamó "ausente" volvió a la cola (para el orden FIFO:
+  -- un pedido que volvió va detrás de los que nunca faltaron). NULL = nunca faltó.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS reencolada_en TIMESTAMPTZ;
+  -- Marca de despacho por item: qué unidad se entregó y cuándo. El venta_item
+  -- puede terminar apuntando a un sticker distinto del reservado en el pago.
+  ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS entregado_en TIMESTAMPTZ;
+  ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS sticker_reservado_id INTEGER REFERENCES stickers(id);
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este
