@@ -426,6 +426,11 @@ body.modal-open{overflow:hidden;}
   font-family:var(--mono); font-size:1.05rem; font-weight:700; color:var(--amber);
   background:rgba(242,184,75,0.12); padding:2px 8px; border-radius:6px; letter-spacing:0.03em;
 }
+.pickup-code{
+  font-family:var(--mono); font-size:2.8rem; font-weight:700; color:var(--amber);
+  letter-spacing:0.12em; text-align:center; margin:14px 0;
+  background:rgba(242,184,75,0.12); padding:12px; border-radius:12px;
+}
 .tyc-open{margin-top:16px;}
 .tyc-check{
   display:flex; align-items:center; gap:10px; margin-top:16px;

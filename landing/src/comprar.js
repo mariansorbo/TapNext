@@ -540,8 +540,32 @@ async function checkReturnFromMercadoPago() {
       if (!token) break;
       const venta = await api(`/ventas/${ventaId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (venta.estadoPago === 'confirmado') {
-        // Mostramos el ID de cada sticker: es el que el vendedor ya tiene
-        // marcado para entregarte — pedí la unidad con ese código.
+        // Guardamos el token para "ver mi compra" sin re-verificar.
+        if (venta.tokenComprador) {
+          try {
+            localStorage.setItem(`tap_compra_${ventaId}`, venta.tokenComprador);
+          } catch {}
+        }
+        if (venta.codigoRetiro) {
+          // Venta presencial: NO le damos un ID de unidad para buscar. El
+          // vendedor despacha cualquier llavero del combo y lo verifica con
+          // este código (ver "Cola de entrega y botón de despacho" en el vault).
+          const cola =
+            venta.posicionCola && venta.esperandoEntrega
+              ? `<div class="wizard-pay-note">Sos el #${venta.posicionCola} de ${venta.esperandoEntrega} en la fila.</div>`
+              : '';
+          successSummary.innerHTML = `
+            <div>¡Pago confirmado! Mostrale este código al vendedor:</div>
+            <div class="pickup-code">${venta.codigoRetiro}</div>
+            ${cola}
+            <div class="wizard-pay-note">El vendedor te va a llamar y entregar tu llavero. Después configurás el destino desde tu panel.</div>
+          `;
+          setTimeout(() => {
+            window.location.href = '/mi-panel.html';
+          }, 12000);
+          return;
+        }
+        // Online / sin cola: mostramos el ID de cada sticker ya asignado.
         const detalle = venta.items
           .map((it) => `<div><b>${it.modelo}</b>: tu ID es <code class="pickup-id">${it.stickerCodigo}</code></div>`)
           .join('');
