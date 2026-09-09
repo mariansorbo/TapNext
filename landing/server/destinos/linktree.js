@@ -13,5 +13,4 @@ export default destinoHandle({
   dominios: ['linktr.ee', 'linktree.com'],
   // Usuario de Linktree: letras, números, punto, guión y guión bajo; hasta 30.
   re: /^[a-z0-9._-]{1,30}$/i,
-  reChars: /[a-z0-9._-]+/i,
 });

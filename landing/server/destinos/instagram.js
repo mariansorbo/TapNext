@@ -13,9 +13,9 @@ export default destinoHandle({
   // Dominios de la plataforma: así `instagram.com` pelado da error (no hay
   // usuario) pero `juan.perez` se toma como usuario y no como dominio.
   dominios: ['instagram.com', 'instagr.am', 'ig.me'],
-  // Usuario real de Instagram: letras, números, punto y guión bajo; hasta 30.
-  re: /^[a-z0-9._]{1,30}$/i,
-  reChars: /[a-z0-9._]+/i,
+  // Usuario real de Instagram: letras, números, punto y guión bajo; hasta 30,
+  // sin puntos seguidos.
+  re: /^(?!.*\.\.)[a-z0-9._]{1,30}$/i,
   // URLs de perfil que traen el usuario un tramo más adentro:
   //  instagram.com/_u/<user>  (abrir en la app),  instagram.com/stories/<user>/<id>
   saltarTramo: ['_u', '_n', 's', 'stories'],

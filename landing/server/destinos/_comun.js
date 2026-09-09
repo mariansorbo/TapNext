@@ -216,7 +216,6 @@ export function destinoLink({ id, meta }) {
 
 // Forma válida del usuario ya limpio, por defecto (Instagram/Linktree afinan).
 const RE_HANDLE_DEFAULT = /^[a-z0-9._-]{1,60}$/i;
-const CHARS_HANDLE_DEFAULT = /[a-z0-9._-]+/i;
 
 // Fábrica para destinos "usuario de una plataforma": acepta `@juan`, `juan`, la
 // URL del perfil o un link de "abrir en la app", y siempre guarda la URL
@@ -225,8 +224,6 @@ const CHARS_HANDLE_DEFAULT = /[a-z0-9._-]+/i;
 //
 //  - `dominios`: hostnames de la plataforma.
 //  - `re`: forma completa válida del usuario limpio.
-//  - `reChars`: los caracteres permitidos, para rescatar el arranque válido
-//    (`tunegocio (mi tienda)` -> `tunegocio`) antes de dar error.
 //  - `saltarTramo` / `cortarTramo`: tramos reservados de la ruta.
 export function destinoHandle({
   id,
@@ -235,7 +232,6 @@ export function destinoHandle({
   errorMsg,
   dominios = [],
   re = RE_HANDLE_DEFAULT,
-  reChars = CHARS_HANDLE_DEFAULT,
   saltarTramo = [],
   cortarTramo = [],
 }) {
@@ -243,10 +239,13 @@ export function destinoHandle({
     const h = handleDe(crudo, { dominios, saltarTramo, cortarTramo });
     if (!h) return null;
     if (re.test(h)) return h;
-    // Rescate: el arranque válido, cortando en el primer caracter no permitido.
-    const m = h.match(reChars);
-    const rescatado = m ? m[0].replace(/^\.+/, '').replace(/\.+$/, '') : '';
-    return rescatado && re.test(rescatado) ? rescatado : null;
+    // Rescate CONSERVADOR: solo se saca basura de las PUNTAS (signos,
+    // paréntesis, puntos que ninguna plataforma admite al borde). Si el
+    // caracter inválido está en el MEDIO (una tilde, una ñ, un guión, un
+    // espacio), es error — mejor pedir de nuevo que mandar a un perfil
+    // equivocado sin avisar ("juán.pérez" NO se convierte en "ju").
+    const podado = h.replace(/^[^a-z0-9_]+/i, '').replace(/[^a-z0-9_]+$/i, '');
+    return podado && podado !== h && re.test(podado) ? podado : null;
   }
 
   return {

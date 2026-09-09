@@ -57,6 +57,17 @@ test('instagram: rescate del arranque válido y errores honestos', () => {
   err('instagram', '@@@');
 });
 
+test('instagram: un caracter inválido en el MEDIO es error, no un destino equivocado', () => {
+  // El rescate NUNCA debe convertir "juán.pérez" en "ju" y mandar a un perfil
+  // que no es. Basura solo en las puntas sí se poda.
+  err('instagram', 'juán.pérez');
+  err('instagram', 'josé_gonzalez');
+  err('instagram', '@tu-negocio'); // Instagram no permite guiones
+  err('instagram', 'tu..negocio'); // ni puntos seguidos
+  ok('instagram', '...tunegocio...', 'https://instagram.com/tunegocio'); // puntas: sí
+  ok('instagram', '_juan_', 'https://instagram.com/_juan_'); // guión bajo en punta: válido
+});
+
 // --- WhatsApp ----------------------------------------------------------
 
 test('whatsapp: AR -> wa.me con 54 sin el 9', () => {
