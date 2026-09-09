@@ -24,14 +24,38 @@ function localAR(d) {
   return n;
 }
 
+// Etiquetas que la gente escribe antes del número ("mi whatsapp: 11...", "cel
+// 11...", "tel. 11...").
+const ETIQUETA = /^\s*(?:mi\s+)?(?:whats?app|wsp|wpp|w|tel[eé]fono|tel|cel(?:ular)?|n[uú]mero|nro|contacto|llam[aá](?:me|nos)?|escrib[ií](?:me|nos)?)\s*(?:es|:|-|–|\.)?\s*/i;
+
+// Link "directo" de WhatsApp que NO es un número: wa.me/message/<id> (link corto
+// de cuenta business) y wa.me/qr/<id>. Se guardan tal cual — redirigen bien.
+const RE_LINK_DIRECTO = /(?:wa\.me|(?:api\.)?whatsapp\.com)\/(message|qr)\/([a-z0-9]+)/i;
+export function waLinkDirecto(crudo) {
+  const m = limpiar(crudo).match(RE_LINK_DIRECTO);
+  return m ? `https://wa.me/${m[1].toLowerCase()}/${m[2]}` : null;
+}
+
 // El usuario carga su número como lo marca en el celular; acá lo dejamos listo.
 export function aE164(crudo) {
-  const s = limpiar(crudo);
+  let s = limpiar(crudo)
+    .replace(/^(?:tel|sms|whatsapp|whatsapp-tel):/i, '') // esquemas tel: / whatsapp:
+    .replace(ETIQUETA, '')
+    .trim();
+
   let digits = '';
-  const wa = s.match(/(?:wa\.me|api\.whatsapp\.com\/send|whatsapp\.com\/send)\/?\??(?:phone=)?\+?([\d\s().-]+)/i);
-  if (wa) digits = wa[1].replace(/\D/g, '');
-  else if (/^\+?[\d\s().-]+$/.test(s)) digits = s.replace(/\D/g, '');
-  if (!digits) return null;
+  const wa = s.match(
+    /(?:wa\.me|(?:api\.)?whatsapp\.com(?:\/send)?)\/?\??(?:phone=)?\+?([\d\s().\-/]+)/i
+  );
+  if (wa) {
+    digits = wa[1].replace(/\D/g, '');
+  } else {
+    // El tramo más largo que parezca teléfono, ignorando texto alrededor
+    // ("mi cel es 11 2233 4455 gracias").
+    const m = s.match(/\+?\d[\d\s().\-/]{5,}\d/);
+    if (m) digits = m[0].replace(/\D/g, '');
+  }
+  if (digits.length < 8) return null;
 
   digits = digits.replace(/^00/, ''); // 00 = prefijo internacional
 
@@ -61,12 +85,18 @@ export default {
     ayuda: 'Con característica (ej: 11), como lo marcás en el celular. El resto lo armamos nosotros. También podés pegar un link wa.me/...',
   },
   normalizar(crudo) {
+    const directo = waLinkDirecto(crudo);
+    if (directo) return { valor: directo };
     const e164 = aE164(crudo);
     return e164
       ? { valor: `https://wa.me/${e164}` }
       : { error: 'Poné un número de WhatsApp válido (con característica) o un link wa.me/...' };
   },
   resolver(valor) {
+    // Link directo (wa.me/message/…): redirect pelado, no hay número que abrir.
+    if (RE_LINK_DIRECTO.test(String(valor))) {
+      return { modo: 'redirect', url: waLinkDirecto(valor) || valor, interstitial: false };
+    }
     // Re-normaliza (arregla filas viejas guardadas con el 9, sin migrar).
     const e164 = aE164(valor);
     if (!e164) return { modo: 'redirect', url: valor, interstitial: false };
@@ -84,6 +114,7 @@ export default {
     };
   },
   preview(valor) {
+    if (RE_LINK_DIRECTO.test(String(valor))) return `Abre ${waLinkDirecto(valor) || valor}`;
     const e164 = aE164(valor) || String(valor).replace(/\D/g, '');
     return `Abre un chat de WhatsApp con +${e164}`;
   },
