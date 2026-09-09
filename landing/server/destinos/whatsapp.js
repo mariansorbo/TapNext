@@ -36,43 +36,62 @@ export function waLinkDirecto(crudo) {
   return m ? `https://wa.me/${m[1].toLowerCase()}/${m[2]}` : null;
 }
 
-// El usuario carga su número como lo marca en el celular; acá lo dejamos listo.
-export function aE164(crudo) {
-  let s = limpiar(crudo)
-    .replace(/^(?:tel|sms|whatsapp|whatsapp-tel):/i, '') // esquemas tel: / whatsapp:
-    .replace(ETIQUETA, '')
-    .trim();
-
-  let digits = '';
-  const wa = s.match(
-    /(?:wa\.me|(?:api\.)?whatsapp\.com(?:\/send)?)\/?\??(?:phone=)?\+?([\d\s().\-/]+)/i
-  );
-  if (wa) {
-    digits = wa[1].replace(/\D/g, '');
-  } else {
-    // El tramo más largo que parezca teléfono, ignorando texto alrededor
-    // ("mi cel es 11 2233 4455 gracias").
-    const m = s.match(/\+?\d[\d\s().\-/]{5,}\d/);
-    if (m) digits = m[0].replace(/\D/g, '');
-  }
-  if (digits.length < 8) return null;
-
+// Toma una tira de dígitos ya pelada y decide si es un número usable.
+// Devuelve `{ e164 }` o `{ motivo }`: 'corto' | 'largo' | 'formato'.
+function clasificar(digits) {
+  if (!digits) return { motivo: 'formato' };
   digits = digits.replace(/^00/, ''); // 00 = prefijo internacional
+  if (digits.length < 8) return { motivo: 'corto' };
+  if (digits.length > 15) return { motivo: 'largo' };
 
   // Ya trae el código de país de Argentina.
   if (digits.startsWith('54')) {
     const resto = localAR(digits.slice(2));
-    return resto.length === 10 ? '54' + resto : null;
+    return resto.length === 10 ? { e164: '54' + resto } : { motivo: 'corto' };
   }
-
   // Sin código de país: asumimos Argentina.
   const local = localAR(digits);
-  if (local.length === 10) return '54' + local;
-
+  if (local.length === 10) return { e164: '54' + local };
   // Otro país: si parece un internacional plausible, lo dejamos como vino.
-  if (digits.length >= 11 && digits.length <= 15) return digits;
+  if (digits.length >= 11 && digits.length <= 15) return { e164: digits };
+  return { motivo: 'corto' };
+}
 
-  return null;
+// Separadores de "puse varios números": `11 1 / 11 2`, `11 1 o 11 2`, saltos.
+const MULTI = /\s*(?:\/|,|;|\||\n|\bo\b|\by\b)\s*/i;
+
+// Analiza lo que tipeó la persona. Devuelve `{ e164 }` o `{ motivo }`:
+// 'vacio' | 'letras' (número con letras) | 'corto' | 'largo' | 'formato'.
+export function analizarTelefono(crudo) {
+  let s = limpiar(crudo)
+    .replace(/^(?:tel|sms|whatsapp|whatsapp-tel):/i, '') // esquemas tel: / whatsapp:
+    .replace(ETIQUETA, '')
+    .trim();
+  if (!s) return { motivo: 'vacio' };
+
+  // Caso URL de WhatsApp: se procesa entera.
+  const wa = s.match(/(?:wa\.me|(?:api\.)?whatsapp\.com(?:\/send)?)\/?\??(?:phone=)?\+?([\d\s().-]+)/i);
+  if (wa) return clasificar(wa[1].replace(/\D/g, ''));
+
+  // Texto libre: puede haber varios números o texto alrededor. Se prueba cada
+  // candidato y gana el primero válido.
+  let motivo = 'formato';
+  for (const cand of s.split(MULTI).filter(Boolean)) {
+    const m = cand.match(/\+?\d[\d\s().-]{5,}\d/);
+    if (!m) {
+      if (motivo === 'formato' && /\d/.test(cand) && /[a-z]/i.test(cand)) motivo = 'letras';
+      continue;
+    }
+    const r = clasificar(m[0].replace(/\D/g, ''));
+    if (r.e164) return r;
+    if (motivo === 'formato' || motivo === 'letras') motivo = r.motivo;
+  }
+  return { motivo };
+}
+
+// El usuario carga su número como lo marca en el celular; acá lo dejamos listo.
+export function aE164(crudo) {
+  return analizarTelefono(crudo).e164 || null;
 }
 
 /** @type {import('./index.js').Destino} */
@@ -87,10 +106,16 @@ export default {
   normalizar(crudo) {
     const directo = waLinkDirecto(crudo);
     if (directo) return { valor: directo };
-    const e164 = aE164(crudo);
-    return e164
-      ? { valor: `https://wa.me/${e164}` }
-      : { error: 'Poné un número de WhatsApp válido (con característica) o un link wa.me/...' };
+    const { e164, motivo } = analizarTelefono(crudo);
+    if (e164) return { valor: `https://wa.me/${e164}` };
+    const MSG = {
+      vacio: 'Escribí tu número de WhatsApp con característica (ej: 11 2233 4455) o pegá tu link wa.me/...',
+      letras: 'Ese número tiene letras. Poné solo los números, con característica (ej: 11 2233 4455).',
+      corto: 'El número quedó corto. Fijate que esté completo: característica + número (ej: 11 2233 4455).',
+      largo: 'Ese número tiene demasiados dígitos. Debería ser uno solo (ej: 11 2233 4455).',
+      formato: 'No pude leer el número. Poné característica + número (ej: 11 2233 4455) o tu link wa.me/...',
+    };
+    return { error: MSG[motivo] || MSG.formato };
   },
   resolver(valor) {
     // Link directo (wa.me/message/…): redirect pelado, no hay número que abrir.

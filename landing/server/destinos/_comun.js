@@ -120,10 +120,14 @@ const PARECE_DOMINIO = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i;
 //  - `saltarTramo`: tramos de ruta donde el usuario está en el SIGUIENTE tramo
 //    (`instagram.com/_u/<user>`). `cortarTramo`: tramos que son contenido sin
 //    usuario recuperable (`instagram.com/p/<id>`).
+// Devuelve `{ handle, motivo }`. `motivo` (cuando `handle` es '') dice POR QUÉ
+// no salió: 'vacio' | 'ambiguo' (varias palabras, ninguna pista) | 'solo_dominio'
+// (pegó `instagram.com` sin usuario) | 'contenido' (link a un post, no un perfil).
 export function handleDe(crudo, { dominios = [], saltarTramo = [], cortarTramo = [] } = {}) {
   const doms = dominios.map((d) => d.toLowerCase());
   const salto = new Set(saltarTramo);
   const corte = new Set(cortarTramo);
+  const vacio = (motivo) => ({ handle: '', motivo });
 
   let s = limpiar(crudo)
     // Etiqueta al principio ("mi ig:", "instagram es", "usuario:").
@@ -139,6 +143,8 @@ export function handleDe(crudo, { dominios = [], saltarTramo = [], cortarTramo =
   // Con varias palabras: quedarse con la que es el handle — la que arranca en
   // `@`, o la que trae el dominio de la plataforma. Si no hay ninguna pista y
   // hay más de una palabra, es ambiguo (mejor pedir de nuevo que adivinar mal).
+  if (!s) return vacio('vacio');
+
   const tokens = s.split(/\s+/).filter(Boolean);
   if (tokens.length > 1) {
     const arroba = tokens.find((t) => t.startsWith('@'));
@@ -147,9 +153,10 @@ export function handleDe(crudo, { dominios = [], saltarTramo = [], cortarTramo =
     );
     if (arroba) s = arroba;
     else if (conDominio) s = conDominio;
-    else return '';
+    else return vacio('ambiguo');
   }
   s = s.replace(/^@+\s*/, '');
+  if (!s) return vacio('vacio');
 
   const teniaEsquema = /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || /^www\./i.test(s);
   s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^www\./i, '');
@@ -161,15 +168,21 @@ export function handleDe(crudo, { dominios = [], saltarTramo = [], cortarTramo =
     const tl = t.toLowerCase().replace(/^www\./, '');
     return doms.some((d) => tl === d || tl.endsWith('.' + d));
   };
+  let saleDominio = false;
   if (partes.length) {
-    if (esDominioPlataforma(partes[0])) partes.shift();
-    else if ((teniaRuta || teniaEsquema) && PARECE_DOMINIO.test(partes[0])) partes.shift();
+    if (esDominioPlataforma(partes[0])) {
+      partes.shift();
+      saleDominio = true;
+    } else if ((teniaRuta || teniaEsquema) && PARECE_DOMINIO.test(partes[0])) {
+      partes.shift();
+      saleDominio = true;
+    }
   }
 
   // Saltar / cortar tramos reservados (Instagram: /_u/<user>, /p/<id>, …).
   while (partes.length) {
     const seg = partes[0].replace(/^@+/, '').toLowerCase();
-    if (corte.has(seg)) return '';
+    if (corte.has(seg)) return vacio('contenido');
     if (salto.has(seg) && partes.length > 1) {
       partes.shift();
       continue;
@@ -186,14 +199,22 @@ export function handleDe(crudo, { dominios = [], saltarTramo = [], cortarTramo =
   // El usuario nunca arranca/termina en punto (ninguna plataforma lo permite);
   // sí puede arrancar en `_`. Bajamos a minúsculas: los handles son
   // case-insensitive y así no guardamos dos URLs distintas para el mismo perfil.
-  return h
+  h = h
     .replace(/^@+/, '')
     .replace(/^\.+/, '')
     .replace(/\.+$/, '')
     .toLowerCase();
+
+  if (!h) return vacio(saleDominio ? 'solo_dominio' : 'vacio');
+  return { handle: h, motivo: null };
 }
 
 // --- Fábricas ------------------------------------------------------------
+
+// Confusiones típicas cuando el campo pide un LINK: pegan su @usuario o su
+// teléfono. Se detectan para dar un mensaje que diga qué pasó.
+const PARECE_HANDLE_SUELTO = /^@[a-z0-9._]{1,40}$/i;
+const PARECE_TELEFONO_SUELTO = /^\+?[\d\s()./-]{6,20}$/;
 
 // Fábrica para destinos que son "un link y ya": valida el dominio y antepone
 // https:// si falta. Sirve para web, pago, menú, reseñas, agenda.
@@ -202,8 +223,16 @@ export function destinoLink({ id, meta }) {
     id,
     meta,
     normalizar(crudo) {
+      const s = limpiar(crudo);
+      if (!s) return { error: `Poné el link (ej: ${meta.placeholder}).` };
+      if (PARECE_HANDLE_SUELTO.test(s)) {
+        return { error: `Eso parece un usuario, no un link. Pegá la dirección completa (ej: ${meta.placeholder}).` };
+      }
+      if (PARECE_TELEFONO_SUELTO.test(s) && /\d/.test(s)) {
+        return { error: `Eso parece un teléfono. Acá va un link (ej: ${meta.placeholder}).` };
+      }
       const u = aUrlAbsoluta(crudo);
-      return u ? { valor: u } : { error: `Poné un link válido (ej: ${meta.placeholder}).` };
+      return u ? { valor: u } : { error: `Ese link no es válido. Fijate que tenga el dominio completo (ej: ${meta.placeholder}).` };
     },
     resolver(valor) {
       return { modo: 'redirect', url: aUrlAbsoluta(valor) || valor };
@@ -235,25 +264,41 @@ export function destinoHandle({
   saltarTramo = [],
   cortarTramo = [],
 }) {
-  function usuarioValido(crudo) {
-    const h = handleDe(crudo, { dominios, saltarTramo, cortarTramo });
-    if (!h) return null;
-    if (re.test(h)) return h;
-    // Rescate CONSERVADOR: solo se saca basura de las PUNTAS (signos,
-    // paréntesis, puntos que ninguna plataforma admite al borde). Si el
-    // caracter inválido está en el MEDIO (una tilde, una ñ, un guión, un
-    // espacio), es error — mejor pedir de nuevo que mandar a un perfil
-    // equivocado sin avisar ("juán.pérez" NO se convierte en "ju").
-    const podado = h.replace(/^[^a-z0-9_]+/i, '').replace(/[^a-z0-9_]+$/i, '');
-    return podado && podado !== h && re.test(podado) ? podado : null;
+  const ej = meta.placeholder;
+  const MENSAJES = {
+    vacio: errorMsg,
+    ambiguo: `Escribí solo tu usuario de ${meta.label}, sin la frase alrededor (ej: ${ej}).`,
+    solo_dominio: `Te faltó el usuario después del dominio (ej: ${ej}).`,
+    contenido: `Ese es un link a una publicación, no a tu perfil. Poné tu usuario (ej: ${ej}).`,
+    acentos: `El usuario de ${meta.label} no lleva acentos ni ñ. Revisalo (ej: ${ej}).`,
+    caracteres: `Ese usuario tiene un caracter que ${meta.label} no permite. Revisalo (ej: ${ej}).`,
+    largo: `Ese usuario es muy largo. Fijate que sea solo tu usuario (ej: ${ej}).`,
+  };
+
+  // Devuelve `{ valor }` o `{ error }` con el motivo real de la falla.
+  function resolver1(crudo) {
+    const { handle, motivo } = handleDe(crudo, { dominios, saltarTramo, cortarTramo });
+    if (!handle) return { error: MENSAJES[motivo] || errorMsg };
+    if (re.test(handle)) return { valor: handle };
+
+    // Rescate CONSERVADOR: solo se saca basura de las PUNTAS (signos, puntos de
+    // borde). Un caracter inválido en el MEDIO (tilde, ñ, guión, espacio) es
+    // error — mejor pedir de nuevo que mandar a un perfil equivocado sin avisar
+    // ("juán.pérez" NO se convierte en "ju").
+    const podado = handle.replace(/^[^a-z0-9_]+/i, '').replace(/[^a-z0-9_]+$/i, '');
+    if (podado && podado !== handle && re.test(podado)) return { valor: podado };
+
+    if (/[^\x00-\x7f]/.test(handle)) return { error: MENSAJES.acentos };
+    if ((podado || handle).length > 30) return { error: MENSAJES.largo };
+    return { error: MENSAJES.caracteres };
   }
 
   return {
     id,
     meta,
     normalizar(crudo) {
-      const h = usuarioValido(crudo);
-      return h ? { valor: urlDe(h) } : { error: errorMsg };
+      const r = resolver1(crudo);
+      return r.valor ? { valor: urlDe(r.valor) } : { error: r.error };
     },
     resolver(valor) {
       // Valores nuevos ya son URL canónica; filas viejas sin https:// las

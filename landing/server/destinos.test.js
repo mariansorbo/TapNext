@@ -6,6 +6,10 @@ const ok = (tipo, entrada, esperado) =>
   assert.equal(normalizarDestino(tipo, entrada).valor, esperado, `${tipo}: ${JSON.stringify(entrada)}`);
 const err = (tipo, entrada) =>
   assert.ok(normalizarDestino(tipo, entrada).error, `${tipo}: ${JSON.stringify(entrada)} debería ser error`);
+const errMatch = (tipo, entrada, re) => {
+  const { error } = normalizarDestino(tipo, entrada);
+  assert.ok(error && re.test(error), `${tipo}: ${JSON.stringify(entrada)} -> mensaje esperado ${re}, fue ${JSON.stringify(error)}`);
+};
 
 // --- Instagram ----------------------------------------------------------
 
@@ -153,4 +157,31 @@ test('aUrlAbsoluta: no toca URLs ya absolutas, completa las relativas', () => {
 test('tipo inválido / valor vacío', () => {
   err('no-existe', 'x');
   err('instagram', '   ');
+});
+
+// --- Mensajes de error indicativos (dicen QUÉ pasó) --------------------
+
+test('whatsapp: prueba cada número cuando hay varios', () => {
+  ok('whatsapp', '+54 9 11 2233 4455 / 11 5555 6666', 'https://wa.me/541122334455');
+  ok('whatsapp', '11 2233 4455 o 11 5555 6666', 'https://wa.me/541122334455');
+  ok('whatsapp', '11 2233 4455, escribime ahí', 'https://wa.me/541122334455');
+});
+
+test('whatsapp: el error dice el motivo', () => {
+  errMatch('whatsapp', '11 LLAMAME ya', /letras/i);
+  errMatch('whatsapp', '+54 11 223', /corto/i);
+  errMatch('whatsapp', '112233445511223399', /d[ií]gitos|uno solo/i);
+});
+
+test('instagram: el error dice el motivo', () => {
+  errMatch('instagram', 'juán.pérez', /acento|ñ/i);
+  errMatch('instagram', 'mi tienda de ropa', /una?\s+(sola\s+)?palabra|solo tu usuario|frase/i);
+  errMatch('instagram', 'instagram.com', /usuario después|falt/i);
+  errMatch('instagram', 'instagram.com/reel/Cx123', /publicaci[oó]n|perfil/i);
+});
+
+test('links: rechaza un @usuario o un teléfono con mensaje claro', () => {
+  errMatch('pago', '@tunegocio', /usuario.*no.*link|link/i);
+  errMatch('web', '11 2233 4455', /tel[eé]fono/i);
+  ok('pago', 'link.mercadopago.com.ar/tunegocio', 'https://link.mercadopago.com.ar/tunegocio');
 });
