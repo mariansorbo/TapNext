@@ -223,26 +223,29 @@ function syncCartFromStep1() {
 // ya adentro) que el admin le cargó a él — el comprador solo puede elegir un
 // combo (modelo+función) que ese vendedor tenga físicamente en mano.
 if (isPresencial && vendorToken) {
+  // Hasta que responda el stock del vendedor, no mostramos el catálogo completo
+  // (sería dejar elegir la función). Arrancamos vacío.
+  comboItems = [];
+  renderCombos();
   api(`/public/vendedores/${vendorToken}/stock`)
     .then((data) => {
       refKicker.textContent = `Recomendado por ${data.vendedor}`;
       promo = data.promo || null;
+      // La función la fija el admin: en presencial solo se ofrecen los combos
+      // que el vendedor tiene con función asignada. Si tiene stock pero sin
+      // función cargada, NO se ofrece nada (que la cargue en Admin) — nunca se
+      // deja que el comprador elija la función.
       const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion);
-      if (combos.length) {
-        comboItems = combos.map((c) => comboItem(c.funcion, c.modelo, c.cantidad));
-      } else {
-        // El vendedor tiene stock pero sin función asignada (falta cargarla en
-        // Admin) — no lo dejamos sin vender: ofrecemos todas las funciones sobre
-        // los modelos que sí tiene en mano (tope = stock total de ese modelo).
-        const conStock = (data.modelos || []).filter((m) => m.cantidad > 0);
-        const modelos = conStock.length ? conStock : [{ modelo: DEFAULT_MODEL, cantidad: MAX_POR_COMBO }];
-        comboItems = modelos.flatMap((m) => FUNCTIONS.map((f) => comboItem(f.id, m.modelo, m.cantidad)));
-      }
+      comboItems = combos.map((c) => comboItem(c.funcion, c.modelo, c.cantidad));
       renderCombos();
       updateNextButton();
     })
     .catch(() => {
-      // si falla la consulta, dejamos el catálogo completo como fallback
+      // Si falla la consulta, quedamos sin combos (mejor "no disponible" que
+      // dejar elegir la función). renderCombos ya muestra el aviso.
+      comboItems = [];
+      renderCombos();
+      updateNextButton();
     });
 }
 
