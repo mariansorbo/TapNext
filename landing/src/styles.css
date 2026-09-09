@@ -501,6 +501,8 @@ body.modal-open{overflow:hidden;}
 .sticker-destino b{color:var(--paper);}
 .sticker-destino-empty{font-family:var(--mono); font-size:0.82rem;}
 .sticker-edit-form{margin-top:18px; display:flex; flex-direction:column; gap:14px;}
+.sticker-funcion-fija{margin:0; font-size:0.86rem; color:var(--paper-dim);}
+.sticker-funcion-fija b{color:var(--paper);}
 
 /* Panel de vendedor — "¿Qué entrego?" (combos con cola de entrega) */
 .combo-entrega-head{

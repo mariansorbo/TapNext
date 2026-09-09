@@ -24,14 +24,36 @@ export function aUrlAbsoluta(crudo) {
   }
 }
 
+const PARECE_DOMINIO = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i;
+// TLDs reales frecuentes: distinguen `instagram.com` (dominio pegado) de
+// `juan.perez` (handle con punto). Solo se usa para tokens sueltos sin ruta.
+const TLD_REAL = /\.(com|net|org|ar|io|app|co|xyz|me|link|store|shop)$/i;
+
 // Saca el "usuario" de un @handle, un handle pelado o una URL de perfil.
 // `instagram.com/tunegocio` -> `tunegocio`, `@tunegocio` -> `tunegocio`.
+//
+// Clave: un handle sin `/` ni esquema se toma entero como usuario, aunque tenga
+// puntos (`juan.perez`, `._juan` son usuarios válidos de Instagram). Solo cuando
+// vino una URL con ruta (`instagram.com/user`) o alguien pegó el dominio pelado
+// (`instagram.com`) tratamos el primer tramo como dominio y lo sacamos.
 export function handleDe(crudo) {
-  let s = limpiar(crudo).replace(/^@/, '');
+  const bruto = limpiar(crudo);
+  let s = bruto.replace(/^@/, '');
+  const teniaEsquemaOWww = /^(https?:\/\/|www\.)/i.test(s);
   s = s.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
   s = s.split(/[?#]/)[0];
   const partes = s.split('/').filter(Boolean);
-  if (partes.length && partes[0].includes('.')) partes.shift(); // era un dominio
+  const teniaRuta = s.includes('/');
+  // `instagram.com/user` (ruta) o `instagram.com` pegado de una URL: el primer
+  // tramo es el dominio y lo sacamos. Un token suelto SIN ruta ni esquema se
+  // toma entero como usuario (`juan.perez`, `._juan` son handles válidos),
+  // salvo que sea claramente un dominio pegado (`instagram.com`): forma
+  // `algo.tld` con un TLD real conocido.
+  const primerTramoEsDominio =
+    partes.length &&
+    PARECE_DOMINIO.test(partes[0]) &&
+    (teniaRuta || teniaEsquemaOWww || TLD_REAL.test(partes[0]));
+  if (primerTramoEsDominio) partes.shift();
   try {
     return partes.length ? decodeURIComponent(partes[0]) : '';
   } catch {

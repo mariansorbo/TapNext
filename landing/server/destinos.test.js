@@ -16,6 +16,17 @@ test('instagram: "instagram.com" sin usuario es error (era el bug)', () => {
   assert.ok(normalizarDestino('instagram', 'instagram.com').error);
 });
 
+test('instagram: handle con guion bajo / punto adelante (era el bug: lo tomaba como dominio)', () => {
+  assert.equal(normalizarDestino('instagram', '_juan').valor, 'https://instagram.com/_juan');
+  assert.equal(normalizarDestino('instagram', '._juan').valor, 'https://instagram.com/._juan');
+  assert.equal(normalizarDestino('instagram', '@_.juan').valor, 'https://instagram.com/_.juan');
+  assert.equal(normalizarDestino('instagram', 'juan.perez').valor, 'https://instagram.com/juan.perez');
+  assert.equal(
+    normalizarDestino('instagram', 'https://instagram.com/_.juan/').valor,
+    'https://instagram.com/_.juan'
+  );
+});
+
 test('whatsapp: AR -> wa.me con 54 sin el 9 (el 9 hace que la app abra sin chat)', () => {
   assert.equal(normalizarDestino('whatsapp', '11 2233 4455').valor, 'https://wa.me/541122334455');
   assert.equal(normalizarDestino('whatsapp', '+54 9 11 2233 4455').valor, 'https://wa.me/541122334455');

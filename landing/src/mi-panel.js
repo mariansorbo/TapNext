@@ -238,15 +238,23 @@ function renderStickers(stickers) {
         }
         editForm.hidden = false;
         editButton.textContent = 'Cancelar';
-        const tipoInicial = sticker.destino?.tipo || DESTINO_TIPOS[0].id;
+        // La función la fija el admin. Si el sticker la trae, no se muestra el
+        // selector: el comprador solo carga el valor de ESA función. El stock
+        // viejo sin función asignada sigue con el selector completo.
+        const funcionFija = sticker.funcion || null;
+        const tipoInicial = funcionFija || sticker.destino?.tipo || DESTINO_TIPOS[0].id;
         const metaInicial = destinoMeta(tipoInicial);
+        const selectorTipo = funcionFija
+          ? `<input type="hidden" class="edit-tipo" value="${funcionFija}">
+             <p class="sticker-funcion-fija">Este llavero abre <b>${metaInicial.label}</b>.</p>`
+          : `<label>
+              <span>Tipo de destino</span>
+              <select class="edit-tipo">
+                ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${tipoInicial === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
+              </select>
+            </label>`;
         editForm.innerHTML = `
-          <label>
-            <span>Tipo de destino</span>
-            <select class="edit-tipo">
-              ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${tipoInicial === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
-            </select>
-          </label>
+          ${selectorTipo}
           <label>
             <span class="edit-valor-label">${metaInicial.campo}</span>
             <input type="text" class="edit-valor" value="${sticker.destino?.valor || ''}" placeholder="${metaInicial.placeholder}">
@@ -256,18 +264,21 @@ function renderStickers(stickers) {
           <p class="modal-status edit-status"></p>
         `;
 
-        // Al cambiar la función, el campo de valor cambia de etiqueta/ejemplo.
+        // Al cambiar la función (solo stock viejo sin función fija), el campo de
+        // valor cambia de etiqueta/ejemplo.
         const tipoSel = editForm.querySelector('.edit-tipo');
         const valorLabel = editForm.querySelector('.edit-valor-label');
         const valorInput = editForm.querySelector('.edit-valor');
         const valorHint = editForm.querySelector('.edit-valor-hint');
-        tipoSel.addEventListener('change', () => {
-          const m = destinoMeta(tipoSel.value);
-          valorLabel.textContent = m.campo;
-          valorInput.placeholder = m.placeholder;
-          valorHint.textContent = m.ayuda || '';
-          valorHint.hidden = !m.ayuda;
-        });
+        if (tipoSel.tagName === 'SELECT') {
+          tipoSel.addEventListener('change', () => {
+            const m = destinoMeta(tipoSel.value);
+            valorLabel.textContent = m.campo;
+            valorInput.placeholder = m.placeholder;
+            valorHint.textContent = m.ayuda || '';
+            valorHint.hidden = !m.ayuda;
+          });
+        }
 
         editForm.querySelector('.edit-save-btn').addEventListener('click', async () => {
           const tipo = editForm.querySelector('.edit-tipo').value;

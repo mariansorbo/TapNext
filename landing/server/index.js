@@ -460,7 +460,7 @@ app.patch('/api/me', requireAuth, async (req, res) => {
 
 app.get('/api/me/stickers', requireAuth, async (req, res) => {
   const rows = await all(
-    `SELECT s.id, s.codigo_publico, s.estado, s.modelo, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
+    `SELECT s.id, s.codigo_publico, s.estado, s.modelo, s.funcion, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        WHERE s.comprador_id = ?
@@ -474,6 +474,9 @@ app.get('/api/me/stickers', requireAuth, async (req, res) => {
       codigoPublico: r.codigo_publico,
       estado: r.estado,
       modelo: r.modelo,
+      // Función asignada por el admin (fija, no la elige el comprador). Si está
+      // seteada, Mi panel solo deja editar el valor del destino, no el tipo.
+      funcion: r.funcion || null,
       destino: r.destino_tipo ? { tipo: r.destino_tipo, valor: r.destino_valor, actualizadoEn: r.destino_actualizado_en } : null,
     }))
   );
@@ -481,15 +484,21 @@ app.get('/api/me/stickers', requireAuth, async (req, res) => {
 
 app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   const stickerId = Number(req.params.id);
-  const tipo = String(req.body?.tipo || '').trim();
+
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+
+  // La función (tipo de destino) la fija el admin al armar el stock. Si el
+  // sticker ya la trae, el comprador solo carga el valor: ignoramos cualquier
+  // `tipo` del body y usamos el de la ficha. Solo el stock viejo sin función
+  // asignada cae al `tipo` que mande el front.
+  const tipo = sticker.funcion || String(req.body?.tipo || '').trim();
 
   if (!DESTINO_TIPOS.includes(tipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
   const norm = normalizarDestino(tipo, req.body?.valor);
   if (norm.error) return res.status(400).json({ error: norm.error });
   const valor = norm.valor;
 
-  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [stickerId, req.comprador.id]);
-  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
   if (sticker.estado !== 'activo') {
     return res.status(400).json({ error: 'Este sticker todavía no está activado.' });
   }
