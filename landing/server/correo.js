@@ -135,6 +135,57 @@ Ver tus ventas: ${panelUrl}`;
 }
 
 /**
+ * Venta presencial con cola de entrega (late binding): el comprador NO recibe un
+ * ID de unidad para cotejar — recibe un código de retiro que le muestra al
+ * vendedor. Ver "Cola de entrega y botón de despacho" en el vault.
+ * @param {{ codigoRetiro: string, panelUrl: string }} data
+ */
+export function mailRetiroComprador({ codigoRetiro, panelUrl }) {
+  const subject = `Tu compra en NextTap — código de retiro ${codigoRetiro}`;
+  const text = `¡Gracias por tu compra en NextTap!
+
+Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vendedor:
+
+  ${codigoRetiro}
+
+Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde tu panel:
+${panelUrl}`;
+  const html = `<p>¡Gracias por tu compra en <strong>NextTap</strong>!</p>
+<p>Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vendedor:</p>
+<p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${esc(codigoRetiro)}</p>
+<p>Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
+  return { subject, text, html };
+}
+
+/**
+ * Venta presencial con cola: al vendedor le avisa que entró un pedido a la cola,
+ * con el código de retiro que el comprador le va a mostrar.
+ * @param {{ codigoRetiro: string, comprador: { nombre?: string|null, whatsapp?: string|null, email?: string|null }|null, monto: number, panelUrl: string }} data
+ */
+export function mailRetiroVendedor({ codigoRetiro, comprador, monto, panelUrl }) {
+  const contacto =
+    comprador && (comprador.nombre || comprador.whatsapp || comprador.email)
+      ? [comprador.nombre, comprador.whatsapp, comprador.email].filter(Boolean).join(' · ')
+      : 'sin datos de contacto cargados';
+  const subject = `Nuevo pedido en la cola — código ${codigoRetiro}`;
+  const text = `Se confirmó un pago de una venta tuya. El pedido entró a la cola de entrega.
+
+Código de retiro: ${codigoRetiro}
+Comprador: ${contacto}
+Monto: $${monto}
+
+Desde el panel "Entrega" tapeás cualquier llavero del combo y el sistema te dice a quién le toca. El comprador te muestra este código.
+
+Ver tus ventas: ${panelUrl}`;
+  const html = `<p>Se confirmó un pago de una venta tuya. El pedido entró a la <strong>cola de entrega</strong>.</p>
+<p><strong>Código de retiro:</strong> <code style="font-size:16px;font-weight:700;letter-spacing:2px">${esc(codigoRetiro)}</code><br>
+<strong>Comprador:</strong> ${esc(contacto)}<br><strong>Monto:</strong> $${esc(monto)}</p>
+<p>Desde el panel "Entrega" tapeás cualquier llavero del combo y el sistema te dice a quién le toca. El comprador te muestra este código.</p>
+<p><a href="${esc(panelUrl)}">Ver tus ventas</a></p>`;
+  return { subject, text, html };
+}
+
+/**
  * Arma el mail para el COMPRADOR de una ACTIVACIÓN GRATIS (no pagó nada).
  * `cuentaNueva`: true si la cuenta se creó con este mail recién; false si ya existía.
  * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string, cuentaNueva: boolean }} data

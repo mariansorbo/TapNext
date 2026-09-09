@@ -11,7 +11,7 @@ import {
   fechaAR,
 } from './comision.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
-import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis } from './correo.js';
+import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { montarConsolaSticker } from './consola-sticker.js';
@@ -909,11 +909,17 @@ async function notificarVentaConfirmada(ventaId) {
     const panelComprador = `${FRONTEND_URL}/mi-panel.html`;
     const panelVendedor = `${FRONTEND_URL}/vendedor.html`;
 
+    // Venta presencial con cola de entrega (late binding): el aviso lleva el
+    // código de retiro, no un ID de unidad — la unidad se asigna en el despacho.
+    const conCola = !!venta.codigo_retiro;
+
     const comprador = venta.comprador_id
       ? await get('SELECT nombre, whatsapp, email FROM compradores WHERE id = ?', [venta.comprador_id])
       : null;
     if (comprador?.email) {
-      const { subject, text, html } = mailCompraComprador({ items: itemsMail, panelUrl: panelComprador });
+      const { subject, text, html } = conCola
+        ? mailRetiroComprador({ codigoRetiro: venta.codigo_retiro, panelUrl: panelComprador })
+        : mailCompraComprador({ items: itemsMail, panelUrl: panelComprador });
       await enviarCorreo({ to: comprador.email, subject, text, html });
     } else {
       console.log(`[correo] Venta ${ventaId}: el comprador no tiene mail cargado — no se le avisa.`);
@@ -923,12 +929,19 @@ async function notificarVentaConfirmada(ventaId) {
       ? await get('SELECT nombre, email FROM vendedores WHERE id = ?', [venta.vendedor_id])
       : null;
     if (vendedor?.email) {
-      const { subject, text, html } = mailVentaVendedor({
-        items: itemsMail,
-        comprador,
-        monto: venta.monto,
-        panelUrl: panelVendedor,
-      });
+      const { subject, text, html } = conCola
+        ? mailRetiroVendedor({
+            codigoRetiro: venta.codigo_retiro,
+            comprador,
+            monto: venta.monto,
+            panelUrl: panelVendedor,
+          })
+        : mailVentaVendedor({
+            items: itemsMail,
+            comprador,
+            monto: venta.monto,
+            panelUrl: panelVendedor,
+          });
       await enviarCorreo({ to: vendedor.email, subject, text, html });
     } else if (venta.vendedor_id) {
       console.log(`[correo] Venta ${ventaId}: el vendedor no tiene mail cargado — no se le avisa.`);
