@@ -540,6 +540,7 @@ body.modal-open{overflow:hidden;}
   font-family:var(--mono); font-size:0.8rem; font-weight:600; color:var(--paper-dim);
   min-width:2.2em;
 }
+.combo-entrega-mail{font-size:0.82rem; color:var(--paper-dim); word-break:break-all;}
 .combo-entrega-resto{margin-top:12px; font-size:0.8rem; color:var(--paper-dim);}
 .combo-entrega-mas{margin-top:14px; font-size:0.85rem; padding:6px 0;}
 

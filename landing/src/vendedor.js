@@ -221,8 +221,11 @@ logoutButton.addEventListener('click', async () => {
 async function loadStock({ silencioso = false } = {}) {
   if (!silencioso) stockList.innerHTML = '<p class="section-lead">Cargando...</p>';
   try {
-    const grupos = await api('/stock');
-    renderStock(grupos);
+    // Stock = cuántas unidades tenés de cada combo. Cola = quién está esperando
+    // (con código de retiro). Con late binding no entregás una unidad puntual:
+    // agarrás cualquiera del combo y la confirmás con el código.
+    const [grupos, cola] = await Promise.all([api('/stock'), api('/cola').catch(() => ({ combos: [] }))]);
+    renderStock(grupos, cola);
   } catch (err) {
     if (err.message.includes('expirada') || err.message.includes('autenticación')) {
       clearToken();
@@ -241,42 +244,58 @@ const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', s
 const comboNombre = (modelo, funcion) =>
   `${MODELO_LABEL[modelo] || modelo}${funcion ? ` · ${FUNC_LABEL[funcion] || funcion}` : ' · sin función'}`;
 
-// Cuántas "próximas a entregar" se muestran por combo antes del "ver más" — son
-// las que conviene tener separadas en un bolsillo aparte para no revisar todo el
-// stock al vender.
+// Cuántos pedidos en espera se muestran por combo antes del "ver más".
 const PROXIMAS = 5;
 
 // Combos con la lista completa desplegada (por "ver más"). Se guarda entre
 // refrescos del poll para que no se colapse sola mientras el vendedor mira.
 const combosAbiertos = new Set();
 
-// grupos: [{ modelo, funcion, unidades: [{ posicion, codigoPublico }] }]
-function renderStock(grupos) {
-  if (!Array.isArray(grupos) || !grupos.length) {
+const comboKey = (modelo, funcion) => `${modelo || 'suelto'}__${funcion || ''}`;
+
+// grupos (stock): [{ modelo, funcion, unidades: [...] }]
+// cola: { combos: [{ modelo, funcion, pedidos: [{ ventaId, mail, codigoRetiro, restantesItems }] }] }
+function renderStock(grupos, cola = { combos: [] }) {
+  const stockPorCombo = new Map();
+  (Array.isArray(grupos) ? grupos : []).forEach((g) => stockPorCombo.set(comboKey(g.modelo, g.funcion), g.unidades.length));
+
+  const colaCombos = (cola && cola.combos) || [];
+  // Todos los combos que tienen stock o cola.
+  const keys = new Set([...stockPorCombo.keys(), ...colaCombos.map((c) => comboKey(c.modelo, c.funcion))]);
+
+  if (!keys.size) {
     stockList.innerHTML = '<p class="section-lead">No tenés stock asignado todavía.</p>';
     return;
   }
   stockList.innerHTML = '';
-  grupos.forEach((g) => {
-    const key = `${g.modelo}__${g.funcion || ''}`;
+  [...keys].forEach((key) => {
+    const [modelo, funcion] = [key.split('__')[0], key.split('__')[1] || null];
+    const enStock = stockPorCombo.get(key) || 0;
+    const grupoCola = colaCombos.find((c) => comboKey(c.modelo, c.funcion) === key);
+    const pedidos = grupoCola ? grupoCola.pedidos : [];
     const abierto = combosAbiertos.has(key);
-    const extra = g.unidades.slice(PROXIMAS);
+    const extra = pedidos.slice(PROXIMAS);
     const card = document.createElement('div');
     card.className = 'sticker-card combo-entrega';
-    const unidadHtml = (u, oculta) =>
+    const pedidoHtml = (p, i, oculta) =>
       `<div class="combo-entrega-unidad${oculta ? ' is-extra' : ''}"${oculta ? ' hidden' : ''}>` +
-      `<span class="combo-entrega-pos">#${u.posicion}</span>` +
-      `<span class="sticker-code pickup-id">${u.codigoPublico}</span></div>`;
+      `<span class="combo-entrega-pos">#${i + 1}</span>` +
+      `<span class="sticker-code pickup-id">${p.codigoRetiro || '----'}</span>` +
+      `<span class="combo-entrega-mail">${p.mail || 'sin mail'}</span></div>`;
     card.innerHTML = `
       <div class="combo-entrega-head">
-        <b>${comboNombre(g.modelo, g.funcion)}</b>
-        <span class="combo-entrega-total">${g.unidades.length} en stock</span>
+        <b>${comboNombre(modelo, funcion)}</b>
+        <span class="combo-entrega-total">${enStock} en stock · ${pedidos.length} esperando</span>
       </div>
-      <div class="combo-entrega-proximas">
-        ${g.unidades.slice(0, PROXIMAS).map((u) => unidadHtml(u, false)).join('')}
-        ${extra.map((u) => unidadHtml(u, !abierto)).join('')}
+      ${
+        pedidos.length
+          ? `<div class="combo-entrega-proximas">
+        ${pedidos.slice(0, PROXIMAS).map((p, i) => pedidoHtml(p, i, false)).join('')}
+        ${extra.map((p, i) => pedidoHtml(p, i + PROXIMAS, !abierto)).join('')}
       </div>
-      ${extra.length ? `<button type="button" class="btn-ghost combo-entrega-mas">${abierto ? 'Ver menos' : `Ver las otras ${extra.length}`}</button>` : ''}
+      ${extra.length ? `<button type="button" class="btn-ghost combo-entrega-mas">${abierto ? 'Ver menos' : `Ver los otros ${extra.length}`}</button>` : ''}`
+          : '<p class="section-lead" style="margin:8px 0 0">Nadie esperando este combo.</p>'
+      }
     `;
     const btn = card.querySelector('.combo-entrega-mas');
     if (btn) {
@@ -287,7 +306,7 @@ function renderStock(grupos) {
         card.querySelectorAll('.combo-entrega-unidad.is-extra').forEach((el) => {
           el.hidden = !ahora;
         });
-        btn.textContent = ahora ? 'Ver menos' : `Ver las otras ${extra.length}`;
+        btn.textContent = ahora ? 'Ver menos' : `Ver los otros ${extra.length}`;
       });
     }
     stockList.appendChild(card);
