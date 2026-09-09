@@ -149,3 +149,15 @@ test('venta inexistente → 404', async () => {
   const r = await entregarUnidad(deps, { ventaId: 999, stickerId: 1 });
   assert.equal(r.status, 404);
 });
+
+test('scope de vendedor: no podés entregar una venta de otro vendedor → 403', async () => {
+  const { store, deps } = makeStore();
+  seedVenta(store, { id: 1, items: [{ reservado: 10 }], vendedor: 9 });
+
+  const ajeno = await entregarUnidad(deps, { ventaId: 1, stickerId: 10, scopeVendedorId: 7 });
+  assert.equal(ajeno.status, 403);
+  assert.equal(store.stickers.get(10).estado, 'vendido_pendiente'); // no tocó nada
+
+  const propio = await entregarUnidad(deps, { ventaId: 1, stickerId: 10, scopeVendedorId: 9 });
+  assert.equal(propio.status, 200);
+});

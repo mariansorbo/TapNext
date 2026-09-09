@@ -123,9 +123,12 @@ async function aplicarDestino(deps, item) {
 
 // Núcleo de la entrega — compartido por el endpoint y por el replay de la
 // outbox offline. Idempotente: si el item ya se entregó, es un no-op.
-export async function entregarUnidad(deps, { ventaId, stickerId }) {
+export async function entregarUnidad(deps, { ventaId, stickerId, scopeVendedorId = null }) {
   const venta = await deps.get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
   if (!venta) return { status: 404, body: { error: 'Venta no encontrada.' } };
+  if (scopeVendedorId != null && venta.vendedor_id !== scopeVendedorId) {
+    return { status: 403, body: { error: 'Esa venta no es de este vendedor.' } };
+  }
   if (venta.retiro_estado === 'entregado') {
     return { status: 200, body: { entregado: true, restantes: 0, yaEstaba: true } };
   }
@@ -193,20 +196,18 @@ export function crearDespachoRouter(deps) {
   const admin = deps.requireAdmin;
   const vendedor = deps.requireVendedor;
 
-  // Tap de un chip en blanco en el panel de despacho. Devuelve el #1 de la cola
-  // de ese combo, o avisa si el chip ya está entregado.
-  router.post('/admin/despacho/tap', admin, async (req, res) => {
+  // Los handlers son los mismos para el panel de admin y el de vendedor — la
+  // única diferencia es el `scope`: null (admin, ve todo) o el id del vendedor
+  // logueado (sólo su propia cola / sus propias ventas).
+
+  async function handleTap(req, res, scope) {
     const chip = await resolverChip(deps, req.body?.codigo ?? req.body?.uid ?? req.body?.uidFisico);
     if (!chip) return res.status(404).json({ error: 'No reconozco ese chip.' });
 
     const sticker = { id: chip.id, codigoPublico: chip.codigo_publico };
 
-    // Ya entregado / asignado: no re-asignar, mostrar a quién.
     if (chip.comprador_id && chip.estado !== 'en_stock') {
-      const dueno = await deps.get(
-        'SELECT email, whatsapp FROM compradores WHERE id = ?',
-        [chip.comprador_id]
-      );
+      const dueno = await deps.get('SELECT email, whatsapp FROM compradores WHERE id = ?', [chip.comprador_id]);
       const item = await deps.get(
         `SELECT vi.entregado_en, v.id AS venta_id, v.fecha
            FROM venta_items vi JOIN ventas v ON v.id = vi.venta_id
@@ -228,6 +229,10 @@ export function crearDespachoRouter(deps) {
     if (chip.estado !== 'en_stock' || !chip.vendedor_id) {
       return res.json({ sinCola: true, sticker, estado: chip.estado });
     }
+    // Un vendedor sólo despacha su propio stock.
+    if (scope != null && chip.vendedor_id !== scope) {
+      return res.json({ ajeno: true, sticker, estado: chip.estado });
+    }
 
     await barrerNoShows(deps, chip.vendedor_id);
     const combo = { modelo: chip.modelo, funcion: chip.funcion };
@@ -248,46 +253,65 @@ export function crearDespachoRouter(deps) {
           }
         : null,
     });
-  });
+  }
 
-  // Confirmar la entrega: ata el chip tapeado al pedido y lo saca de la cola.
-  router.post('/admin/despacho/entregar', admin, async (req, res) => {
+  async function handleEntregar(req, res, scope) {
     const ventaId = Number(req.body?.ventaId);
     const stickerId = Number(req.body?.stickerId) || null;
     if (!ventaId) return res.status(400).json({ error: 'Falta ventaId.' });
-    const { status, body } = await entregarUnidad(deps, { ventaId, stickerId });
+    const { status, body } = await entregarUnidad(deps, { ventaId, stickerId, scopeVendedorId: scope });
     res.status(status).json(body);
-  });
+  }
 
-  // Saltear al #1 (no apareció): lo manda al fondo de la cola de su combo.
-  router.post('/admin/despacho/siguiente', admin, async (req, res) => {
+  async function handleSiguiente(req, res, scope) {
     const ventaId = Number(req.body?.ventaId);
     if (!ventaId) return res.status(400).json({ error: 'Falta ventaId.' });
-    const venta = await deps.get(
-      `SELECT * FROM ventas WHERE id = ? AND retiro_estado = 'pendiente'`,
-      [ventaId]
-    );
+    const venta = await deps.get(`SELECT * FROM ventas WHERE id = ? AND retiro_estado = 'pendiente'`, [ventaId]);
     if (!venta) return res.status(404).json({ error: 'No está en la cola.' });
-    await deps.run(
-      `UPDATE ventas SET reencolada_en = NOW(), retiro_expira_en = ? WHERE id = ?`,
-      [deps.isoInMinutes(deps.RETIRO_TTL_MIN), ventaId]
-    );
+    if (scope != null && venta.vendedor_id !== scope) return res.status(403).json({ error: 'Esa venta no es de este vendedor.' });
+    await deps.run(`UPDATE ventas SET reencolada_en = NOW(), retiro_expira_en = ? WHERE id = ?`, [
+      deps.isoInMinutes(deps.RETIRO_TTL_MIN),
+      ventaId,
+    ]);
     const combo = await primerComboDeVenta(deps, ventaId);
     const cola = combo ? await colaDelCombo(deps, venta.vendedor_id, combo) : [];
-    res.json({ ok: true, siguiente: cola[0] ? { ventaId: cola[0].id, mail: cola[0].mail, codigoRetiro: cola[0].codigoRetiro } : null });
-  });
+    res.json({
+      ok: true,
+      siguiente: cola[0] ? { ventaId: cola[0].id, mail: cola[0].mail, codigoRetiro: cola[0].codigoRetiro } : null,
+    });
+  }
 
-  // Devolver a la cola una venta marcada 'ausente' (volvió el comprador).
-  router.post('/admin/despacho/devolver', admin, async (req, res) => {
+  async function handleDevolver(req, res, scope) {
     const ventaId = Number(req.body?.ventaId);
     if (!ventaId) return res.status(400).json({ error: 'Falta ventaId.' });
-    const r = await deps.run(
+    const venta = await deps.get('SELECT vendedor_id, retiro_estado FROM ventas WHERE id = ?', [ventaId]);
+    if (!venta) return res.status(404).json({ error: 'Venta no encontrada.' });
+    if (scope != null && venta.vendedor_id !== scope) return res.status(403).json({ error: 'Esa venta no es de este vendedor.' });
+    await deps.run(
       `UPDATE ventas SET retiro_estado = 'pendiente', reencolada_en = NOW(), retiro_expira_en = ?
         WHERE id = ? AND retiro_estado = 'ausente'`,
       [deps.isoInMinutes(deps.RETIRO_TTL_MIN), ventaId]
     );
     res.json({ ok: true });
-  });
+  }
+
+  const wrap = (fn, getScope) => (req, res) =>
+    fn(req, res, getScope(req)).catch((err) => {
+      console.error('[despacho]', err.message);
+      res.status(500).json({ error: 'Error procesando el despacho.' });
+    });
+  const adminScope = (req) => (req.body?.vendedorId ? Number(req.body.vendedorId) : null);
+  const vendedorScope = (req) => req.vendedor.id;
+
+  router.post('/admin/despacho/tap', admin, wrap(handleTap, adminScope));
+  router.post('/admin/despacho/entregar', admin, wrap(handleEntregar, adminScope));
+  router.post('/admin/despacho/siguiente', admin, wrap(handleSiguiente, adminScope));
+  router.post('/admin/despacho/devolver', admin, wrap(handleDevolver, adminScope));
+
+  router.post('/vendedor/despacho/tap', vendedor, wrap(handleTap, vendedorScope));
+  router.post('/vendedor/despacho/entregar', vendedor, wrap(handleEntregar, vendedorScope));
+  router.post('/vendedor/despacho/siguiente', vendedor, wrap(handleSiguiente, vendedorScope));
+  router.post('/vendedor/despacho/devolver', vendedor, wrap(handleDevolver, vendedorScope));
 
   // Cola agrupada por combo — para el panel de despacho y su cache offline.
   // Admin: todas las ventas pendientes (Mari es admin + vendedor). Cada grupo

@@ -44,8 +44,13 @@
 
     <div class="comision-card" id="comision-card" hidden></div>
 
-    <h3 class="sticker-list-title">¿Qué entrego?</h3>
-    <p class="section-lead">Por combo, quién está esperando (la #1 va primero). Agarrás cualquier unidad del combo y la confirmás con el código de retiro que te muestra el comprador — desde el panel de admin "Entrega".</p>
+    <div class="admin-section-head">
+      <h3 class="sticker-list-title">¿Qué entrego?</h3>
+      <button type="button" class="admin-add-btn" id="open-despacho-button" title="Dejá el lector escaneando y tapeá cualquier llavero del combo: el panel te dice a quién entregárselo (código de retiro). Chrome en Android con NFC.">
+        <span class="add-icon">🚚</span> Entrega
+      </button>
+    </div>
+    <p class="section-lead">Por combo, quién está esperando (la #1 va primero). Agarrás cualquier unidad del combo y la confirmás con el código de retiro que te muestra el comprador — abrí "Entrega" y escaneá.</p>
     <div class="sticker-list" id="stock-list"></div>
 
     <h3 class="sticker-list-title">Ventas confirmadas</h3>
@@ -57,6 +62,23 @@
   <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
   <span>Buenos Aires, Argentina</span>
 </footer>
+
+<!-- Modal: panel "Entrega" (despacho de venta presencial, Web NFC) -->
+<div class="modal-overlay" id="despacho-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="despacho-modal-close">✕</button>
+    <h3>Entrega</h3>
+    <p class="modal-sub">Dejá el lector escaneando y tapeá cualquier llavero del combo que te pidieron. El panel te muestra a quién le toca (código de retiro) — se lo pedís, lo confirma, y tocás "Entregar". Chrome en Android con NFC.</p>
+    <button type="button" class="btn-primary modal-submit" id="despacho-start">Empezar a escanear</button>
+    <p class="modal-status" id="despacho-status"></p>
+    <div class="despacho-card" id="despacho-card" hidden></div>
+    <p class="modal-status is-error" id="despacho-outbox" hidden></p>
+    <div class="despacho-manual">
+      <input type="text" id="despacho-manual-codigo" placeholder="o ingresá el código del chip a mano">
+      <button type="button" class="btn-ghost" id="despacho-manual-btn">Buscar</button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="/src/vendedor.js"></script>
 </body>

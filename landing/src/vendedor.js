@@ -1,5 +1,6 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
+import { initDespacho } from './despacho.js';
 
 applyBrand('Panel de vendedor');
 
@@ -348,6 +349,10 @@ function renderVentas(ventas) {
     ventasList.appendChild(card);
   });
 }
+
+// Panel "Entrega" (despacho) — mismo módulo que el de admin, scope al vendedor
+// logueado. `api` acá ya prefija /api/vendedor.
+initDespacho({ api, colaPath: '/cola', ns: 'vendedor' });
 
 if (getToken()) {
   showDashboard().catch(() => showLogin());

@@ -10,8 +10,7 @@
 // fallan por red, resuelve/encola contra el cache y reintenta al volver online.
 // El endpoint de entrega es idempotente, así que el replay no duplica.
 
-const OUTBOX_KEY = 'tap_despacho_outbox';
-const CACHE_KEY = 'tap_despacho_cola';
+// Namespaced por panel (admin / vendedor) para no pisarse en el mismo browser.
 
 const readJson = (k, def) => {
   try {
@@ -26,7 +25,9 @@ const writeJson = (k, v) => {
   } catch {}
 };
 
-export function initDespacho({ api }) {
+export function initDespacho({ api, colaPath = '/despacho/cola', ns = 'admin' }) {
+  const OUTBOX_KEY = `tap_despacho_outbox_${ns}`;
+  const CACHE_KEY = `tap_despacho_cola_${ns}`;
   const openBtn = document.getElementById('open-despacho-button');
   const overlay = document.getElementById('despacho-modal-overlay');
   if (!openBtn || !overlay) return;
@@ -78,6 +79,12 @@ export function initDespacho({ api }) {
         <div class="despacho-ya">Este chip no está en stock de un vendedor (${ultimo.estado}).</div>`;
       return;
     }
+    if (ultimo.ajeno) {
+      cardEl.innerHTML = `
+        <div class="despacho-chip">chip ${ultimo.sticker.codigoPublico}</div>
+        <div class="despacho-ya">Este llavero no es de tu stock.</div>`;
+      return;
+    }
     const s = ultimo.siguiente;
     const comboTxt = `${ultimo.combo.funcion || 'sin función'} · ${ultimo.combo.modelo || 'suelto'}`;
     if (!s) {
@@ -101,7 +108,7 @@ export function initDespacho({ api }) {
 
   async function refrescarCache() {
     try {
-      const cola = await api('/despacho/cola');
+      const cola = await api(colaPath);
       writeJson(CACHE_KEY, cola);
     } catch {
       /* offline — usamos lo que haya */
@@ -127,7 +134,8 @@ export function initDespacho({ api }) {
         body: JSON.stringify({ codigo, uid }),
       });
       ultimo = r;
-      setStatus(r.siguiente ? `Código ${r.siguiente.codigoRetiro}` : 'Sin cola', r.yaEntregado ? 'error' : '');
+      const tone = r.yaEntregado || r.ajeno ? 'error' : '';
+      setStatus(r.siguiente ? `Código ${r.siguiente.codigoRetiro}` : r.ajeno ? 'Llavero ajeno' : 'Sin cola', tone);
     } catch (err) {
       // Sin conexión: no sabemos el combo del chip, sólo podemos avisar.
       setStatus(`Sin conexión — no puedo consultar la cola (${err.message}).`, 'error');
