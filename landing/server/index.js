@@ -122,6 +122,26 @@ function generateUidNfc() {
   return randomBytes(4).toString('hex');
 }
 
+// Minutos que el código de retiro sigue siendo válido antes de contar como
+// no-show (ver "Cola de entrega y botón de despacho" en el vault).
+const RETIRO_TTL_MIN = Number(process.env.RETIRO_TTL_MIN) || 120;
+
+// Código de retiro: 4 dígitos que el comprador le muestra al vendedor en la
+// feria. Único entre las ventas que todavía están esperando en la cola —
+// reciclable una vez entregada/vencida esa venta.
+async function generarCodigoRetiro() {
+  for (let i = 0; i < 40; i++) {
+    const cand = String(randomBytes(2).readUInt16BE(0) % 10000).padStart(4, '0');
+    const choca = await get(
+      `SELECT 1 FROM ventas WHERE codigo_retiro = ? AND retiro_estado IN ('pendiente', 'ausente')`,
+      [cand]
+    );
+    if (!choca) return cand;
+  }
+  // Fallback ultra improbable: 4 dígitos con colisión 40 veces seguidas.
+  return String(Date.now() % 10000).padStart(4, '0');
+}
+
 async function get(sql, args = []) {
   const res = await db.execute({ sql, args });
   return res.rows[0] || null;
@@ -827,10 +847,37 @@ app.get('/api/ventas/:id', requireAuth, async (req, res) => {
     [venta.id]
   );
 
+  // Cola de entrega presencial: posición de esta venta entre las que están
+  // esperando de este vendedor. Nivel vendedor por ahora — la cola por combo
+  // (modelo+función) es un slice posterior. Las reencoladas ('ausente' que
+  // volvieron) van al fondo.
+  let posicionCola = null;
+  let esperandoEntrega = null;
+  if (venta.vendedor_id && venta.retiro_estado === 'pendiente') {
+    const orden = (v) => [v.reencolada_en ? 1 : 0, +new Date(v.reencolada_en || v.fecha), v.id];
+    const cola = await all(
+      `SELECT id, fecha, reencolada_en FROM ventas
+        WHERE vendedor_id = ? AND retiro_estado = 'pendiente'`,
+      [venta.vendedor_id]
+    );
+    cola.sort((a, b) => {
+      const [a1, a2, a3] = orden(a);
+      const [b1, b2, b3] = orden(b);
+      return a1 - b1 || a2 - b2 || a3 - b3;
+    });
+    esperandoEntrega = cola.length;
+    posicionCola = cola.findIndex((v) => v.id === venta.id) + 1 || null;
+  }
+
   res.json({
     id: venta.id,
     estadoPago: venta.estado_pago,
     monto: venta.monto,
+    codigoRetiro: venta.codigo_retiro || null,
+    tokenComprador: venta.token_comprador || null,
+    retiroEstado: venta.retiro_estado || null,
+    posicionCola,
+    esperandoEntrega,
     items: items.map((it) => ({
       stickerCodigo: it.codigo_publico,
       modelo: it.modelo || 'suelto',
@@ -951,6 +998,19 @@ app.post('/api/pagos/webhook', async (req, res) => {
         String(payment.id),
         ventaId,
       ]);
+      // Venta presencial (con vendedor): entra a la cola de entrega con un
+      // código de retiro. La unidad física se ata recién en el despacho — ver
+      // "Cola de entrega y botón de despacho" en el vault. Sólo si no lo tiene
+      // ya (webhook idempotente).
+      if (venta.vendedor_id && !venta.codigo_retiro) {
+        await run(
+          `UPDATE ventas SET codigo_retiro = ?, token_comprador = ?, retiro_estado = 'pendiente', retiro_expira_en = ? WHERE id = ?`,
+          [await generarCodigoRetiro(), randomBytes(16).toString('hex'), isoInMinutes(RETIRO_TTL_MIN), ventaId]
+        );
+        for (const item of items) {
+          await run('UPDATE venta_items SET sticker_reservado_id = COALESCE(sticker_reservado_id, sticker_id) WHERE id = ?', [item.id]);
+        }
+      }
       // Activamos cada sticker de la venta — una venta con varios items activa
       // varios stickers a la vez. El destino es opcional: si el comprador no
       // lo cargó al pagar, el sticker igual queda "activo" y disponible para
