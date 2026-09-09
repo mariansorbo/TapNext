@@ -1,0 +1,27 @@
+name: keep-alive
+
+# Mantiene despierto el backend de Render (plan free se duerme tras 15 min sin trafico).
+# Le pega a /api/health cada ~10 min. Ojo: los cron de GitHub Actions en repos free
+# suelen retrasarse y se desactivan tras 60 dias sin commits. Si necesitas algo mas
+# firme, usa cron-job.org apuntando a la misma URL.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 60 \
+              https://tapnext.onrender.com/api/health) && \
+              [ "$code" = "200" ] && echo "OK ($code)" && exit 0
+            echo "intento $i fallo (code=$code), reintento en 30s..."
+            sleep 30
+          done
+          echo "no respondio 200 tras 5 intentos"
+          exit 1
