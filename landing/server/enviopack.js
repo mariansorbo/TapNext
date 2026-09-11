@@ -150,39 +150,74 @@ export async function cotizarDomicilio({ provincia, cp }) {
   };
 }
 
+// Crea el `pedido` (orden) que un envío tiene que referenciar — POST /envios
+// SIEMPRE pide un `pedido` ya existente (probado contra la cuenta real, 11 sep
+// 2026: pasar un id libre como decía la doc pública tira "No existe un pedido
+// con el id informado"). No hay endpoint para crear pedido + envío en un solo
+// paso. `id_externo` queda como referencia (el id de la venta) para poder
+// buscarlo después desde el panel de Enviopack si hace falta.
+async function crearPedido(e, ventaId, montoOrden, emailComprador) {
+  const [nombre, ...resto] = String(e.dest_nombre).trim().split(/\s+/);
+  const payload = {
+    id_externo: String(ventaId),
+    nombre: nombre || e.dest_nombre,
+    apellido: resto.join(' ') || '-',
+    // `email` es obligatorio para Enviopack aunque la doc no lo marque así
+    // (probado contra la cuenta real, 11 sep 2026: sin email o con uno
+    // inválido, POST /pedidos rechaza el request). Si no tenemos el mail del
+    // comprador a mano, usamos uno propio antes que fallar la venta entera.
+    email: emailComprador || 'pedidos@next-tap.tech',
+    telefono: e.dest_telefono || undefined,
+    monto: Number(montoOrden) || 0,
+    fecha_alta: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    pagado: true, // el pedido en NextTap ya está pago cuando se llega acá (webhook approved)
+    provincia: e.provincia,
+    localidad: String(e.localidad).slice(0, 50),
+  };
+  const data = await apiPost('/pedidos', payload);
+  return data.id;
+}
+
 /**
- * Crea el envío en Enviopack (confirmado, listo para despachar). Se llama desde
- * el webhook de Mercado Pago cuando el pago se aprueba.
+ * Crea el envío en Enviopack. Se llama desde el webhook de Mercado Pago cuando
+ * el pago se aprueba: primero crea el `pedido`, después el envío sobre ese pedido.
  * @param {object} e  fila de venta_envios ya persistida
- * @param {number|string} ventaId  se usa como referencia externa / nº de pedido
- * @returns {Promise<{ enviopackId: string, tracking: string|null }>}
+ * @param {number|string} ventaId  id de la venta — se usa como id_externo del pedido
+ * @param {number} [montoOrden]  monto de la venta (informativo para Enviopack)
+ * @param {string} [emailComprador]  mail del comprador (Enviopack lo pide sí o sí)
+ * @returns {Promise<{ enviopackId: string, tracking: string|null, confirmado: boolean }>}
  */
-export async function crearEnvio(e, ventaId) {
+export async function crearEnvio(e, ventaId, montoOrden, emailComprador) {
   if (!enviopackDisponible) throw new Error('Enviopack no está configurado.');
   const [alto, ancho, largo] = PAQUETE.replace(/\s/g, '').split('x').map((n) => parseInt(n, 10));
 
-  // TODO(sandbox): confirmar nombres exactos y si hace falta crear un `pedido`
-  // aparte primero. La doc permite crear el envío pasando `pedido` como
-  // referencia libre; acá usamos el id de la venta.
+  const pedidoId = await crearPedido(e, ventaId, montoOrden, emailComprador);
+
+  // NOTA (11 sep 2026): con `confirmado: true` la cuenta real devuelve "No hay
+  // servicios de envio disponible..." incluso para un CP que cotiza bien — es
+  // un tema de la cuenta (probablemente la dirección de origen / una revisión
+  // pendiente de Enviopack), no del request. Hasta que soporte lo resuelva,
+  // se crea en BORRADOR (confirmado: false, sin costo/tracking todavía) y hay
+  // que confirmarlo a mano desde el panel de Enviopack ("Órdenes por
+  // procesar" → Cotizar y crear). Cuando esté resuelto, cambiar a `true` acá.
   const payload = {
-    pedido: String(ventaId),
-    confirmado: true,
+    pedido: pedidoId,
+    confirmado: false,
     modalidad: 'D',
-    direccion_envio: DIRECCION_ENVIO,
+    direccion_envio: Number(DIRECCION_ENVIO),
     destinatario: String(e.dest_nombre).slice(0, 50),
-    telefono: e.dest_telefono || undefined,
+    observaciones: e.referencia || undefined,
     // Sin CORREO configurado (caso normal, cuenta en "Red Envíopack Unificada"):
     // no se manda `correo` — Enviopack asigna el carrier solo.
     correo: CORREO || undefined,
     servicio: e.servicio || SERVICIO,
     provincia: e.provincia,
     localidad: String(e.localidad).slice(0, 50),
-    codigo_postal: Number(e.cp),
+    codigo_postal: String(e.cp),
     calle: String(e.calle).slice(0, 50),
     numero: String(e.numero).slice(0, 5),
     piso: e.piso || undefined,
     depto: e.depto || undefined,
-    referencia_domicilio: e.referencia || undefined,
     paquetes: [{ alto, ancho, largo, peso: PESO_KG }],
   };
 
@@ -190,6 +225,7 @@ export async function crearEnvio(e, ventaId) {
   return {
     enviopackId: String(data?.id ?? ''),
     tracking: data?.tracking_number || null,
+    confirmado: Boolean(data?.confirmado),
   };
 }
 

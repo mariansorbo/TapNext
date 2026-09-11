@@ -1112,10 +1112,17 @@ async function crearEnvioParaVenta(ventaId) {
     const e = await get('SELECT * FROM venta_envios WHERE venta_id = ?', [ventaId]);
     if (!e || e.enviopack_id) return;
     try {
-      const { enviopackId, tracking } = await crearEnvio(e, ventaId);
+      const venta = await get(
+        `SELECT v.monto, c.email FROM ventas v LEFT JOIN compradores c ON c.id = v.comprador_id WHERE v.id = ?`,
+        [ventaId]
+      );
+      const { enviopackId, tracking, confirmado } = await crearEnvio(e, ventaId, venta?.monto, venta?.email);
+      // Mientras la cuenta de Enviopack no pueda confirmar solo (ver TODO en
+      // enviopack.js), el envío queda creado pero SIN correo/tracking hasta que
+      // alguien lo confirme a mano en el panel de Enviopack.
       await run(
-        `UPDATE venta_envios SET enviopack_id = ?, tracking_numero = ?, estado = 'por_despachar', enviopack_error = NULL WHERE id = ?`,
-        [enviopackId, tracking, e.id]
+        `UPDATE venta_envios SET enviopack_id = ?, tracking_numero = ?, estado = ?, enviopack_error = NULL WHERE id = ?`,
+        [enviopackId, tracking, confirmado ? 'por_despachar' : 'por_confirmar_enviopack', e.id]
       );
     } catch (err) {
       console.error(`[Enviopack] no se pudo crear el envío de la venta ${ventaId}:`, err.message);

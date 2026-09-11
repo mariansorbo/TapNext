@@ -935,6 +935,11 @@ async function loadVentas() {
 
 const ENVIO_ESTADO_LABEL = {
   pendiente_pago: 'Esperando pago',
+  // Estado temporal (ver TODO en server/enviopack.js): la cuenta de Enviopack
+  // hoy no puede confirmar solo el envío — queda creado como pedido/envío
+  // pero sin correo asignado hasta confirmarlo a mano en el panel de Enviopack
+  // ("Órdenes por procesar"). Sacar este estado cuando eso se resuelva.
+  por_confirmar_enviopack: '⏳ Confirmar en Enviopack',
   por_despachar: 'Por despachar',
   despachado: 'Despachado',
   error_enviopack: '⚠ Error Enviopack',
@@ -965,7 +970,7 @@ async function loadEnvios() {
       if (e.estado === 'error_enviopack') {
         acciones.push(`<button type="button" class="row-btn reintentar-envio-btn" data-id="${e.id}">Reintentar</button>`);
       }
-      if (e.enviopackId) {
+      if (e.enviopackId && e.estado !== 'por_confirmar_enviopack') {
         acciones.push(`<button type="button" class="row-btn etiqueta-btn" data-id="${e.id}">Etiqueta</button>`);
       }
       if (e.estado === 'por_despachar') {
