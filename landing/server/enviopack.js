@@ -27,18 +27,20 @@ const BASE = process.env.ENVIOPACK_BASE || 'https://api.enviopack.com';
 
 // Datos de la cuenta, del panel de Enviopack:
 //   ENVIOPACK_DIRECCION_ENVIO — id de la dirección de origen (desde dónde despachás).
-//   ENVIOPACK_CORREO          — id de un correo puntual a forzar. Dejar vacío
-//                               (default) con la cuenta en "Red Envíopack
-//                               Unificada": ahí Enviopack asigna el carrier
-//                               solo según zona/cobertura/peso — no hay que
-//                               elegir Correo Argentino a mano (ver Distribución
-//                               en el panel). Sólo setear esto si el día de
-//                               mañana se pasa a operar correos por separado.
+//   ENVIOPACK_CORREO          — con la cuenta en "Red Envíopack Unificada"
+//                               (ver Distribución en el panel) el valor tiene
+//                               que ser literalmente 'enviopack' (probado
+//                               contra la cuenta real, 11 sep 2026 — dejarlo
+//                               vacío hace fallar la confirmación del envío
+//                               con "No hay servicios de envio disponible").
+//                               Cambiar sólo si el día de mañana se pasa a
+//                               operar correos por separado (ahí sí el id de
+//                               un correo puntual, ej. 'correo-argentino').
 //   ENVIOPACK_SERVICIO        — 'N' clásico (default), 'P' prioritario.
 //   ENVIOPACK_PESO_KG         — peso declarado por paquete (llavero: 0.3, siempre < 0.5).
 //   ENVIOPACK_PAQUETE         — dimensiones "alto x ancho x largo" en cm.
 const DIRECCION_ENVIO = process.env.ENVIOPACK_DIRECCION_ENVIO || '';
-const CORREO = process.env.ENVIOPACK_CORREO || '';
+const CORREO = process.env.ENVIOPACK_CORREO || 'enviopack';
 const SERVICIO = process.env.ENVIOPACK_SERVICIO || 'N';
 const PESO_KG = Number(process.env.ENVIOPACK_PESO_KG) || 0.3;
 const PAQUETE = process.env.ENVIOPACK_PAQUETE || '4x14x14'; // alto x ancho x largo (cm)
@@ -193,22 +195,16 @@ export async function crearEnvio(e, ventaId, montoOrden, emailComprador) {
 
   const pedidoId = await crearPedido(e, ventaId, montoOrden, emailComprador);
 
-  // NOTA (11 sep 2026): con `confirmado: true` la cuenta real devuelve "No hay
-  // servicios de envio disponible..." incluso para un CP que cotiza bien — es
-  // un tema de la cuenta (probablemente la dirección de origen / una revisión
-  // pendiente de Enviopack), no del request. Hasta que soporte lo resuelva,
-  // se crea en BORRADOR (confirmado: false, sin costo/tracking todavía) y hay
-  // que confirmarlo a mano desde el panel de Enviopack ("Órdenes por
-  // procesar" → Cotizar y crear). Cuando esté resuelto, cambiar a `true` acá.
   const payload = {
     pedido: pedidoId,
-    confirmado: false,
+    confirmado: true,
     modalidad: 'D',
     direccion_envio: Number(DIRECCION_ENVIO),
     destinatario: String(e.dest_nombre).slice(0, 50),
     observaciones: e.referencia || undefined,
-    // Sin CORREO configurado (caso normal, cuenta en "Red Envíopack Unificada"):
-    // no se manda `correo` — Enviopack asigna el carrier solo.
+    // Con la cuenta en "Red Envíopack Unificada", `correo` tiene que ser
+    // literalmente 'enviopack' (ver CORREO arriba) — con eso Enviopack asigna
+    // el carrier real solo, sin elegir Correo Argentino a mano.
     correo: CORREO || undefined,
     servicio: e.servicio || SERVICIO,
     provincia: e.provincia,
