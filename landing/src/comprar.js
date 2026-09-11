@@ -515,7 +515,15 @@ function initEnvioStep(provincias) {
     envioCotizarTimer = setTimeout(cotizarEnvio, 500);
   };
   envioEls.provincia.addEventListener('change', onCotizarInput);
-  envioEls.cp.addEventListener('input', onCotizarInput);
+  envioEls.cp.addEventListener('input', () => {
+    // El CP argentino "viejo" (el que pide Enviopack acá) son 4 números sin
+    // letras — se ven CP nuevos con letra (ej. "B1824ABC") en direcciones
+    // reales, así que filtramos cualquier no-dígito antes de que llegue a
+    // romper la cotización silenciosamente.
+    const soloDigitos = envioEls.cp.value.replace(/\D/g, '').slice(0, 4);
+    if (soloDigitos !== envioEls.cp.value) envioEls.cp.value = soloDigitos;
+    onCotizarInput();
+  });
   ['localidad', 'calle', 'numero', 'nombre', 'telefono'].forEach((k) =>
     envioEls[k].addEventListener('input', updateNextButton)
   );
@@ -524,7 +532,15 @@ function initEnvioStep(provincias) {
 async function cotizarEnvio() {
   const provincia = envioEls.provincia.value;
   const cp = envioEls.cp.value.trim();
-  if (!provincia || !/^\d{4}$/.test(cp)) return;
+  if (!provincia) return; // sin provincia elegida, no hay nada que avisar todavía
+  if (!/^\d{4}$/.test(cp)) {
+    // Si no escribió nada todavía, no lo bombardeamos con el error apenas abre
+    // el paso — recién avisamos cuando cargó algo que no da 4 dígitos.
+    if (!cp) return;
+    envioEls.status.className = 'modal-status is-error';
+    envioEls.status.textContent = 'El código postal va sin letras: son 4 números (ej. 1824).';
+    return;
+  }
   envioEls.status.className = 'modal-status';
   envioEls.status.textContent = 'Calculando el costo de envío...';
   try {
