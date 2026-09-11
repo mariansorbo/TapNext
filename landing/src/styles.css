@@ -502,15 +502,17 @@ body.modal-open{overflow:hidden;}
 .sticker-card{
   background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px 22px;
 }
-.sticker-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
-.sticker-code{font-family:var(--mono); font-size:0.95rem; letter-spacing:0.03em;}
-.sticker-meta{font-size:0.8rem; color:var(--paper-dim); margin-top:4px; text-transform:capitalize;}
+.sticker-card-head{display:flex; align-items:flex-start; gap:14px;}
+.sticker-icon{width:44px; height:44px; flex-shrink:0; color:var(--paper-dim);}
+.sticker-icon svg{width:100%; height:100%; display:block;}
+.sticker-headinfo{flex:1; min-width:0;}
+.sticker-edit-btn{margin-left:auto; flex-shrink:0;}
+.sticker-code{font-family:var(--mono); font-size:0.72rem; letter-spacing:0.03em; color:var(--paper-dim); margin-top:3px;}
+.sticker-meta{font-size:0.95rem; font-weight:600; color:var(--paper); text-transform:capitalize;}
 .sticker-destino{margin-top:14px; font-size:0.9rem; color:var(--paper-dim);}
 .sticker-destino b{color:var(--paper);}
 .sticker-destino-empty{font-family:var(--mono); font-size:0.82rem;}
 .sticker-edit-form{margin-top:18px; display:flex; flex-direction:column; gap:14px;}
-.sticker-funcion-fija{margin:0; font-size:0.86rem; color:var(--paper-dim);}
-.sticker-funcion-fija b{color:var(--paper);}
 
 /* Panel "Entrega" (despacho de venta presencial) */
 .despacho-card{

@@ -1,7 +1,27 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
+import { BRAND_ICONS } from './brand-icons.js';
 
 applyBrand('Mi panel');
+
+// Mismo mapeo función → ícono de marca que usa el wizard de compra (comprar.js).
+const FUNCION_ICONOS = {
+  whatsapp: BRAND_ICONS.whatsapp,
+  instagram: BRAND_ICONS.instagram,
+  pago: BRAND_ICONS.mercadopago,
+  menu: BRAND_ICONS.menu,
+  review: BRAND_ICONS.googleMaps,
+  web: BRAND_ICONS.web,
+  agenda: BRAND_ICONS.googleCalendar,
+  linktree: BRAND_ICONS.linktree,
+  alias: BRAND_ICONS.alias,
+};
+const ICONO_GENERICO = `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.08)"/>
+  <circle cx="16" cy="13" r="4" stroke="currentColor" stroke-width="1.6" opacity="0.6"/>
+  <path d="M8 24c1.5-4 5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="1.6" opacity="0.6"/>
+</svg>`;
+const iconoFuncion = (tipo) => FUNCION_ICONOS[tipo] || ICONO_GENERICO;
 
 // La lista de destinos (label/campo/placeholder/ayuda por tipo) es del backend:
 // el registry de `server/destinos/` es la única fuente de verdad. Ver
@@ -216,11 +236,13 @@ function renderStickers(stickers) {
     card.className = 'sticker-card';
 
     const destinoTipo = sticker.destino?.tipo ? destinoMeta(sticker.destino.tipo) : null;
+    const funcionIcono = sticker.funcion || sticker.destino?.tipo || null;
     card.innerHTML = `
       <div class="sticker-card-head">
-        <div>
-          <div class="sticker-code">${sticker.codigoPublico}</div>
+        <div class="sticker-icon">${iconoFuncion(funcionIcono)}</div>
+        <div class="sticker-headinfo">
           <div class="sticker-meta">${sticker.modelo || ''} · ${ESTADO_LABELS[sticker.estado] || sticker.estado}</div>
+          <div class="sticker-code">${sticker.codigoPublico}</div>
         </div>
         ${sticker.estado === 'activo' ? '<button type="button" class="btn-ghost sticker-edit-btn">Editar</button>' : ''}
       </div>
@@ -260,9 +282,17 @@ function renderStickers(stickers) {
         const funcionFija = sticker.funcion || null;
         const tipoInicial = funcionFija || sticker.destino?.tipo || DESTINO_TIPOS[0].id;
         const metaInicial = destinoMeta(tipoInicial);
+        // Con función fija se listan todas las opciones (así el comprador ve
+        // qué otras funciones existen) pero solo la propia queda seleccionable:
+        // el resto va con `disabled` para que el navegador las muestre en gris
+        // y no se puedan elegir.
         const selectorTipo = funcionFija
-          ? `<input type="hidden" class="edit-tipo" value="${funcionFija}">
-             <p class="sticker-funcion-fija">Este llavero abre <b>${metaInicial.label}</b>.</p>`
+          ? `<label>
+              <span>Función</span>
+              <select class="edit-tipo edit-tipo-fija">
+                ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${t.id === funcionFija ? 'selected' : 'disabled'}>${t.label}</option>`).join('')}
+              </select>
+            </label>`
           : `<label>
               <span>Tipo de destino</span>
               <select class="edit-tipo">
