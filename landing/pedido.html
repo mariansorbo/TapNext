@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>tap — Pedí tu sticker</title>
+  <title>tap — Pedí tu llavero</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body>
+<body data-flow="limitado">
 
 <nav>
   <a href="/" class="logo" data-brand-logo></a>
@@ -17,8 +17,8 @@
 <section class="buy-hero">
   <div class="wrap">
     <div class="kicker" id="buy-ref-kicker">Compra online</div>
-    <h2>Pedí tu sticker <span data-brand>tap</span>.</h2>
-    <p class="lead">Elegís la función y el modelo, validamos tu WhatsApp y pagás. Empezás a usar tu NFC al toque — el destino lo configurás cuando quieras, desde tu panel.</p>
+    <h2>Pedí tu llavero <span data-brand>tap</span>.</h2>
+    <p class="lead">Instagram para lifestyle, WhatsApp para negocios. Empezá a conectar al toque con las personas.</p>
     <button type="button" class="btn-primary" id="start-wizard">Iniciar</button>
   </div>
 </section>
@@ -67,11 +67,70 @@
       <span class="wizard-forward-hint" aria-hidden="true">→</span>
     </div>
 
-    <div class="wizard-step" data-step="1">
+    <div class="wizard-step" data-step="0">
       <div class="kicker step-kicker"></div>
       <h3 id="wizard-title">¿Para qué función lo vas a usar?</h3>
+      <div class="option-grid" id="func-options"></div>
+    </div>
+
+    <div class="wizard-step" data-step="1">
+      <div class="kicker step-kicker"></div>
+      <h3>¿Qué modelo querés?</h3>
       <p class="wizard-step-note" id="promo-note" hidden></p>
-      <div class="option-grid" id="combo-options"></div>
+      <div class="option-grid option-grid-3" id="combo-options"></div>
+    </div>
+
+    <div class="wizard-step" data-step="5">
+      <div class="kicker step-kicker"></div>
+      <h3>¿A dónde te lo enviamos?</h3>
+      <p class="modal-sub">Lo despachamos por Correo Argentino a tu domicilio. El costo depende del código postal.</p>
+      <div class="modal-form">
+        <label>
+          <span>Provincia</span>
+          <select id="envio-provincia"><option value="">Elegí tu provincia</option></select>
+        </label>
+        <label>
+          <span>Código postal</span>
+          <input type="text" inputmode="numeric" id="envio-cp" placeholder="1900" maxlength="4">
+        </label>
+        <label>
+          <span>Localidad</span>
+          <input type="text" id="envio-localidad" placeholder="La Plata" maxlength="50">
+        </label>
+        <div class="modal-form-row">
+          <label>
+            <span>Calle</span>
+            <input type="text" id="envio-calle" placeholder="Av. Siempre Viva" maxlength="50">
+          </label>
+          <label>
+            <span>Número</span>
+            <input type="text" id="envio-numero" placeholder="742" maxlength="8">
+          </label>
+        </div>
+        <div class="modal-form-row">
+          <label>
+            <span>Piso <small>(opcional)</small></span>
+            <input type="text" id="envio-piso" maxlength="8">
+          </label>
+          <label>
+            <span>Depto <small>(opcional)</small></span>
+            <input type="text" id="envio-depto" maxlength="8">
+          </label>
+        </div>
+        <label>
+          <span>Referencia / entre calles <small>(opcional)</small></span>
+          <input type="text" id="envio-referencia" maxlength="120">
+        </label>
+        <label>
+          <span>Nombre de quien recibe</span>
+          <input type="text" id="envio-nombre" maxlength="60">
+        </label>
+        <label>
+          <span>Teléfono de contacto</span>
+          <input type="text" inputmode="tel" id="envio-telefono" maxlength="30" placeholder="11 5555 5555">
+        </label>
+      </div>
+      <p class="modal-status" id="envio-status"></p>
     </div>
 
     <div class="wizard-step" data-step="3">

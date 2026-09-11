@@ -17,6 +17,14 @@ import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAb
 import { montarConsolaSticker } from './consola-sticker.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
 import { crearDespachoRouter } from './despacho.js';
+import {
+  enviopackDisponible,
+  PROVINCIAS_AR,
+  esProvinciaValida,
+  cotizarDomicilio,
+  crearEnvio,
+  etiquetaPdf,
+} from './enviopack.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -357,6 +365,12 @@ app.get('/api/auth/config', (req, res) => {
       disponible: canalVerificacion.disponible,
     },
     destinos: DESTINO_TIPOS.map((id) => ({ id, ...DESTINO_META[id] })),
+    // Envío a domicilio (compra online). Si no está configurado Enviopack, el
+    // wizard oculta el paso de envío y cobra solo los stickers.
+    envio: {
+      habilitado: enviopackDisponible,
+      provincias: PROVINCIAS_AR,
+    },
   });
 });
 
@@ -668,6 +682,57 @@ app.get('/api/public/precios', async (req, res) => {
   res.json(rows);
 });
 
+// Cotización de envío a domicilio (compra online). Sin auth: se llama en el
+// checkout antes de verificar identidad. El costo se RE-cotiza server-side en
+// POST /api/ventas — esta respuesta es solo para mostrar el precio.
+app.get('/api/public/envio/cotizar', async (req, res) => {
+  if (!enviopackDisponible) return res.status(503).json({ error: 'El envío no está disponible.' });
+  const provincia = String(req.query.provincia || '');
+  const cp = String(req.query.cp || '').trim();
+  if (!esProvinciaValida(provincia)) return res.status(400).json({ error: 'Elegí una provincia.' });
+  if (!/^\d{4}$/.test(cp)) return res.status(400).json({ error: 'El código postal son 4 dígitos.' });
+  try {
+    const q = await cotizarDomicilio({ provincia, cp });
+    res.json({ costo: q.costo, servicio: q.servicio, horasEntrega: q.horasEntrega });
+  } catch (err) {
+    console.error('[Enviopack] cotizar:', err.message);
+    res.status(502).json({ error: 'No pudimos cotizar el envío a ese código postal. Probá de nuevo.' });
+  }
+});
+
+// Valida y normaliza el bloque `envio` del body de POST /api/ventas. Devuelve
+// { error } | { envio: <campos listos para venta_envios sin costo/servicio> }.
+function parseEnvio(raw) {
+  if (!raw || typeof raw !== 'object') return { envio: null };
+  if (!enviopackDisponible) return { error: 'El envío no está disponible.' };
+  const s = (v, max) => String(v ?? '').trim().slice(0, max);
+  const campos = {
+    modo: 'domicilio',
+    dest_nombre: s(raw.destNombre, 60),
+    dest_telefono: s(raw.destTelefono, 30),
+    calle: s(raw.calle, 50),
+    numero: s(raw.numero, 8),
+    piso: s(raw.piso, 8) || null,
+    depto: s(raw.depto, 8) || null,
+    referencia: s(raw.referencia, 120) || null,
+    localidad: s(raw.localidad, 50),
+    provincia: s(raw.provincia, 8),
+    cp: s(raw.cp, 8),
+  };
+  if (!esProvinciaValida(campos.provincia)) return { error: 'Provincia de envío inválida.' };
+  if (!/^\d{4}$/.test(campos.cp)) return { error: 'Código postal de envío inválido.' };
+  for (const [k, label] of [
+    ['dest_nombre', 'nombre'],
+    ['dest_telefono', 'teléfono'],
+    ['calle', 'calle'],
+    ['numero', 'número'],
+    ['localidad', 'localidad'],
+  ]) {
+    if (!campos[k]) return { error: `Falta el ${label} para el envío.` };
+  }
+  return { envio: campos };
+}
+
 // Una venta = un pago (una preferencia de Mercado Pago) que puede cubrir
 // varios stickers a la vez. El body espera `items`: un array de
 // {modelo, destinoTipo, destinoValor} — uno por sticker que se quiere
@@ -709,7 +774,11 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
 
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
   const vendedorToken = String(req.body?.vendedorToken || '').trim().toLowerCase();
-  const envio = req.body?.envio && Number(req.body.envio.price) > 0 ? req.body.envio : null;
+
+  // Envío a domicilio (compra online). parseEnvio valida los campos; el costo se
+  // cotiza contra Enviopack más abajo (nunca se confía en un precio del cliente).
+  const { envio: envioDatos, error: envioError } = parseEnvio(req.body?.envio);
+  if (envioError) return res.status(400).json({ error: envioError });
 
   if (!items.length) return res.status(400).json({ error: 'No hay productos en la compra.' });
   for (const item of items) {
@@ -773,7 +842,21 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
 
   let vendedorIdVenta = vendedor?.id || null;
   const montoItems = conPromo.reduce((sum, r) => sum + r.precio, 0);
-  const monto = montoItems + (envio ? Number(envio.price) : 0);
+
+  // Cotización de envío server-side: es la fuente de verdad del costo (el
+  // frontend solo lo mostró de referencia). Si Enviopack no responde, no
+  // dejamos avanzar la compra con envío.
+  let envioCotizado = null;
+  if (envioDatos) {
+    try {
+      const q = await cotizarDomicilio({ provincia: envioDatos.provincia, cp: envioDatos.cp });
+      envioCotizado = { ...envioDatos, costo: q.costo, servicio: q.servicio };
+    } catch (err) {
+      console.error('[Enviopack] cotizar en /ventas:', err.message);
+      return res.status(502).json({ error: 'No pudimos calcular el envío. Probá de nuevo en un momento.' });
+    }
+  }
+  const monto = montoItems + (envioCotizado ? envioCotizado.costo : 0);
 
   for (const { sticker } of conPromo) {
     await transicionarSticker(sticker.id, { comprador_id: req.comprador.id, estado: 'vendido_pendiente' });
@@ -798,6 +881,21 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     ]);
   }
 
+  if (envioCotizado) {
+    await run(
+      `INSERT INTO venta_envios
+         (venta_id, modo, estado, costo, servicio, dest_nombre, dest_telefono,
+          calle, numero, piso, depto, referencia, localidad, provincia, cp)
+       VALUES (?, 'domicilio', 'pendiente_pago', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        ventaId, envioCotizado.costo, envioCotizado.servicio,
+        envioCotizado.dest_nombre, envioCotizado.dest_telefono,
+        envioCotizado.calle, envioCotizado.numero, envioCotizado.piso, envioCotizado.depto,
+        envioCotizado.referencia, envioCotizado.localidad, envioCotizado.provincia, envioCotizado.cp,
+      ]
+    );
+  }
+
   try {
     const mpItems = conPromo.map(({ item, precio }) => ({
       title: `Sticker AltoqueTap — ${item.modelo}`,
@@ -805,8 +903,8 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
       unit_price: precio,
       currency_id: 'ARS',
     }));
-    if (envio) {
-      mpItems.push({ title: 'Envío', quantity: 1, unit_price: Number(envio.price), currency_id: 'ARS' });
+    if (envioCotizado) {
+      mpItems.push({ title: 'Envío a domicilio', quantity: 1, unit_price: envioCotizado.costo, currency_id: 'ARS' });
     }
     const preference = await new Preference(mpClient).create({
       body: {
@@ -826,6 +924,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     console.error('[Mercado Pago] error creando preferencia:', err.message);
     // Si no se pudo iniciar el pago, no dejamos nada reservado a medias:
     // liberamos los stickers reservados y borramos la venta que recién armamos.
+    await run('DELETE FROM venta_envios WHERE venta_id = ?', [ventaId]);
     await run('DELETE FROM venta_items WHERE venta_id = ?', [ventaId]);
     await run('DELETE FROM ventas WHERE id = ?', [ventaId]);
     for (const { sticker } of reservados) {
@@ -870,11 +969,26 @@ app.get('/api/ventas/:id', requireAuth, async (req, res) => {
     posicionCola = cola.findIndex((v) => v.id === venta.id) + 1 || null;
   }
 
+  const envio = await get(
+    'SELECT modo, estado, costo, localidad, provincia, cp, tracking_numero FROM venta_envios WHERE venta_id = ?',
+    [venta.id]
+  );
+
   res.json({
     id: venta.id,
     estadoPago: venta.estado_pago,
     monto: venta.monto,
     codigoRetiro: venta.codigo_retiro || null,
+    envio: envio
+      ? {
+          modo: envio.modo,
+          estado: envio.estado,
+          costo: envio.costo,
+          localidad: envio.localidad,
+          cp: envio.cp,
+          tracking: envio.tracking_numero || null,
+        }
+      : null,
     tokenComprador: venta.token_comprador || null,
     retiroEstado: venta.retiro_estado || null,
     posicionCola,
@@ -988,6 +1102,33 @@ async function notificarActivacionGratis(ventaId) {
   }
 }
 
+// Crea el envío en Enviopack para una venta ya pagada (llamado desde el webhook).
+// Best-effort e idempotente: si ya tiene enviopack_id o no hay fila de envío,
+// no hace nada. Si Enviopack falla, deja la fila en 'error_enviopack' con el
+// detalle — el admin la reintenta desde el panel.
+async function crearEnvioParaVenta(ventaId) {
+  if (!enviopackDisponible) return;
+  try {
+    const e = await get('SELECT * FROM venta_envios WHERE venta_id = ?', [ventaId]);
+    if (!e || e.enviopack_id) return;
+    try {
+      const { enviopackId, tracking } = await crearEnvio(e, ventaId);
+      await run(
+        `UPDATE venta_envios SET enviopack_id = ?, tracking_numero = ?, estado = 'por_despachar', enviopack_error = NULL WHERE id = ?`,
+        [enviopackId, tracking, e.id]
+      );
+    } catch (err) {
+      console.error(`[Enviopack] no se pudo crear el envío de la venta ${ventaId}:`, err.message);
+      await run(`UPDATE venta_envios SET estado = 'error_enviopack', enviopack_error = ? WHERE id = ?`, [
+        String(err.message).slice(0, 500),
+        e.id,
+      ]);
+    }
+  } catch (err) {
+    console.error(`[Enviopack] error procesando el envío de la venta ${ventaId}:`, err.message);
+  }
+}
+
 // Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
 // usuario en este request). Confirmamos el estado real contra la API de MP en
 // vez de confiar en el payload de la notificación (evita pagos falsificados).
@@ -1059,6 +1200,9 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // codigo_publico que corresponden a esta venta — es el ID que el
       // vendedor tiene que entregar y el comprador tiene que recibir.
       await notificarVentaConfirmada(ventaId);
+      // Compra online con envío a domicilio: recién ahora (pago confirmado)
+      // creamos el envío en Enviopack. Ver "Envio a domicilio" en el vault.
+      await crearEnvioParaVenta(ventaId);
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
         'rechazado',
@@ -2145,6 +2289,88 @@ app.get('/api/admin/ventas', requireAdmin, async (req, res) => {
   );
 });
 
+// --- Envíos a domicilio (compra online) — ver "Envio a domicilio" en el vault ---
+
+app.get('/api/admin/envios', requireAdmin, async (req, res) => {
+  const estado = String(req.query.estado || '').trim();
+  const cond = [];
+  const args = [];
+  if (estado) {
+    cond.push('e.estado = ?');
+    args.push(estado);
+  }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  const rows = await all(
+    `SELECT e.*, ve.estado_pago, ve.payment_id
+       FROM venta_envios e
+       JOIN ventas ve ON ve.id = e.venta_id
+       ${where}
+       ORDER BY e.creado_en DESC`,
+    args
+  );
+  const provNombre = Object.fromEntries(PROVINCIAS_AR.map((p) => [p.id, p.nombre]));
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      ventaId: r.venta_id,
+      estado: r.estado,
+      estadoPago: r.estado_pago,
+      costo: r.costo,
+      servicio: r.servicio,
+      destinatario: r.dest_nombre,
+      telefono: r.dest_telefono,
+      direccion: [
+        `${r.calle} ${r.numero}${r.piso ? ` piso ${r.piso}` : ''}${r.depto ? ` ${r.depto}` : ''}`,
+        `${r.localidad} (${r.cp})`,
+        provNombre[r.provincia] || r.provincia,
+      ].join(' · '),
+      referencia: r.referencia || null,
+      enviopackId: r.enviopack_id || null,
+      tracking: r.tracking_numero || null,
+      error: r.enviopack_error || null,
+      creadoEn: r.creado_en,
+      despachadoEn: r.despachado_en,
+    }))
+  );
+});
+
+// Descarga la etiqueta (PDF) de un envío — el backend la trae de Enviopack para
+// no exponer el token al panel.
+app.get('/api/admin/envios/:id/etiqueta', requireAdmin, async (req, res) => {
+  const e = await get('SELECT enviopack_id FROM venta_envios WHERE id = ?', [Number(req.params.id)]);
+  if (!e?.enviopack_id) return res.status(409).json({ error: 'El envío todavía no tiene etiqueta.' });
+  try {
+    const pdf = await etiquetaPdf(e.enviopack_id);
+    res.type('application/pdf').send(pdf);
+  } catch (err) {
+    console.error('[Enviopack] etiqueta:', err.message);
+    res.status(502).json({ error: 'No se pudo traer la etiqueta de Enviopack.' });
+  }
+});
+
+// Reintenta crear el envío en Enviopack (para los que quedaron en 'error_enviopack').
+app.post('/api/admin/envios/:id/reintentar', requireAdmin, async (req, res) => {
+  const e = await get('SELECT * FROM venta_envios WHERE id = ?', [Number(req.params.id)]);
+  if (!e) return res.status(404).json({ error: 'Envío no encontrado.' });
+  if (e.enviopack_id) return res.status(409).json({ error: 'Este envío ya está creado en Enviopack.' });
+  await crearEnvioParaVenta(e.venta_id);
+  const actualizado = await get('SELECT estado, enviopack_id, enviopack_error FROM venta_envios WHERE id = ?', [e.id]);
+  res.json({
+    estado: actualizado.estado,
+    enviopackId: actualizado.enviopack_id || null,
+    error: actualizado.enviopack_error || null,
+  });
+});
+
+// Marca un envío como despachado (ya lo llevaste al correo).
+app.post('/api/admin/envios/:id/despachado', requireAdmin, async (req, res) => {
+  const e = await get('SELECT estado FROM venta_envios WHERE id = ?', [Number(req.params.id)]);
+  if (!e) return res.status(404).json({ error: 'Envío no encontrado.' });
+  if (e.estado === 'pendiente_pago') return res.status(409).json({ error: 'El pago de este envío todavía no se confirmó.' });
+  await run(`UPDATE venta_envios SET estado = 'despachado', despachado_en = NOW() WHERE id = ?`, [Number(req.params.id)]);
+  res.json({ ok: true });
+});
+
 app.get('/api/admin/comisiones', requireAdmin, async (req, res) => {
   const rows = await all(`
     SELECT v.id, v.nombre, v.comision_pct, v.alias_mp,
@@ -2618,6 +2844,140 @@ function pantallaNoActivado(codigo, cola = null) {
 </html>`;
 }
 
+// Función 'alias': pantalla propia de NextTap con los datos de transferencia que
+// cargó el dueño y un botón que copia el alias al portapapeles. No redirige a
+// ningún lado. `datos` viene del resolver del plugin: { alias, titular, banco,
+// cbu?, cuit? }. HTML autónomo (un request, sin bundle), mismo criterio que
+// pantallaRedireccion. noindex: no queremos CBUs de nadie en Google.
+function pantallaAlias(datos = {}) {
+  const esc = (v) =>
+    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const alias = String(datos.alias ?? '');
+  const titular = String(datos.titular ?? '');
+  const banco = String(datos.banco ?? '');
+  const cbu = datos.cbu ? String(datos.cbu) : '';
+  const cuit = datos.cuit ? String(datos.cuit) : '';
+  const cuitLindo = /^\d{11}$/.test(cuit) ? `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}` : cuit;
+
+  const filaSec = (label, mostrar, copiar) =>
+    copiar
+      ? `<button type="button" class="sec" data-copy="${esc(copiar)}">
+           <span class="sec-l">${esc(label)}</span>
+           <span class="sec-v">${esc(mostrar)}</span>
+           <span class="sec-i">copiar</span>
+         </button>`
+      : '';
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>NextTap — datos de transferencia</title>
+<style>
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{min-height:100%}
+  body{background:var(--ink);color:var(--paper);
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;min-height:100svh;padding:34px 22px;text-align:center;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(1.9rem,10vw,2.8rem);letter-spacing:-.03em;margin-bottom:10px}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
+  .k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(237,239,233,.45)}
+  h1{font-size:clamp(1.3rem,6vw,1.7rem);font-weight:600;letter-spacing:-.02em;max-width:20ch}
+  .banco{color:rgba(237,239,233,.6);font-size:.95rem}
+  .alias{margin-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(1.3rem,7vw,1.9rem);
+    letter-spacing:.02em;word-break:break-all;user-select:all;-webkit-user-select:all;
+    background:rgba(237,239,233,.06);border:1px solid rgba(237,239,233,.14);border-radius:12px;padding:14px 16px;width:min(420px,100%)}
+  .copy{margin-top:4px;width:min(420px,100%);background:var(--paper);color:var(--ink);border:0;
+    font-family:inherit;font-weight:600;font-size:1.02rem;padding:14px 20px;border-radius:999px;cursor:pointer}
+  .copy.done{background:var(--violet);color:var(--ink)}
+  .secs{width:min(420px,100%);display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .sec{display:flex;align-items:center;gap:10px;background:transparent;color:inherit;
+    border:1px solid rgba(237,239,233,.14);border-radius:12px;padding:11px 14px;cursor:pointer;font-family:inherit;text-align:left}
+  .sec-l{font-size:.72rem;letter-spacing:.04em;color:rgba(237,239,233,.5);white-space:nowrap}
+  .sec-v{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9rem;word-break:break-all}
+  .sec-i{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--violet);white-space:nowrap}
+  .hint{color:rgba(237,239,233,.5);max-width:30ch;line-height:1.5;font-size:.9rem;margin-top:6px}
+  a.link{color:rgba(237,239,233,.45);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;letter-spacing:.03em;text-decoration:none;margin-top:4px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);
+    bottom:calc(env(safe-area-inset-bottom) + 24px);background:var(--paper);color:var(--ink);
+    font-weight:600;font-size:.9rem;padding:10px 20px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+  <div class="mark">Next<span class="tap">Tap</span></div>
+  <p class="k">Datos de transferencia</p>
+  ${titular ? `<h1>${esc(titular)}</h1>` : ''}
+  ${banco ? `<p class="banco">${esc(banco)}</p>` : ''}
+  <div class="alias" id="alias">${esc(alias)}</div>
+  <button type="button" class="copy" id="copy" data-copy="${esc(alias)}">Copiar alias</button>
+  <div class="secs">
+    ${filaSec('CBU / CVU', cbu, cbu)}
+    ${filaSec('CUIT / CUIL', cuitLindo, cuit)}
+  </div>
+  <p class="hint">Pegalo en tu app del banco para hacer la transferencia.</p>
+  <a class="link" href="https://next-tap.tech">next-tap.tech</a>
+  <div class="toast" id="toast">Copiado</div>
+  <script>
+  (function(){
+    function copiar(text, done){
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(function(){done(true)}, fallback);
+          return;
+        }
+      }catch(e){}
+      fallback();
+      function fallback(){
+        try{
+          var ta=document.createElement('textarea');
+          ta.value=text; ta.setAttribute('readonly','');
+          ta.style.position='fixed'; ta.style.left='-9999px';
+          document.body.appendChild(ta);
+          ta.select(); ta.setSelectionRange(0, text.length);
+          var ok=document.execCommand('copy');
+          document.body.removeChild(ta);
+          done(!!ok);
+        }catch(e){ done(false); }
+      }
+    }
+    var toast=document.getElementById('toast'), tt;
+    function flash(msg){
+      toast.textContent=msg; toast.classList.add('on');
+      clearTimeout(tt); tt=setTimeout(function(){toast.classList.remove('on')},1600);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function(btn){
+      btn.addEventListener('click', function(){
+        var text=btn.getAttribute('data-copy')||'';
+        copiar(text, function(ok){
+          if(ok){
+            flash('Copiado');
+            if(btn.id==='copy'){
+              var prev=btn.textContent; btn.textContent='¡Copiado!'; btn.classList.add('done');
+              setTimeout(function(){ btn.textContent=prev; btn.classList.remove('done'); },1600);
+            }
+          }else{
+            flash('Copialo a mano');
+            try{
+              var sel=window.getSelection(), rng=document.createRange();
+              rng.selectNodeContents(document.getElementById('alias'));
+              sel.removeAllRanges(); sel.addRange(rng);
+            }catch(e){}
+          }
+        });
+      });
+    });
+  })();
+  </script>
+</body>
+</html>`;
+}
+
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
 
@@ -2640,7 +3000,11 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
         }
         return res.redirect(302, r.url);
       }
-      // (futuro) r.modo === 'landing' → renderizar la página de la función acá.
+      if (r.modo === 'landing') {
+        // El tap no lleva a ningún lado: renderizamos la página de la función.
+        // Hoy solo 'alias' (datos de transferencia + copiar).
+        return res.type('html').send(pantallaAlias(r.datos));
+      }
     }
   }
 
@@ -2723,10 +3087,15 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   // El front solo hace window.location = destino, así que se lo damos ya
   // resuelto a URL absoluta (filas viejas se guardaron sin https://). Para
   // WhatsApp (modo 'app') usamos la URL web — el front no dispara intents.
+  // Para 'landing' (alias) no hay URL externa: mandamos al propio /v/<código>,
+  // que renderiza la página de la función.
   let destinoUrl = null;
   if (destino) {
     const r = resolverDestino(destino.tipo, destino.valor);
-    destinoUrl = r.web || r.url || destino.valor;
+    destinoUrl =
+      r.modo === 'landing'
+        ? `${PUBLIC_ROUTER_BASE}/v/${sticker.codigo_publico}`
+        : r.web || r.url || destino.valor;
   }
   res.json({
     codigo: sticker.codigo_publico,

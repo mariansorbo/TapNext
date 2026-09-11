@@ -11,11 +11,17 @@ import { BRAND_ICONS } from './brand-icons.js';
 // En ambos casos el destino (a dónde redirige el NFC) NO se pide acá — se
 // configura después, desde el panel del comprador, una vez que pagó.
 const isPresencial = document.body.dataset.flow === 'presencial';
-// pedidoFullCatalogo.html: flujo online que además deja elegir el modelo
-// (llavero/tarjeta/placa) en un paso propio, en vez de asumir siempre llavero.
+// pedidoFullCatalogo.html: catálogo completo, sin restricciones — todas las
+// funciones y los tres modelos habilitados.
 const isFullCatalogo = document.body.dataset.flow === 'full';
+// pedido.html: mismo wizard función→modelo que el catálogo completo, pero
+// limitado a lo que hoy se puede vender de verdad (ver FUNCIONES_DISPONIBLES /
+// MODELOS_DISPONIBLES más abajo).
+const isLimitado = document.body.dataset.flow === 'limitado';
+// Ambos usan el paso 0 (función) + paso 1 (modelo) en vez del combo único.
+const tieneWizardModelo = isFullCatalogo || isLimitado;
 
-applyBrand(isPresencial ? 'Comprá tu sticker' : 'Pedí tu sticker');
+applyBrand(isPresencial ? 'Comprá tu sticker' : isFullCatalogo ? 'Pedí tu sticker' : 'Pedí tu llavero');
 initFaqAccordion();
 
 // Atribuye esta visita al sticker "NextTap oficial" del vendedor, si vino con
@@ -57,7 +63,7 @@ const PAY_STEP = 6;
 // (llavero/tarjeta/placa) — recién ahí el paso 1 arma los combos con ese modelo.
 // El paso 5 (envío a domicilio) se suma sólo en el flujo online y sólo si el
 // backend tiene Enviopack configurado (lo dice /auth/config).
-let STEP_SEQUENCE = isFullCatalogo ? [0, 1, 3, 4, PAY_STEP] : [1, 3, 4, PAY_STEP];
+let STEP_SEQUENCE = tieneWizardModelo ? [0, 1, 3, 4, PAY_STEP] : [1, 3, 4, PAY_STEP];
 
 // Mismo patrón que mi-panel.js: en local pasa por el proxy de Vite, en producción
 // apunta a la URL pública de la API (Render).
@@ -117,8 +123,8 @@ const state = {
   authToken: null,
   // Envío a domicilio (online). costo/servicio salen de la cotización del backend.
   envio: { habilitado: false, costo: null, servicio: null },
-  // Modelo elegido en el paso 0 (solo pedidoFullCatalogo.html).
-  selectedModel: null,
+  // Función elegida en el paso 0 (solo pedidoFullCatalogo.html).
+  selectedFunction: null,
 };
 
 // Modelo por defecto del flujo online (a pedido, sin límite de stock): ahí el
@@ -127,61 +133,79 @@ const state = {
 const DEFAULT_MODEL = 'llavero';
 const MAX_POR_COMBO = 20;
 
-// Cada opción del paso 1 es un combo función+modelo con su propia cantidad. La
-// tarjeta muestra la función en grande, el modelo ("<Modelo> NFC") de subtítulo
-// y un stepper − N +. `max` = tope de unidades (stock del combo, o 20 online).
-function comboItem(funcId, modelId, max = MAX_POR_COMBO) {
+// Cada opción del paso de combos tiene su propia cantidad y `max` = tope de
+// unidades (stock del combo, o 20 online). `displayAs` decide qué se muestra
+// en grande en la tarjeta: la función (flujos normales, un modelo fijo) o el
+// modelo (pedidoFullCatalogo.html / pedido.html, con la función ya elegida
+// en el paso 0).
+function comboItem(funcId, modelId, max = MAX_POR_COMBO, displayAs = 'function') {
   const fn = FUNCTIONS.find((f) => f.id === funcId);
   const model = MODELS.find((m) => m.id === modelId);
+  const byModel = displayAs === 'model';
   return {
     id: `${modelId}__${funcId}`,
     funcId,
     modelId,
-    label: fn ? fn.label : funcId,
-    desc: `${model ? model.label : modelId} NFC`,
-    icon: fn ? fn.icon : '',
+    label: byModel ? (model ? model.label : modelId) : (fn ? fn.label : funcId),
+    desc: byModel ? `$${getPrecio(modelId).toLocaleString('es-AR')}` : `${model ? model.label : modelId} NFC`,
+    icon: byModel ? model?.icon || '' : fn ? fn.icon : '',
     max: Math.max(1, Math.min(Number(max) || MAX_POR_COMBO, MAX_POR_COMBO)),
   };
 }
 
-let comboItems = isFullCatalogo ? [] : FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
+let comboItems = tieneWizardModelo ? [] : FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
 
-// Paso 0 (solo pedidoFullCatalogo.html): elegir modelo antes de ver las
-// funciones. Sin "suelto" — ese solo se ofrece armando el pedido a mano.
+// Paso 0 (pedidoFullCatalogo.html y pedido.html): elegir función antes de ver
+// los modelos. Recién con la función elegida, el paso 1 arma los combos
+// función fija + cada modelo (llavero/tarjeta/placa — sin "suelto", que solo
+// se ofrece armando el pedido a mano).
 const MODEL_CHOICES = ['llavero', 'tarjeta', 'placa'];
-const modelOptions = document.getElementById('model-options');
+// pedido.html (isLimitado) todavía no tiene stock impreso de tarjeta/placa: se
+// muestran pero deshabilitados (ver renderCombos). pedidoFullCatalogo.html
+// muestra el catálogo completo, sin esta restricción. Ajustar acá cuando haya
+// stock real de tarjeta/placa.
+const MODELOS_DISPONIBLES = ['llavero'];
+// Ídem con las funciones: en pedido.html hoy sólo se puede cargar
+// whatsapp/instagram en el NFC — el resto de FUNCTIONS ni se ofrece en ese
+// paso (no "deshabilitada", directamente no aparece). Ajustar cuando se sumen
+// más funciones reales.
+const FUNCIONES_DISPONIBLES = ['whatsapp', 'instagram'];
+const funcOptions = document.getElementById('func-options');
 
-function renderModelOptions() {
-  if (!modelOptions) return;
-  modelOptions.innerHTML = '';
-  MODEL_CHOICES.forEach((modelId) => {
-    const model = MODELS.find((m) => m.id === modelId);
+function renderFuncOptions() {
+  if (!funcOptions) return;
+  funcOptions.innerHTML = '';
+  const funciones = isLimitado ? FUNCTIONS.filter((fn) => FUNCIONES_DISPONIBLES.includes(fn.id)) : FUNCTIONS;
+  funciones.forEach((fn) => {
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'option-card' + (state.selectedModel === modelId ? ' is-selected' : '');
-    card.dataset.id = modelId;
+    card.className = 'option-card' + (state.selectedFunction === fn.id ? ' is-selected' : '');
+    card.dataset.id = fn.id;
     card.innerHTML = `
       <div class="option-text">
-        <div class="option-label">${model.label}</div>
-        <div class="option-desc">${model.desc} — $${getPrecio(modelId).toLocaleString('es-AR')}</div>
+        <div class="option-label">${fn.label}</div>
+        <div class="option-desc">${fn.desc}</div>
       </div>
-      ${model.icon ? `<div class="option-icon">${model.icon}</div>` : ''}
+      ${fn.icon ? `<div class="option-icon">${fn.icon}</div>` : ''}
     `;
-    card.addEventListener('click', () => selectModel(modelId));
-    modelOptions.appendChild(card);
+    card.addEventListener('click', () => selectFunction(fn.id));
+    funcOptions.appendChild(card);
   });
 }
 
-function selectModel(modelId) {
-  if (state.selectedModel === modelId) return;
-  state.selectedModel = modelId;
+function selectFunction(funcId) {
+  if (state.selectedFunction === funcId) return;
+  state.selectedFunction = funcId;
   state.quantities = {};
-  comboItems = FUNCTIONS.map((f) => comboItem(f.id, modelId));
-  renderModelOptions();
+  comboItems = MODEL_CHOICES.map((modelId) => ({
+    ...comboItem(funcId, modelId, MAX_POR_COMBO, 'model'),
+    disponible: !isLimitado || MODELOS_DISPONIBLES.includes(modelId),
+  }));
+  renderFuncOptions();
   renderCombos();
   updateNextButton();
 }
-if (isFullCatalogo) renderModelOptions();
+if (tieneWizardModelo) renderFuncOptions();
 
 // Promo del link presencial (?s=<token de promo>), si aplica: { slug, nombre,
 // unidadesPack }. La trae /public/vendedores/:ref/stock. null = venta estándar.
@@ -227,12 +251,30 @@ function setQty(item, n) {
 function renderCombos() {
   comboOptions.innerHTML = '';
   if (!comboItems.length) {
-    comboOptions.innerHTML = isFullCatalogo
-      ? '<p class="modal-status">Elegí primero un modelo.</p>'
+    comboOptions.innerHTML = tieneWizardModelo
+      ? '<p class="modal-status">Elegí primero una función.</p>'
       : '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
     return;
   }
   comboItems.forEach((item) => {
+    // Modelo sin stock hoy (ver MODELOS_DISPONIBLES): se muestra para que se
+    // vea el catálogo completo, pero sin stepper — no se puede elegir.
+    if (item.disponible === false) {
+      const card = document.createElement('div');
+      card.className = 'option-card combo-card is-disabled';
+      card.dataset.id = item.id;
+      card.innerHTML = `
+        <div class="option-text">
+          <div class="option-label">${item.label}</div>
+          <div class="option-desc">Por ahora no disponible</div>
+        </div>
+        <div class="combo-right">
+          ${item.icon ? `<div class="option-icon">${item.icon}</div>` : ''}
+        </div>
+      `;
+      comboOptions.appendChild(card);
+      return;
+    }
     const qty = state.quantities[item.id] || 0;
     const card = document.createElement('div');
     card.className = 'option-card combo-card' + (qty > 0 ? ' is-selected' : '');
@@ -333,7 +375,7 @@ api('/auth/config')
     if (!isPresencial && cfg?.envio?.habilitado) {
       state.envio.habilitado = true;
       initEnvioStep(cfg.envio.provincias || []);
-      STEP_SEQUENCE = isFullCatalogo ? [0, 1, 5, 3, 4, PAY_STEP] : [1, 5, 3, 4, PAY_STEP];
+      STEP_SEQUENCE = tieneWizardModelo ? [0, 1, 5, 3, 4, PAY_STEP] : [1, 5, 3, 4, PAY_STEP];
       renderProgressDots();
     }
   })
@@ -379,7 +421,7 @@ function showStep(step) {
 }
 
 function updateNextButton() {
-  if (currentStep === 0) nextButton.disabled = !state.selectedModel;
+  if (currentStep === 0) nextButton.disabled = !state.selectedFunction;
   else if (currentStep === 1) {
     const total = totalUnidades();
     // Con link de promo, no se puede avanzar sin llegar al pack (el server
@@ -561,11 +603,11 @@ function openWizard() {
     cart: [],
     contacto: '',
     otpVerified: false,
-    selectedModel: null,
+    selectedFunction: null,
   });
-  if (isFullCatalogo) {
+  if (tieneWizardModelo) {
     comboItems = [];
-    renderModelOptions();
+    renderFuncOptions();
   }
   renderCombos();
   tycCheckbox.checked = false;

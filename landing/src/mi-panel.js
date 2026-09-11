@@ -9,6 +9,22 @@ applyBrand('Mi panel');
 let DESTINO_TIPOS = [];
 const destinoMeta = (id) => DESTINO_TIPOS.find((t) => t.id === id) || { id, label: id, campo: 'Valor', placeholder: '', ayuda: '' };
 
+const escaparAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+// Cómo se muestra el valor guardado en la tarjeta. Casi siempre es el valor
+// tal cual; para funciones multi-campo (alias) el valor es un JSON, así que
+// armamos un resumen legible.
+function resumenDestino(tipo, valor) {
+  const meta = destinoMeta(tipo);
+  if (!meta.campos) return valor;
+  try {
+    const d = JSON.parse(valor) || {};
+    return [d.alias, d.titular].filter(Boolean).join(' · ') || valor;
+  } catch {
+    return valor;
+  }
+}
+
 let destinoConfigCargada = false;
 async function cargarDestinoConfig() {
   if (destinoConfigCargada) return;
@@ -210,7 +226,7 @@ function renderStickers(stickers) {
       </div>
       ${
         sticker.destino
-          ? `<div class="sticker-destino"><b>${destinoTipo ? destinoTipo.label : sticker.destino.tipo}:</b> ${sticker.destino.valor}</div>`
+          ? `<div class="sticker-destino"><b>${destinoTipo ? destinoTipo.label : sticker.destino.tipo}:</b> ${resumenDestino(sticker.destino.tipo, sticker.destino.valor)}</div>`
           : sticker.estado === 'activo'
             ? '<div class="sticker-destino sticker-destino-empty">Todavía no configuraste a dónde redirige — elegí un destino con "Editar".</div>'
             : '<div class="sticker-destino sticker-destino-empty">Todavía no está activado — no tiene destino configurado.</div>'
@@ -253,13 +269,37 @@ function renderStickers(stickers) {
                 ${DESTINO_TIPOS.map((t) => `<option value="${t.id}" ${tipoInicial === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
               </select>
             </label>`;
-        editForm.innerHTML = `
-          ${selectorTipo}
+        // Funciones multi-campo (alias): un input por campo, prellenado desde el
+        // JSON guardado. El resto sigue con el único input de siempre.
+        const campos = metaInicial.campos || null;
+        let datosGuardados = {};
+        if (campos) {
+          try {
+            datosGuardados = JSON.parse(sticker.destino?.valor || '{}') || {};
+          } catch {
+            datosGuardados = {};
+          }
+        }
+        const cuerpoValor = campos
+          ? campos
+              .map(
+                (c) => `
+          <label>
+            <span>${c.label}</span>
+            <input type="text" class="edit-campo" data-key="${c.key}" value="${escaparAttr(datosGuardados[c.key] ?? '')}" placeholder="${escaparAttr(c.placeholder || '')}">
+            ${c.ayuda ? `<small class="field-hint">${c.ayuda}</small>` : ''}
+          </label>`
+              )
+              .join('')
+          : `
           <label>
             <span class="edit-valor-label">${metaInicial.campo}</span>
-            <input type="text" class="edit-valor" value="${sticker.destino?.valor || ''}" placeholder="${metaInicial.placeholder}">
+            <input type="text" class="edit-valor" value="${escaparAttr(sticker.destino?.valor || '')}" placeholder="${escaparAttr(metaInicial.placeholder)}">
             <small class="field-hint edit-valor-hint"${metaInicial.ayuda ? '' : ' hidden'}>${metaInicial.ayuda}</small>
-          </label>
+          </label>`;
+        editForm.innerHTML = `
+          ${selectorTipo}
+          ${cuerpoValor}
           <button type="button" class="btn-primary modal-submit edit-save-btn">Guardar</button>
           <p class="modal-status edit-status"></p>
         `;
@@ -270,7 +310,7 @@ function renderStickers(stickers) {
         const valorLabel = editForm.querySelector('.edit-valor-label');
         const valorInput = editForm.querySelector('.edit-valor');
         const valorHint = editForm.querySelector('.edit-valor-hint');
-        if (tipoSel.tagName === 'SELECT') {
+        if (!campos && tipoSel.tagName === 'SELECT') {
           tipoSel.addEventListener('change', () => {
             const m = destinoMeta(tipoSel.value);
             valorLabel.textContent = m.campo;
@@ -282,12 +322,27 @@ function renderStickers(stickers) {
 
         editForm.querySelector('.edit-save-btn').addEventListener('click', async () => {
           const tipo = editForm.querySelector('.edit-tipo').value;
-          const valor = editForm.querySelector('.edit-valor').value.trim();
           const status = editForm.querySelector('.edit-status');
-          if (!valor) {
-            status.className = 'modal-status is-error';
-            status.textContent = 'Completá el valor del destino.';
-            return;
+          let valor;
+          if (campos) {
+            const obj = {};
+            editForm.querySelectorAll('.edit-campo').forEach((inp) => {
+              obj[inp.dataset.key] = inp.value.trim();
+            });
+            const faltan = campos.filter((c) => c.requerido && !obj[c.key]);
+            if (faltan.length) {
+              status.className = 'modal-status is-error';
+              status.textContent = `Completá: ${faltan.map((c) => c.label).join(', ')}.`;
+              return;
+            }
+            valor = JSON.stringify(obj);
+          } else {
+            valor = editForm.querySelector('.edit-valor').value.trim();
+            if (!valor) {
+              status.className = 'modal-status is-error';
+              status.textContent = 'Completá el valor del destino.';
+              return;
+            }
           }
           status.className = 'modal-status';
           status.textContent = 'Guardando...';

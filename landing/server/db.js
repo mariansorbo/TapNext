@@ -439,6 +439,40 @@ await db.executeMultiple(`
   -- puede terminar apuntando a un sticker distinto del reservado en el pago.
   ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS entregado_en TIMESTAMPTZ;
   ALTER TABLE venta_items ADD COLUMN IF NOT EXISTS sticker_reservado_id INTEGER REFERENCES stickers(id);
+
+  -- === Envío a domicilio (compra online) — ver "Envio a domicilio - Correo
+  -- Argentino via Enviopack" en el vault. Una venta online con envío tiene una
+  -- fila acá (1:1 con ventas). La venta presencial (retiro_estado != NULL) no. ===
+  CREATE TABLE IF NOT EXISTS venta_envios (
+    id SERIAL PRIMARY KEY,
+    venta_id INTEGER NOT NULL UNIQUE REFERENCES ventas(id),
+    -- 'domicilio' por ahora (envío a sucursal queda para una iteración futura).
+    modo TEXT NOT NULL DEFAULT 'domicilio',
+    -- pendiente_pago -> por_despachar -> despachado. 'error_enviopack' si la
+    -- creación del envío en Enviopack falló tras el pago (se reintenta a mano).
+    estado TEXT NOT NULL DEFAULT 'pendiente_pago',
+    costo REAL NOT NULL,
+    servicio TEXT,                         -- servicio Enviopack cotizado ('N' clásico)
+    -- destinatario
+    dest_nombre TEXT NOT NULL,
+    dest_telefono TEXT NOT NULL,
+    -- domicilio
+    calle TEXT NOT NULL,
+    numero TEXT NOT NULL,
+    piso TEXT,
+    depto TEXT,
+    referencia TEXT,
+    localidad TEXT NOT NULL,
+    provincia TEXT NOT NULL,               -- ID ISO 3166-2:AR ('AR-B', 'AR-C', ...)
+    cp TEXT NOT NULL,
+    -- enviopack
+    enviopack_id TEXT,
+    tracking_numero TEXT,
+    enviopack_error TEXT,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    despachado_en TIMESTAMPTZ
+  );
+  CREATE INDEX IF NOT EXISTS idx_venta_envios_estado ON venta_envios(estado);
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este
