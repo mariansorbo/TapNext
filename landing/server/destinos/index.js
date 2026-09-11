@@ -18,16 +18,21 @@ import review from './review.js';
 import web from './web.js';
 import agenda from './agenda.js';
 import linktree from './linktree.js';
+import alias from './alias.js';
 
 export { aUrlAbsoluta };
 
 /**
  * @typedef {Object} Destino
  * @property {string} id  - identificador estable ('whatsapp', 'instagram'...)
- * @property {{label:string, campo:string, placeholder:string, ayuda:string}} meta
- *           - textos para el formulario del front (una etiqueta/ejemplo por función)
+ * @property {{label:string, campo:string, placeholder:string, ayuda:string,
+ *            campos?: {key:string,label:string,placeholder?:string,ayuda?:string,requerido?:boolean}[]}} meta
+ *           - textos para el formulario del front (una etiqueta/ejemplo por función).
+ *             `campos` (opcional): si está, el front dibuja un input por cada uno
+ *             y manda el valor como JSON string (ej: 'alias').
  * @property {(crudo: string) => {valor: string} | {error: string}} normalizar
- *           - valida + normaliza lo que tipeó el usuario; `error` es un mensaje para él
+ *           - valida + normaliza lo que tipeó el usuario; `error` es un mensaje para él.
+ *             Para funciones con `meta.campos`, `crudo` es el JSON de esos campos.
  * @property {(valor: string) => (
  *     {modo: 'redirect', url: string, interstitial?: boolean}
  *   | {modo: 'app', web: string, intent: string}
@@ -36,11 +41,12 @@ export { aUrlAbsoluta };
  *           - qué hace el tap con un valor ya normalizado.
  *             `redirect`: manda a `url` (con o sin la pantalla de marca — `interstitial: false`).
  *             `app` (WhatsApp): abre la app con un `intent://` de Android, `web` de fallback.
- *             `landing`: deja lugar para funciones que rendericen una página (vCard, WiFi).
+ *             `landing`: el tap no redirige; el server renderiza una página con `datos`
+ *             (lo usa 'alias' para mostrar los datos de transferencia + copiar).
  * @property {(valor: string) => string} preview  - frase legible de qué va a pasar
  */
 
-const PLUGINS = [whatsapp, instagram, pago, menu, review, web, agenda, linktree];
+const PLUGINS = [whatsapp, instagram, pago, menu, review, web, agenda, linktree, alias];
 const REGISTRY = Object.fromEntries(PLUGINS.map((p) => [p.id, p]));
 
 export const DESTINO_TIPOS = PLUGINS.map((p) => p.id);

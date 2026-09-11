@@ -185,3 +185,57 @@ test('links: rechaza un @usuario o un teléfono con mensaje claro', () => {
   errMatch('web', '11 2233 4455', /tel[eé]fono/i);
   ok('pago', 'link.mercadopago.com.ar/tunegocio', 'https://link.mercadopago.com.ar/tunegocio');
 });
+
+// --- Alias (datos de transferencia, modo landing) ----------------------
+
+const CBU_OK = '2850590940904130000126';
+const CUIT_OK = '20312345677';
+const aliasCrudo = (o) => JSON.stringify(o);
+
+test('alias: normaliza y guarda JSON con los campos limpios', () => {
+  const { valor } = normalizarDestino(
+    'alias',
+    aliasCrudo({ alias: '  Mariano.MP ', titular: 'Mariano   Pastore', banco: 'Banco Galicia', cbu: `${CBU_OK}`, cuit: '20-31234567-7' })
+  );
+  const d = JSON.parse(valor);
+  assert.equal(d.alias, 'mariano.mp');
+  assert.equal(d.titular, 'Mariano Pastore');
+  assert.equal(d.banco, 'Banco Galicia');
+  assert.equal(d.cbu, CBU_OK);
+  assert.equal(d.cuit, CUIT_OK);
+});
+
+test('alias: CBU y CUIT son opcionales', () => {
+  const { valor, error } = normalizarDestino('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana Perez', banco: 'Naranja X' }));
+  assert.equal(error, undefined);
+  const d = JSON.parse(valor);
+  assert.equal(d.cbu, undefined);
+  assert.equal(d.cuit, undefined);
+});
+
+test('alias: errores con motivo', () => {
+  errMatch('alias', aliasCrudo({ alias: 'ab', titular: 'x', banco: 'y' }), /6 a 20/);
+  errMatch('alias', aliasCrudo({ alias: 'tienda_ok', titular: 'Juana', banco: 'y' }), /6 a 20/);
+  errMatch('alias', aliasCrudo({ alias: 'a'.repeat(25), titular: 'Juana', banco: 'y' }), /6 a 20/);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: '', banco: 'y' }), /titular/i);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: '' }), /banco|billetera/i);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cbu: '123' }), /22 d[ií]gitos/);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cbu: CBU_OK.slice(0, -1) + '0' }), /no es v[aá]lido/);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cuit: '11112222333' }), /CUIT|CUIL/);
+  errMatch('alias', 'no es json', /datos de transferencia/i);
+});
+
+test('alias: resolver devuelve modo landing con los datos', () => {
+  const { valor } = normalizarDestino('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana Perez', banco: 'Galicia', cbu: CBU_OK }));
+  const r = resolverDestino('alias', valor);
+  assert.equal(r.modo, 'landing');
+  assert.equal(r.datos.alias, 'tienda.ok');
+  assert.equal(r.datos.cbu, CBU_OK);
+  assert.equal(r.datos.cuit, null);
+});
+
+test('alias: resolver tolera una fila vieja / rota', () => {
+  const r = resolverDestino('alias', 'algo viejo sin json');
+  assert.equal(r.modo, 'landing');
+  assert.equal(typeof r.datos.alias, 'string');
+});

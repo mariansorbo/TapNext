@@ -59,7 +59,7 @@ async function showDashboard() {
 
 async function loadAll() {
   await loadVendedores();
-  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas()]);
+  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas(), loadEnvios()]);
 }
 
 loginButton.addEventListener('click', async () => {
@@ -931,6 +931,104 @@ async function loadVentas() {
   } catch (err) {
     container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
   }
+}
+
+const ENVIO_ESTADO_LABEL = {
+  pendiente_pago: 'Esperando pago',
+  por_despachar: 'Por despachar',
+  despachado: 'Despachado',
+  error_enviopack: '⚠ Error Enviopack',
+};
+
+async function loadEnvios() {
+  const section = document.getElementById('envios-section');
+  const container = document.getElementById('envios-table');
+  let envios;
+  try {
+    envios = await api('/envios');
+  } catch (err) {
+    // Endpoint disponible siempre; si falla, mostramos el error sólo si ya
+    // había envíos visibles.
+    if (!section.hidden) container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
+    return;
+  }
+  if (!envios.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  renderTable(
+    container,
+    ['Venta', 'Destinatario', 'Dirección', 'Costo', 'Estado', 'Tracking', ''],
+    envios.map((e) => {
+      const acciones = [];
+      if (e.estado === 'error_enviopack') {
+        acciones.push(`<button type="button" class="row-btn reintentar-envio-btn" data-id="${e.id}">Reintentar</button>`);
+      }
+      if (e.enviopackId) {
+        acciones.push(`<button type="button" class="row-btn etiqueta-btn" data-id="${e.id}">Etiqueta</button>`);
+      }
+      if (e.estado === 'por_despachar') {
+        acciones.push(`<button type="button" class="row-btn despachado-btn" data-id="${e.id}">Marcar despachado</button>`);
+      }
+      return `<tr>
+        <td>#${e.ventaId}</td>
+        <td>${e.destinatario}<br><small>${e.telefono}</small></td>
+        <td><small>${e.direccion}</small>${e.referencia ? `<br><small>${e.referencia}</small>` : ''}</td>
+        <td>${MONEY(e.costo)}</td>
+        <td>${ENVIO_ESTADO_LABEL[e.estado] || e.estado}${e.error ? `<br><small title="${(e.error || '').replace(/"/g, '&quot;')}">${(e.error || '').slice(0, 60)}…</small>` : ''}</td>
+        <td>${e.tracking || '—'}</td>
+        <td>${acciones.join(' ')}</td>
+      </tr>`;
+    })
+  );
+
+  container.querySelectorAll('.reintentar-envio-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const r = await api(`/envios/${btn.dataset.id}/reintentar`, { method: 'POST' });
+        if (r.error) alert(`Enviopack: ${r.error}`);
+        await loadEnvios();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+  container.querySelectorAll('.despachado-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Marcar este envío como despachado?')) return;
+      btn.disabled = true;
+      try {
+        await api(`/envios/${btn.dataset.id}/despachado`, { method: 'POST' });
+        await loadEnvios();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+  container.querySelectorAll('.etiqueta-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        // La etiqueta es un PDF protegido por el token de admin — la bajamos
+        // con fetch y la abrimos como blob (no se puede en un <a href> pelado).
+        const res = await fetch(`${API_BASE}/api/admin/envios/${btn.dataset.id}/etiqueta`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo traer la etiqueta.');
+        const url = URL.createObjectURL(await res.blob());
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 async function loadComisiones() {
