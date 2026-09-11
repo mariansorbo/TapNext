@@ -11,6 +11,9 @@ import { BRAND_ICONS } from './brand-icons.js';
 // En ambos casos el destino (a dónde redirige el NFC) NO se pide acá — se
 // configura después, desde el panel del comprador, una vez que pagó.
 const isPresencial = document.body.dataset.flow === 'presencial';
+// pedidoFullCatalogo.html: flujo online que además deja elegir el modelo
+// (llavero/tarjeta/placa) en un paso propio, en vez de asumir siempre llavero.
+const isFullCatalogo = document.body.dataset.flow === 'full';
 
 applyBrand(isPresencial ? 'Comprá tu sticker' : 'Pedí tu sticker');
 initFaqAccordion();
@@ -49,8 +52,12 @@ const refKicker = document.getElementById('buy-ref-kicker');
 const PAY_STEP = 6;
 // Los pasos "función" y "modelo" viejos se fusionaron en un paso 1 único que
 // muestra combos (modelo+función) como opciones, y el paso "carrito" se sacó:
-// la cantidad se elige en el mismo paso 1.
-const STEP_SEQUENCE = [1, 3, 4, PAY_STEP];
+// la cantidad se elige en el mismo paso 1. Asumen todos el modelo llavero.
+// pedidoFullCatalogo.html suma un paso 0 antes, para elegir el modelo
+// (llavero/tarjeta/placa) — recién ahí el paso 1 arma los combos con ese modelo.
+// El paso 5 (envío a domicilio) se suma sólo en el flujo online y sólo si el
+// backend tiene Enviopack configurado (lo dice /auth/config).
+let STEP_SEQUENCE = isFullCatalogo ? [0, 1, 3, 4, PAY_STEP] : [1, 3, 4, PAY_STEP];
 
 // Mismo patrón que mi-panel.js: en local pasa por el proxy de Vite, en producción
 // apunta a la URL pública de la API (Render).
@@ -76,6 +83,7 @@ const FUNCTIONS = [
   { id: 'web', icon: BRAND_ICONS.web, label: 'Web propia', desc: 'Tu sitio' },
   { id: 'agenda', icon: BRAND_ICONS.googleCalendar, label: 'Agenda', desc: 'Reservas y turnos' },
   { id: 'linktree', icon: BRAND_ICONS.linktree, label: 'LinkTree', desc: 'Todos tus links' },
+  { id: 'alias', icon: BRAND_ICONS.alias, label: 'Alias', desc: 'Mostrá tus datos para transferir' },
 ];
 
 const MODELS = [
@@ -107,6 +115,10 @@ const state = {
   contacto: '',
   otpVerified: false,
   authToken: null,
+  // Envío a domicilio (online). costo/servicio salen de la cotización del backend.
+  envio: { habilitado: false, costo: null, servicio: null },
+  // Modelo elegido en el paso 0 (solo pedidoFullCatalogo.html).
+  selectedModel: null,
 };
 
 // Modelo por defecto del flujo online (a pedido, sin límite de stock): ahí el
@@ -132,7 +144,44 @@ function comboItem(funcId, modelId, max = MAX_POR_COMBO) {
   };
 }
 
-let comboItems = FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
+let comboItems = isFullCatalogo ? [] : FUNCTIONS.map((f) => comboItem(f.id, DEFAULT_MODEL));
+
+// Paso 0 (solo pedidoFullCatalogo.html): elegir modelo antes de ver las
+// funciones. Sin "suelto" — ese solo se ofrece armando el pedido a mano.
+const MODEL_CHOICES = ['llavero', 'tarjeta', 'placa'];
+const modelOptions = document.getElementById('model-options');
+
+function renderModelOptions() {
+  if (!modelOptions) return;
+  modelOptions.innerHTML = '';
+  MODEL_CHOICES.forEach((modelId) => {
+    const model = MODELS.find((m) => m.id === modelId);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'option-card' + (state.selectedModel === modelId ? ' is-selected' : '');
+    card.dataset.id = modelId;
+    card.innerHTML = `
+      <div class="option-text">
+        <div class="option-label">${model.label}</div>
+        <div class="option-desc">${model.desc} — $${getPrecio(modelId).toLocaleString('es-AR')}</div>
+      </div>
+      ${model.icon ? `<div class="option-icon">${model.icon}</div>` : ''}
+    `;
+    card.addEventListener('click', () => selectModel(modelId));
+    modelOptions.appendChild(card);
+  });
+}
+
+function selectModel(modelId) {
+  if (state.selectedModel === modelId) return;
+  state.selectedModel = modelId;
+  state.quantities = {};
+  comboItems = FUNCTIONS.map((f) => comboItem(f.id, modelId));
+  renderModelOptions();
+  renderCombos();
+  updateNextButton();
+}
+if (isFullCatalogo) renderModelOptions();
 
 // Promo del link presencial (?s=<token de promo>), si aplica: { slug, nombre,
 // unidadesPack }. La trae /public/vendedores/:ref/stock. null = venta estándar.
@@ -178,8 +227,9 @@ function setQty(item, n) {
 function renderCombos() {
   comboOptions.innerHTML = '';
   if (!comboItems.length) {
-    comboOptions.innerHTML =
-      '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
+    comboOptions.innerHTML = isFullCatalogo
+      ? '<p class="modal-status">Elegí primero un modelo.</p>'
+      : '<p class="modal-status is-error">Este vendedor no tiene stock disponible en este momento.</p>';
     return;
   }
   comboItems.forEach((item) => {
@@ -271,13 +321,21 @@ const sendOtpButton = document.getElementById('send-otp');
 const verif = { canal: 'email', nombre: 'email', tipoInput: 'email', placeholder: 'vos@ejemplo.com' };
 api('/auth/config')
   .then((cfg) => {
-    if (!cfg?.verificacion) return;
-    Object.assign(verif, cfg.verificacion);
-    whatsappInput.type = verif.tipoInput;
-    whatsappInput.placeholder = verif.placeholder;
-    if (verifTitleEl) verifTitleEl.textContent = `Validá tu ${verif.nombre}`;
-    if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
-    sendOtpButton.textContent = `📲 Enviar código por ${verif.nombre}`;
+    if (cfg?.verificacion) {
+      Object.assign(verif, cfg.verificacion);
+      whatsappInput.type = verif.tipoInput;
+      whatsappInput.placeholder = verif.placeholder;
+      if (verifTitleEl) verifTitleEl.textContent = `Validá tu ${verif.nombre}`;
+      if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
+      sendOtpButton.textContent = `📲 Enviar código por ${verif.nombre}`;
+    }
+    // Envío a domicilio: sólo online y sólo si el backend lo tiene habilitado.
+    if (!isPresencial && cfg?.envio?.habilitado) {
+      state.envio.habilitado = true;
+      initEnvioStep(cfg.envio.provincias || []);
+      STEP_SEQUENCE = isFullCatalogo ? [0, 1, 5, 3, 4, PAY_STEP] : [1, 5, 3, 4, PAY_STEP];
+      renderProgressDots();
+    }
   })
   .catch(() => {});
 const otpCodeField = document.getElementById('otp-code-field');
@@ -287,8 +345,12 @@ const otpStatus = document.getElementById('otp-status');
 const summaryBox = document.getElementById('wizard-summary');
 const successSummary = document.getElementById('wizard-success-summary');
 
-progressEl.innerHTML = STEP_SEQUENCE.map(() => '<span class="wizard-dot"></span>').join('');
-const dots = [...progressEl.querySelectorAll('.wizard-dot')];
+let dots = [];
+function renderProgressDots() {
+  progressEl.innerHTML = STEP_SEQUENCE.map(() => '<span class="wizard-dot"></span>').join('');
+  dots = [...progressEl.querySelectorAll('.wizard-dot')];
+}
+renderProgressDots();
 
 let currentStep = STEP_SEQUENCE[0];
 
@@ -317,12 +379,14 @@ function showStep(step) {
 }
 
 function updateNextButton() {
-  if (currentStep === 1) {
+  if (currentStep === 0) nextButton.disabled = !state.selectedModel;
+  else if (currentStep === 1) {
     const total = totalUnidades();
     // Con link de promo, no se puede avanzar sin llegar al pack (el server
     // igual lo rechazaría con 400).
     nextButton.disabled = total === 0 || (promo && total < promo.unidadesPack);
   }
+  else if (currentStep === 5) nextButton.disabled = !envioListo();
   else if (currentStep === 3) nextButton.disabled = !tycCheckbox.checked;
   else if (currentStep === 4) nextButton.disabled = !state.otpVerified;
   else nextButton.disabled = false;
@@ -386,10 +450,85 @@ confirmOtpButton.addEventListener('click', async () => {
   }
 });
 
+// --- Paso 5: envío a domicilio (sólo online, sólo con Enviopack habilitado) ---
+const envioEls = {};
+let envioCotizarTimer = null;
+
+function initEnvioStep(provincias) {
+  const ids = ['provincia', 'cp', 'localidad', 'calle', 'numero', 'piso', 'depto', 'referencia', 'nombre', 'telefono', 'status'];
+  ids.forEach((k) => (envioEls[k] = document.getElementById(`envio-${k}`)));
+  if (!envioEls.provincia) return;
+
+  envioEls.provincia.innerHTML =
+    '<option value="">Elegí tu provincia</option>' +
+    provincias.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('');
+
+  // Cotizamos apenas hay provincia + CP de 4 dígitos; el resto de los campos no
+  // afectan el precio. Debounce para no pegarle a la API en cada tecla.
+  const onCotizarInput = () => {
+    state.envio.costo = null;
+    state.envio.servicio = null;
+    updateNextButton();
+    clearTimeout(envioCotizarTimer);
+    envioCotizarTimer = setTimeout(cotizarEnvio, 500);
+  };
+  envioEls.provincia.addEventListener('change', onCotizarInput);
+  envioEls.cp.addEventListener('input', onCotizarInput);
+  ['localidad', 'calle', 'numero', 'nombre', 'telefono'].forEach((k) =>
+    envioEls[k].addEventListener('input', updateNextButton)
+  );
+}
+
+async function cotizarEnvio() {
+  const provincia = envioEls.provincia.value;
+  const cp = envioEls.cp.value.trim();
+  if (!provincia || !/^\d{4}$/.test(cp)) return;
+  envioEls.status.className = 'modal-status';
+  envioEls.status.textContent = 'Calculando el costo de envío...';
+  try {
+    const q = await api(`/public/envio/cotizar?provincia=${encodeURIComponent(provincia)}&cp=${cp}`);
+    state.envio.costo = q.costo;
+    state.envio.servicio = q.servicio;
+    const dias = q.horasEntrega ? ` · llega en ~${Math.ceil(q.horasEntrega / 24)} días hábiles` : '';
+    envioEls.status.className = 'modal-status is-success';
+    envioEls.status.textContent = `Envío: $${q.costo.toLocaleString('es-AR')}${dias}`;
+  } catch (err) {
+    state.envio.costo = null;
+    envioEls.status.className = 'modal-status is-error';
+    envioEls.status.textContent = err.message;
+  }
+  updateNextButton();
+}
+
+function getEnvioFields() {
+  return {
+    provincia: envioEls.provincia.value,
+    cp: envioEls.cp.value.trim(),
+    localidad: envioEls.localidad.value.trim(),
+    calle: envioEls.calle.value.trim(),
+    numero: envioEls.numero.value.trim(),
+    piso: envioEls.piso.value.trim(),
+    depto: envioEls.depto.value.trim(),
+    referencia: envioEls.referencia.value.trim(),
+    destNombre: envioEls.nombre.value.trim(),
+    destTelefono: envioEls.telefono.value.trim(),
+  };
+}
+
+// El paso 5 está listo cuando hay cotización vigente y los campos obligatorios.
+function envioListo() {
+  if (!state.envio.habilitado) return true;
+  if (state.envio.costo == null) return false;
+  const f = getEnvioFields();
+  return Boolean(f.provincia && /^\d{4}$/.test(f.cp) && f.localidad && f.calle && f.numero && f.destNombre && f.destTelefono);
+}
+
 function renderSummary() {
   state.contacto = whatsappInput.value.trim();
 
-  const total = state.cart.reduce((sum, item) => sum + getPrecio(item.modelId), 0);
+  const totalItems = state.cart.reduce((sum, item) => sum + getPrecio(item.modelId), 0);
+  const costoEnvio = state.envio.habilitado && state.envio.costo ? state.envio.costo : 0;
+  const total = totalItems + costoEnvio;
   // El carrito son N unidades del mismo combo (paso 1) — se agrupa para el resumen.
   const groups = [];
   state.cart.forEach((item) => {
@@ -408,6 +547,7 @@ function renderSummary() {
         return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label} · ${fn.label}</b>${item.qty > 1 ? ` ×${item.qty}` : ''} — $${(precio * item.qty).toLocaleString('es-AR')}</div>`;
       })
       .join('')}
+    ${costoEnvio ? `<div><span class="inline-icon">📦</span> <b>Envío a domicilio</b> — $${costoEnvio.toLocaleString('es-AR')}</div>` : ''}
     <div><b>${verif.nombre}:</b> ${state.contacto}</div>
     <div class="wizard-pay-note">Pagás y ya podés empezar a usar tu NFC. El destino de cada uno (a dónde redirige) lo vas a poder configurar y editar cuando quieras, desde tu panel.</div>
   `;
@@ -421,7 +561,12 @@ function openWizard() {
     cart: [],
     contacto: '',
     otpVerified: false,
+    selectedModel: null,
   });
+  if (isFullCatalogo) {
+    comboItems = [];
+    renderModelOptions();
+  }
   renderCombos();
   tycCheckbox.checked = false;
   whatsappInput.value = '';
@@ -434,6 +579,12 @@ function openWizard() {
   confirmOtpButton.disabled = false;
   otpStatus.textContent = '';
   otpStatus.className = 'modal-status';
+  state.envio.costo = null;
+  state.envio.servicio = null;
+  if (envioEls.status) {
+    envioEls.status.textContent = '';
+    envioEls.status.className = 'modal-status';
+  }
   payButton.disabled = false;
   payButton.textContent = 'Pagar';
   closeTyc();
@@ -495,10 +646,12 @@ payButton.addEventListener('click', async () => {
   payButton.textContent = 'Redirigiendo a Mercado Pago...';
   try {
     const items = state.cart.map((item) => ({ modelo: item.modelId, destinoTipo: item.functionId, destinoValor: '' }));
+    const body = { items, vendedorToken: vendorToken || '' };
+    if (state.envio.habilitado) body.envio = getEnvioFields();
     const data = await api('/ventas', {
       method: 'POST',
       headers: { Authorization: `Bearer ${state.authToken}` },
-      body: JSON.stringify({ items, vendedorToken: vendorToken || '' }),
+      body: JSON.stringify(body),
     });
     // Mercado Pago se encarga del cobro real — al volver, back_urls trae ?venta=&pago=.
     window.location.href = data.initPoint;
@@ -569,10 +722,13 @@ async function checkReturnFromMercadoPago() {
         const detalle = venta.items
           .map((it) => `<div><b>${it.modelo}</b>: tu ID es <code class="pickup-id">${it.stickerCodigo}</code></div>`)
           .join('');
+        const cierre = venta.envio
+          ? `<div class="wizard-pay-note">Te lo enviamos a ${venta.envio.localidad} (${venta.envio.cp}) por Correo Argentino. Mientras tanto, ya podés configurar el destino desde tu panel.</div>`
+          : `<div class="wizard-pay-note">Pedile al vendedor la unidad con este código — ya la tiene marcada para vos. Te llevamos a tu panel para configurar el destino...</div>`;
         successSummary.innerHTML = `
           ${venta.items.length > 1 ? 'Tus stickers ya están activos.' : 'Tu sticker ya está activo.'}
           ${detalle}
-          <div class="wizard-pay-note">Pedile al vendedor la unidad con este código — ya la tiene marcada para vos. Te llevamos a tu panel para configurar el destino...</div>
+          ${cierre}
         `;
         setTimeout(() => {
           window.location.href = '/mi-panel.html';
