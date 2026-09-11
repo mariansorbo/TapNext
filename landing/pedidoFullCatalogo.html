@@ -93,6 +93,8 @@
           <span>Código postal</span>
           <input type="text" inputmode="numeric" id="envio-cp" placeholder="1900" maxlength="4">
         </label>
+        <button type="button" class="btn-ghost" id="envio-calcular" disabled>Calcular envío</button>
+        <p class="modal-status" id="envio-status"></p>
         <label>
           <span>Localidad</span>
           <input type="text" id="envio-localidad" placeholder="La Plata" maxlength="50">
@@ -130,7 +132,6 @@
           <input type="text" inputmode="tel" id="envio-telefono" maxlength="30" placeholder="11 5555 5555">
         </label>
       </div>
-      <p class="modal-status" id="envio-status"></p>
     </div>
 
     <div class="wizard-step" data-step="3">

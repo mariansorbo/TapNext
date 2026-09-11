@@ -494,10 +494,9 @@ confirmOtpButton.addEventListener('click', async () => {
 
 // --- Paso 5: envío a domicilio (sólo online, sólo con Enviopack habilitado) ---
 const envioEls = {};
-let envioCotizarTimer = null;
 
 function initEnvioStep(provincias) {
-  const ids = ['provincia', 'cp', 'localidad', 'calle', 'numero', 'piso', 'depto', 'referencia', 'nombre', 'telefono', 'status'];
+  const ids = ['provincia', 'cp', 'calcular', 'localidad', 'calle', 'numero', 'piso', 'depto', 'referencia', 'nombre', 'telefono', 'status'];
   ids.forEach((k) => (envioEls[k] = document.getElementById(`envio-${k}`)));
   if (!envioEls.provincia) return;
 
@@ -505,25 +504,29 @@ function initEnvioStep(provincias) {
     '<option value="">Elegí tu provincia</option>' +
     provincias.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('');
 
-  // Cotizamos apenas hay provincia + CP de 4 dígitos; el resto de los campos no
-  // afectan el precio. Debounce para no pegarle a la API en cada tecla.
-  const onCotizarInput = () => {
+  // El costo se calcula recién cuando el comprador toca "Calcular envío" — no
+  // solo apenas hay provincia + CP. Cualquier cambio en esos dos invalida una
+  // cotización anterior (si cambió el destino, el precio viejo ya no vale) y
+  // "Siguiente" vuelve a bloquearse hasta recalcular.
+  const invalidarCotizacion = () => {
     state.envio.costo = null;
     state.envio.servicio = null;
+    envioEls.status.textContent = '';
+    envioEls.status.className = 'modal-status';
+    envioEls.calcular.disabled = !(envioEls.provincia.value && /^\d{4}$/.test(envioEls.cp.value.trim()));
     updateNextButton();
-    clearTimeout(envioCotizarTimer);
-    envioCotizarTimer = setTimeout(cotizarEnvio, 500);
   };
-  envioEls.provincia.addEventListener('change', onCotizarInput);
+  envioEls.provincia.addEventListener('change', invalidarCotizacion);
   envioEls.cp.addEventListener('input', () => {
     // El CP argentino "viejo" (el que pide Enviopack acá) son 4 números sin
     // letras — se ven CP nuevos con letra (ej. "B1824ABC") en direcciones
     // reales, así que filtramos cualquier no-dígito antes de que llegue a
-    // romper la cotización silenciosamente.
+    // romper la cotización.
     const soloDigitos = envioEls.cp.value.replace(/\D/g, '').slice(0, 4);
     if (soloDigitos !== envioEls.cp.value) envioEls.cp.value = soloDigitos;
-    onCotizarInput();
+    invalidarCotizacion();
   });
+  envioEls.calcular.addEventListener('click', cotizarEnvio);
   ['localidad', 'calle', 'numero', 'nombre', 'telefono'].forEach((k) =>
     envioEls[k].addEventListener('input', updateNextButton)
   );
@@ -532,15 +535,8 @@ function initEnvioStep(provincias) {
 async function cotizarEnvio() {
   const provincia = envioEls.provincia.value;
   const cp = envioEls.cp.value.trim();
-  if (!provincia) return; // sin provincia elegida, no hay nada que avisar todavía
-  if (!/^\d{4}$/.test(cp)) {
-    // Si no escribió nada todavía, no lo bombardeamos con el error apenas abre
-    // el paso — recién avisamos cuando cargó algo que no da 4 dígitos.
-    if (!cp) return;
-    envioEls.status.className = 'modal-status is-error';
-    envioEls.status.textContent = 'El código postal va sin letras: son 4 números (ej. 1824).';
-    return;
-  }
+  if (!provincia || !/^\d{4}$/.test(cp)) return; // el botón ya está deshabilitado en ese caso
+  envioEls.calcular.disabled = true;
   envioEls.status.className = 'modal-status';
   envioEls.status.textContent = 'Calculando el costo de envío...';
   try {
@@ -555,6 +551,7 @@ async function cotizarEnvio() {
     envioEls.status.className = 'modal-status is-error';
     envioEls.status.textContent = err.message;
   }
+  envioEls.calcular.disabled = false;
   updateNextButton();
 }
 
