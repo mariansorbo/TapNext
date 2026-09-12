@@ -316,7 +316,7 @@ function renderStickers(stickers) {
                 (c) => `
           <label>
             <span>${c.label}</span>
-            <input type="text" class="edit-campo" data-key="${c.key}" value="${escaparAttr(datosGuardados[c.key] ?? '')}" placeholder="${escaparAttr(c.placeholder || '')}">
+            <input type="text" class="edit-campo" data-key="${c.key}" value="${escaparAttr(datosGuardados[c.key] ?? '')}" placeholder="${escaparAttr(c.placeholder || '')}" autocomplete="off">
             ${c.ayuda ? `<small class="field-hint">${c.ayuda}</small>` : ''}
           </label>`
               )
