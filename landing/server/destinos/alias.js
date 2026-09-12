@@ -70,8 +70,8 @@ const meta = {
   // El front dibuja un input por cada campo (en vez del único `campo`).
   campos: [
     { key: 'alias', label: 'Alias', placeholder: 'tu.alias.mp', ayuda: 'El alias de tu CBU o CVU.', requerido: true },
-    { key: 'titular', label: 'Titular de la cuenta', placeholder: 'Nombre y apellido', requerido: true },
-    { key: 'banco', label: 'Banco o billetera', placeholder: 'Mercado Pago, Galicia, Naranja X…', requerido: true },
+    { key: 'titular', label: 'Titular de la cuenta', placeholder: 'Nombre y apellido', requerido: false },
+    { key: 'banco', label: 'Banco o billetera', placeholder: 'Mercado Pago, Galicia, Naranja X…', requerido: false },
     { key: 'cbu', label: 'CBU / CVU (opcional)', placeholder: '22 dígitos', requerido: false },
     { key: 'cuit', label: 'CUIT / CUIL (opcional)', placeholder: '11 dígitos', requerido: false },
   ],
@@ -95,9 +95,7 @@ export default {
     if (/\.\./.test(alias) || !RE_ALIAS.test(alias)) {
       return { error: 'El alias va de 6 a 20 caracteres: letras, números, puntos o guiones, sin espacios.' };
     }
-    if (!titular) return { error: 'Falta el titular de la cuenta.' };
-    if (titular.length < 2 || titular.length > 60) return { error: 'Revisá el nombre del titular.' };
-    if (!banco) return { error: 'Falta el banco o billetera.' };
+    if (titular && (titular.length < 2 || titular.length > 60)) return { error: 'Revisá el nombre del titular.' };
     if (banco.length > 40) return { error: 'El nombre del banco es muy largo.' };
     if (cbu && !cbuValido(cbu)) {
       return { error: 'Ese CBU/CVU no es válido (son 22 dígitos). Dejalo vacío si no lo tenés a mano.' };
