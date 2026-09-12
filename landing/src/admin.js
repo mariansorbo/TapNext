@@ -102,6 +102,7 @@ const FUNCION_LABELS = {
   web: 'Web propia',
   agenda: 'Agenda',
   linktree: 'LinkTree',
+  alias: 'Datos de transferencia',
 };
 
 function renderTable(container, headers, rows) {

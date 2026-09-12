@@ -11,6 +11,7 @@
 const FUNCION_OPTS = {
   whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
   review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
+  alias: 'Datos de transferencia',
 };
 const MODELO_OPTS = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa' };
 
