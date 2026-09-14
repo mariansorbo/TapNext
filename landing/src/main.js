@@ -72,9 +72,14 @@ if (bgVideo) {
   });
 
   const SPEED = 0.15; // 0 = fondo fijo, 1 = misma velocidad que el scroll
-  const FADE_RANGE = 320; // px de transición antes de llegar a "Formatos"
+  const FADE_RANGE = 320; // px de transición antes del límite
+  // El límite tiene que quedar resuelto antes de que "Formatos" empiece a
+  // entrar en pantalla, no recién cuando su borde superior llega al tope.
+  function computeFadeEnd() {
+    return formatosEl ? Math.max(formatosEl.offsetTop - window.innerHeight, 0) : Infinity;
+  }
   let buffer = window.innerHeight * 0.08;
-  let fadeEnd = formatosEl ? formatosEl.offsetTop : Infinity;
+  let fadeEnd = computeFadeEnd();
   let ticking = false;
   let hidden = false;
 
@@ -113,8 +118,16 @@ if (bgVideo) {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', () => {
     buffer = window.innerHeight * 0.08;
-    fadeEnd = formatosEl ? formatosEl.offsetTop : Infinity;
+    fadeEnd = computeFadeEnd();
     applyEffects();
   });
+  // Las fuentes web pueden correr el layout después del primer render;
+  // recalculamos el límite cuando terminan de cargar.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      fadeEnd = computeFadeEnd();
+      applyEffects();
+    });
+  }
   applyEffects();
 }
