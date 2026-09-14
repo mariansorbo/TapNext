@@ -47,13 +47,10 @@ if (tagDest) {
   setInterval(cycleDest, 2200);
 }
 
-// Fondo de video: fixed detrás de todo, con parallax sutil. Se esconde de
-// un corte (sin fundido, sin transición) apenas se llega a "Formatos" —
-// "termina ahí" en vez de oscurecer la pantalla mientras se desvanece.
+// Fondo de video: sticky detrás del hero + "por qué NFC" (ver CSS). El
+// scroll normal del navegador lo va tapando progresivamente al final de esa
+// zona — nada de fade ni de corte por JS. Acá solo sumamos un parallax sutil.
 const bgVideo = document.querySelector('.bg-video');
-const bgOverlay = document.querySelector('.bg-video-overlay');
-const bgFill = document.querySelector('.bg-video-fill');
-const formatosEl = document.getElementById('formatos');
 
 if (bgVideo) {
   // Algunos navegadores/webviews móviles ignoran el autoplay del HTML;
@@ -66,37 +63,18 @@ if (bgVideo) {
   });
 
   const SPEED = 0.15; // 0 = fondo fijo, 1 = misma velocidad que el scroll
-  // El corte se resuelve antes de que "Formatos" empiece a entrar en
-  // pantalla, no recién cuando su borde superior toca el tope.
-  function computeLimit() {
-    return formatosEl ? Math.max(formatosEl.offsetTop - window.innerHeight, 0) : Infinity;
-  }
   let buffer = window.innerHeight * 0.08;
-  let limit = computeLimit();
   let ticking = false;
-  let hidden = false;
 
-  function applyEffects() {
-    const y = window.scrollY;
-
-    const offset = Math.min(y * SPEED, buffer);
+  function applyParallax() {
+    const offset = Math.min(window.scrollY * SPEED, buffer);
     bgVideo.style.transform = `translate3d(0, ${-offset}px, 0)`;
-
-    const shouldHide = y >= limit;
-    if (shouldHide !== hidden) {
-      hidden = shouldHide;
-      bgVideo.classList.toggle('is-hidden', hidden);
-      if (bgOverlay) bgOverlay.classList.toggle('is-hidden', hidden);
-      if (bgFill) bgFill.classList.toggle('is-hidden', hidden);
-      if (hidden) bgVideo.pause(); else tryPlay();
-    }
-
     ticking = false;
   }
 
   function onScroll() {
     if (!ticking) {
-      requestAnimationFrame(applyEffects);
+      requestAnimationFrame(applyParallax);
       ticking = true;
     }
   }
@@ -104,16 +82,9 @@ if (bgVideo) {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', () => {
     buffer = window.innerHeight * 0.08;
-    limit = computeLimit();
-    applyEffects();
+    applyParallax();
   });
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => {
-      limit = computeLimit();
-      applyEffects();
-    });
-  }
-  applyEffects();
+  applyParallax();
 }
 
 // "Un toque, y ya está": playlist de 3 clips con crossfade suave entre uno y
@@ -175,12 +146,14 @@ if (photoVideos.length === 2) {
   });
 }
 
-// Carrusel "Mirá cómo se usa": la tarjeta de WhatsApp tiene un video real.
-const carouselVideo = document.querySelector('.video-real');
-if (carouselVideo) {
-  const tryPlay = () => carouselVideo.play().catch(() => {});
-  tryPlay();
+// Carrusel "Mirá cómo se usa": algunas tarjetas tienen video real.
+const carouselVideos = document.querySelectorAll('.video-real');
+if (carouselVideos.length) {
+  const tryPlayAll = () => carouselVideos.forEach((v) => v.play().catch(() => {}));
+  tryPlayAll();
   ['touchstart', 'scroll', 'click'].forEach((evt) => {
-    window.addEventListener(evt, () => { if (carouselVideo.paused) tryPlay(); }, { passive: true, once: true });
+    window.addEventListener(evt, () => {
+      carouselVideos.forEach((v) => { if (v.paused) v.play().catch(() => {}); });
+    }, { passive: true, once: true });
   });
 }

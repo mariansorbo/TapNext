@@ -133,28 +133,34 @@ h1 em{font-style:normal; color:var(--violet);}
 }
 @media (prefers-reduced-motion: reduce){ .ring{animation:none; display:none;} }
 
-/* VIDEO BACKGROUND — fixed detrás de todo; JS la esconde de un corte (sin
-   fundido, sin transición) apenas se llega a "Formatos", así el video
-   "termina ahí" en vez de oscurecer toda la pantalla mientras se desvanece. */
+/* VIDEO BACKGROUND — pegado (sticky) detrás del hero + "por qué NFC": queda
+   fijo mientras se scrollea esa zona y el resto del contenido lo va tapando
+   progresivamente a medida que se sigue scrolleando (scroll normal del
+   navegador, sin fade ni JS) hasta terminar de cubrirlo cerca de "Formatos".
+   Importante: overflow:hidden va en el WRAPPER (.video-hero-scope), nunca en
+   el elemento sticky — combinarlos en el mismo nodo rompe el cálculo de
+   cuándo debe soltarse (queda pegado para siempre). */
+.video-hero-scope{position:relative; overflow:hidden;}
 body.has-video-bg{background:var(--ink);}
+.video-hero-sticky{
+  position:sticky; top:0; height:100vh; margin-bottom:-100vh;
+  z-index:-1;
+}
 .bg-video-fill{
-  position:fixed; inset:0; z-index:-3;
+  position:absolute; inset:0; z-index:0;
   background:#CFD0CE; /* mismo gris del fondo del video, tapa el gap al correrlo */
 }
 .bg-video{
-  position:fixed; top:calc(-8vh + 3cm); left:0;
-  width:100vw; height:116vh;
+  position:absolute; top:calc(-8vh + 3cm); left:0;
+  width:100%; height:116vh;
   object-fit:cover;
-  z-index:-2;
+  z-index:1;
   will-change:transform;
 }
 .bg-video-overlay{
-  position:fixed; inset:0; z-index:-1;
+  position:absolute; inset:0; z-index:2;
   background:linear-gradient(180deg, rgba(11,13,15,0.55) 0%, rgba(11,13,15,0.75) 45%, rgba(11,13,15,1) 100%);
   pointer-events:none;
-}
-.bg-video-fill.is-hidden, .bg-video.is-hidden, .bg-video-overlay.is-hidden{
-  visibility:hidden;
 }
 @media (prefers-reduced-motion: reduce){ .bg-video{transform:none !important;} }
 
