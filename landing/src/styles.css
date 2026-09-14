@@ -155,7 +155,7 @@ body.has-video-bg{background:var(--ink);}
 }
 .bg-video-overlay{
   position:absolute; inset:0; z-index:2;
-  background:linear-gradient(180deg, rgba(11,13,15,0.55) 0%, rgba(11,13,15,0.75) 45%, rgba(11,13,15,1) 100%);
+  background:linear-gradient(180deg, rgba(11,13,15,0.35) 0%, rgba(11,13,15,0.55) 45%, rgba(11,13,15,0.95) 100%);
   pointer-events:none;
 }
 @media (prefers-reduced-motion: reduce){ .bg-video{transform:none !important;} }
