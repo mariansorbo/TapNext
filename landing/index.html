@@ -7,7 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="has-video-bg">
+
+<div class="bg-video-fill"></div>
+<video class="bg-video" autoplay muted loop playsinline preload="auto" src="/videos/hero-bg.mp4"></video>
+<div class="bg-video-overlay"></div>
 
 <nav>
   <a href="/" class="logo" data-brand-logo></a>
@@ -62,7 +66,7 @@
   </div>
 </section>
 
-<section>
+<section id="formatos">
   <div class="wrap">
     <div class="kicker">Formatos</div>
     <h2>Muchos modelos, según cómo lo uses.</h2>
