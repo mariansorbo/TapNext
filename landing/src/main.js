@@ -131,3 +131,25 @@ if (bgVideo) {
   }
   applyEffects();
 }
+
+// "Un toque, y ya está": playlist de 3 clips que se reproducen en secuencia y loopean.
+const photoVideo = document.querySelector('.photo-video');
+if (photoVideo) {
+  const PLAYLIST = ['/videos/vida-real-1.mp4', '/videos/vida-real-2.mp4', '/videos/vida-real-3.mp4'];
+  let clipIndex = 0;
+
+  function playCurrentClip() {
+    photoVideo.src = PLAYLIST[clipIndex];
+    photoVideo.play().catch(() => {});
+  }
+
+  photoVideo.addEventListener('ended', () => {
+    clipIndex = (clipIndex + 1) % PLAYLIST.length;
+    playCurrentClip();
+  });
+
+  playCurrentClip();
+  ['touchstart', 'scroll', 'click'].forEach((evt) => {
+    window.addEventListener(evt, () => { if (photoVideo.paused) photoVideo.play().catch(() => {}); }, { passive: true, once: true });
+  });
+}

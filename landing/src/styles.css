@@ -181,15 +181,10 @@ h2{
 
 /* PHOTO PLACEHOLDER */
 .photo-frame{border-radius:18px; overflow:hidden; border:1px solid var(--line);}
-.photo-placeholder{
-  aspect-ratio:16/8; background:
-    repeating-linear-gradient(135deg, rgba(123,92,255,0.08) 0 2px, transparent 2px 14px),
-    linear-gradient(160deg, var(--surface-2), var(--surface));
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-  text-align:center; padding:20px;
+.photo-video{
+  display:block; width:100%; aspect-ratio:16/8;
+  object-fit:cover; background:var(--surface);
 }
-.photo-placeholder span{font-family:var(--mono); font-size:0.85rem; color:var(--amber);}
-.photo-placeholder p{color:var(--paper-dim); font-size:0.85rem; max-width:40ch;}
 
 /* VIDEO CAROUSEL */
 .video-carousel{
