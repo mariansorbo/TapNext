@@ -9,6 +9,10 @@
 </head>
 <body class="has-video-bg">
 
+<div class="bg-video-fill"></div>
+<video class="bg-video" autoplay muted loop playsinline preload="auto" src="/videos/hero-bg.mp4"></video>
+<div class="bg-video-overlay"></div>
+
 <nav>
   <a href="/" class="logo" data-brand-logo></a>
   <div class="nav-actions">
@@ -19,56 +23,48 @@
   </div>
 </nav>
 
-<div class="video-hero-scope">
-  <div class="video-hero-sticky">
-    <div class="bg-video-fill"></div>
-    <video class="bg-video" autoplay muted loop playsinline preload="auto" src="/videos/hero-bg.mp4"></video>
-    <div class="bg-video-overlay"></div>
-  </div>
-
-  <div class="hero">
-    <div>
-      <div class="eyebrow">Un toque y listo</div>
-      <h1>Un toque conecta<br>vos y tu <em>negocio</em> con el mundo.</h1>
-      <p class="lead">Gracias a tecnología NFC, con un tap compartís fácilmente WhatsApp, Instagram, web, menú, pagos, reseñas y más. Sin cámaras, sin apps. <a href="#funciona" class="btn-ghost">Ver cómo funciona</a></p>
-      <div class="cta-row">
-        <a href="/pedido.html" class="btn-primary">¡Hacé Tap!</a>
-      </div>
-    </div>
-    <div class="tag-stage">
-      <div class="ring"></div>
-      <div class="ring"></div>
-      <div class="ring"></div>
-      <div class="tag-orb" id="tagorb">
-        <div class="tag-flip" id="tagflip"></div>
-        <div class="tag-dest" id="tagdest"></div>
-      </div>
+<div class="hero">
+  <div>
+    <div class="eyebrow">Un toque y listo</div>
+    <h1>Un toque conecta<br>vos y tu <em>negocio</em> con el mundo.</h1>
+    <p class="lead">Gracias a tecnología NFC, con un tap compartís fácilmente WhatsApp, Instagram, web, menú, pagos, reseñas y más. Sin cámaras, sin apps. <a href="#funciona" class="btn-ghost">Ver cómo funciona</a></p>
+    <div class="cta-row">
+      <a href="/pedido.html" class="btn-primary">¡Hacé Tap!</a>
     </div>
   </div>
-
-  <section id="funciona">
-    <div class="wrap">
-      <div class="kicker">Por qué NFC</div>
-      <div class="steps steps-big">
-        <div class="step">
-          <div class="step-num">01</div>
-          <h3>La evolución del QR</h3>
-          <p>Ya no hace falta abrir la cámara ni encuadrar un código: acercás el celular y listo.</p>
-        </div>
-        <div class="step">
-          <div class="step-num">02</div>
-          <h3>Conectá fácilmente</h3>
-          <p>Funciona con cualquier celular moderno, sin instalar apps ni crear cuentas.</p>
-        </div>
-        <div class="step">
-          <div class="step-num">03</div>
-          <h3>Sin fricción</h3>
-          <p>Tu cliente toca y ya está: la venta, el seguimiento o la reseña, sin pasos de más.</p>
-        </div>
-      </div>
+  <div class="tag-stage">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="tag-orb" id="tagorb">
+      <div class="tag-flip" id="tagflip"></div>
+      <div class="tag-dest" id="tagdest"></div>
     </div>
-  </section>
+  </div>
 </div>
+
+<section id="funciona">
+  <div class="wrap">
+    <div class="kicker">Por qué NFC</div>
+    <div class="steps steps-big">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>La evolución del QR</h3>
+        <p>Ya no hace falta abrir la cámara ni encuadrar un código: acercás el celular y listo.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Conectá fácilmente</h3>
+        <p>Funciona con cualquier celular moderno, sin instalar apps ni crear cuentas.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Sin fricción</h3>
+        <p>Tu cliente toca y ya está: la venta, el seguimiento o la reseña, sin pasos de más.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section id="formatos">
   <div class="wrap">
@@ -94,15 +90,9 @@
     <div class="kicker">Mirá cómo se usa</div>
     <h2>Clientes reales, tocando y conectando al instante.</h2>
     <div class="video-carousel">
-      <div class="video-card" style="--tint:#7B5CFF;">
-        <div class="video-illustration">
-          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M24 8c-8.8 0-16 6.6-16 14.7 0 4 1.7 7.6 4.5 10.3L11 40l7.4-2.4c1.7.6 3.6.9 5.6.9 8.8 0 16-6.6 16-14.7S32.8 8 24 8z"/>
-            <path d="M17 21.5c0-.5.4-1 1-1h1.2c.4 0 .8.3.9.7l.8 2.5c.1.4 0 .8-.3 1l-1 .9c1 2 2.6 3.6 4.6 4.6l.9-1c.3-.3.7-.4 1-.3l2.5.8c.4.1.7.5.7.9V32c0 .6-.4 1-1 1h-1c-6.1 0-11-4.9-11-11v-.5z"/>
-          </svg>
-        </div>
-        <div class="play">▶</div>
-        <span class="video-caption">Activa el WhatsApp del local</span>
+      <div class="video-card video-card-real">
+        <video class="video-real" autoplay muted loop playsinline preload="auto" src="/videos/carousel-whatsapp.mp4"></video>
+        <span class="video-caption">Un accesorio que combina tecnología y estilo</span>
       </div>
       <div class="video-card" style="--tint:#F2B84B;">
         <div class="video-illustration">

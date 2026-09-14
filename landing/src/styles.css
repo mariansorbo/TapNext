@@ -133,32 +133,28 @@ h1 em{font-style:normal; color:var(--violet);}
 }
 @media (prefers-reduced-motion: reduce){ .ring{animation:none; display:none;} }
 
-/* VIDEO BACKGROUND — un único contenedor pegado (sticky) detrás del hero +
-   "por qué NFC"; se libera limpiamente al llegar a "Formatos", sin fundido a
-   negro: el resto del contenido lo tapa apenas termina ".video-hero-scope".
-   Las 3 capas visuales van absolutas dentro de ese único sticky, así no hay
-   que hacer calzar los márgenes negativos de varios sticky encadenados. */
-.video-hero-scope{position:relative;}
+/* VIDEO BACKGROUND — fixed detrás de todo; JS la esconde de un corte (sin
+   fundido, sin transición) apenas se llega a "Formatos", así el video
+   "termina ahí" en vez de oscurecer toda la pantalla mientras se desvanece. */
 body.has-video-bg{background:var(--ink);}
-.video-hero-sticky{
-  position:sticky; top:0; height:116vh; margin-bottom:-116vh;
-  overflow:hidden; z-index:-1;
-}
 .bg-video-fill{
-  position:absolute; inset:0; z-index:0;
+  position:fixed; inset:0; z-index:-3;
   background:#CFD0CE; /* mismo gris del fondo del video, tapa el gap al correrlo */
 }
 .bg-video{
-  position:absolute; top:calc(-8vh + 3cm); left:0;
-  width:100%; height:116vh;
+  position:fixed; top:calc(-8vh + 3cm); left:0;
+  width:100vw; height:116vh;
   object-fit:cover;
-  z-index:1;
+  z-index:-2;
   will-change:transform;
 }
 .bg-video-overlay{
-  position:absolute; inset:0; z-index:2;
+  position:fixed; inset:0; z-index:-1;
   background:linear-gradient(180deg, rgba(11,13,15,0.55) 0%, rgba(11,13,15,0.75) 45%, rgba(11,13,15,1) 100%);
   pointer-events:none;
+}
+.bg-video-fill.is-hidden, .bg-video.is-hidden, .bg-video-overlay.is-hidden{
+  visibility:hidden;
 }
 @media (prefers-reduced-motion: reduce){ .bg-video{transform:none !important;} }
 
@@ -233,6 +229,17 @@ h2{
   position:absolute; z-index:1; bottom:16px; left:16px; right:16px;
   font-size:0.82rem; font-weight:500; text-align:left;
 }
+.video-card-real{background:var(--surface); overflow:hidden;}
+.video-real{
+  position:absolute; inset:0; z-index:0;
+  width:100%; height:100%; object-fit:cover;
+}
+.video-card-real::after{
+  content:''; position:absolute; inset:0; z-index:0;
+  background:linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.8) 100%);
+  pointer-events:none;
+}
+.video-card-real .video-caption{color:#fff;}
 .carousel-note{font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim); margin-top:14px;}
 
 footer{
