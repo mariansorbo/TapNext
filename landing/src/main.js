@@ -5,9 +5,8 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
-// Hero tag: cycle through the destinations a tap can open. El ícono flota y
-// gira 360° todo el tiempo (CSS); acá solo cambiamos qué glyph muestra, con
-// un mini fade para disimular el corte del cambio.
+// Hero tag: cycle through the destinations a tap can open. La cajita crece
+// y se achica (pulso) en cada cambio, sincronizado con el fade del ícono.
 const TAG_ICONS = {
   WhatsApp: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.06L2 22l5.06-1.33A9.94 9.94 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.76 1.25-.45.07-1.02.1-1.64-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.07-1.42-1.07-2.72 0-1.3.68-1.93.92-2.2.24-.26.53-.33.71-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.45-.13.16-.28.36-.4.48-.13.13-.27.28-.12.55.16.27.7 1.16 1.5 1.88.99.9 1.85 1.18 2.12 1.31.27.13.43.11.6-.05.16-.17.65-.76.82-1.02.17-.26.35-.22.58-.13.24.08 1.5.71 1.76.84.26.13.43.19.49.3.06.11.06.65-.16 1.23z"/></svg>`,
   Instagram: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>`,
@@ -18,6 +17,7 @@ const TAG_ICONS = {
 const dests = Object.keys(TAG_ICONS);
 const tagDest = document.getElementById('tagdest');
 const tagFlip = document.getElementById('tagflip');
+const tagOrb = document.getElementById('tagorb');
 let destIndex = 0;
 
 function cycleDest() {
@@ -30,11 +30,13 @@ function cycleDest() {
     tagDest.style.opacity = 0;
     const currentSvg = tagFlip ? tagFlip.firstElementChild : null;
     if (currentSvg) currentSvg.style.opacity = 0;
+    if (tagOrb) tagOrb.classList.add('is-pulsing');
     setTimeout(() => {
       if (tagFlip) tagFlip.innerHTML = TAG_ICONS[dest];
       tagDest.textContent = '→ ' + dest;
       tagDest.style.opacity = 1;
-    }, 220);
+      if (tagOrb) tagOrb.classList.remove('is-pulsing');
+    }, 300); // mitad del pulso (.6s): en el pico del crecimiento cambia el contenido
   }
 
   destIndex++;
@@ -45,12 +47,10 @@ if (tagDest) {
   setInterval(cycleDest, 2200);
 }
 
-// Fondo de video con parallax: el fondo se mueve más lento que el contenido,
-// y se desvanece a fondo sólido al llegar a la sección "Formatos".
+// Fondo de video: sticky detrás del hero + "por qué NFC" (ver CSS), se
+// libera solo al llegar a "Formatos" sin ningún fundido. Acá solo agregamos
+// un parallax sutil (el fondo se mueve más lento que el contenido).
 const bgVideo = document.querySelector('.bg-video');
-const bgOverlay = document.querySelector('.bg-video-overlay');
-const bgFill = document.querySelector('.bg-video-fill');
-const formatosEl = document.getElementById('formatos');
 
 if (bgVideo) {
   // Algunos navegadores/webviews móviles ignoran el autoplay del HTML;
@@ -63,45 +63,18 @@ if (bgVideo) {
   });
 
   const SPEED = 0.15; // 0 = fondo fijo, 1 = misma velocidad que el scroll
-  const FADE_RANGE = 320; // px de transición antes del límite
-  // El límite tiene que quedar resuelto antes de que "Formatos" empiece a
-  // entrar en pantalla, no recién cuando su borde superior llega al tope.
-  function computeFadeEnd() {
-    return formatosEl ? Math.max(formatosEl.offsetTop - window.innerHeight, 0) : Infinity;
-  }
   let buffer = window.innerHeight * 0.08;
-  let fadeEnd = computeFadeEnd();
   let ticking = false;
-  let hidden = false;
 
-  function applyEffects() {
-    const y = window.scrollY;
-
-    const offset = Math.min(y * SPEED, buffer);
+  function applyParallax() {
+    const offset = Math.min(window.scrollY * SPEED, buffer);
     bgVideo.style.transform = `translate3d(0, ${-offset}px, 0)`;
-
-    const fadeStart = fadeEnd - FADE_RANGE;
-    const opacity = fadeEnd === Infinity
-      ? 1
-      : Math.min(Math.max(1 - (y - fadeStart) / FADE_RANGE, 0), 1);
-    bgVideo.style.opacity = opacity;
-    if (bgOverlay) bgOverlay.style.opacity = opacity;
-    if (bgFill) bgFill.style.opacity = opacity;
-
-    if (opacity === 0 && !hidden) {
-      bgVideo.pause();
-      hidden = true;
-    } else if (opacity > 0 && hidden) {
-      bgVideo.play();
-      hidden = false;
-    }
-
     ticking = false;
   }
 
   function onScroll() {
     if (!ticking) {
-      requestAnimationFrame(applyEffects);
+      requestAnimationFrame(applyParallax);
       ticking = true;
     }
   }
@@ -109,18 +82,9 @@ if (bgVideo) {
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', () => {
     buffer = window.innerHeight * 0.08;
-    fadeEnd = computeFadeEnd();
-    applyEffects();
+    applyParallax();
   });
-  // Las fuentes web pueden correr el layout después del primer render;
-  // recalculamos el límite cuando terminan de cargar.
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => {
-      fadeEnd = computeFadeEnd();
-      applyEffects();
-    });
-  }
-  applyEffects();
+  applyParallax();
 }
 
 // "Un toque, y ya está": playlist de 4 clips con crossfade suave entre uno y
