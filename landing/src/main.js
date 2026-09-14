@@ -132,24 +132,58 @@ if (bgVideo) {
   applyEffects();
 }
 
-// "Un toque, y ya está": playlist de 3 clips que se reproducen en secuencia y loopean.
-const photoVideo = document.querySelector('.photo-video');
-if (photoVideo) {
-  const PLAYLIST = ['/videos/vida-real-1.mp4', '/videos/vida-real-2.mp4', '/videos/vida-real-3.mp4'];
+// "Un toque, y ya está": playlist de 4 clips con crossfade suave entre uno y
+// el siguiente (dos <video> superpuestos, el que entra se precarga mientras
+// el actual todavía está en pantalla).
+const photoVideos = document.querySelectorAll('.photo-video');
+if (photoVideos.length === 2) {
+  const PLAYLIST = [
+    '/videos/vida-real-1.mp4',
+    '/videos/vida-real-2.mp4',
+    '/videos/vida-real-3.mp4',
+    '/videos/vida-real-4.mp4',
+  ];
+  const CROSSFADE_MS = 900;
   let clipIndex = 0;
+  let frontIndex = 0; // qué elemento de photoVideos está visible
 
-  function playCurrentClip() {
-    photoVideo.src = PLAYLIST[clipIndex];
-    photoVideo.play().catch(() => {});
+  function preloadNext() {
+    const back = photoVideos[1 - frontIndex];
+    back.src = PLAYLIST[(clipIndex + 1) % PLAYLIST.length];
+    back.load();
   }
 
-  photoVideo.addEventListener('ended', () => {
-    clipIndex = (clipIndex + 1) % PLAYLIST.length;
-    playCurrentClip();
-  });
+  function armEnded(el) {
+    el.addEventListener('ended', crossfadeToNext, { once: true });
+  }
 
-  playCurrentClip();
+  function crossfadeToNext() {
+    const front = photoVideos[frontIndex];
+    const back = photoVideos[1 - frontIndex];
+
+    back.currentTime = 0;
+    back.play().catch(() => {});
+    back.classList.add('active');
+    front.classList.remove('active');
+    armEnded(back);
+
+    clipIndex = (clipIndex + 1) % PLAYLIST.length;
+    frontIndex = 1 - frontIndex;
+    setTimeout(() => front.pause(), CROSSFADE_MS);
+
+    preloadNext();
+  }
+
+  photoVideos[0].src = PLAYLIST[0];
+  photoVideos[0].classList.add('active');
+  photoVideos[0].play().catch(() => {});
+  armEnded(photoVideos[0]);
+  preloadNext();
+
   ['touchstart', 'scroll', 'click'].forEach((evt) => {
-    window.addEventListener(evt, () => { if (photoVideo.paused) photoVideo.play().catch(() => {}); }, { passive: true, once: true });
+    window.addEventListener(evt, () => {
+      const front = photoVideos[frontIndex];
+      if (front.paused) front.play().catch(() => {});
+    }, { passive: true, once: true });
   });
 }
