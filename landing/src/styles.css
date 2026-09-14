@@ -95,25 +95,28 @@ h1 em{font-style:normal; color:var(--violet);}
 /* HERO VISUAL — tag + tap rings */
 .tag-stage{
   position:relative; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+  perspective:700px;
 }
-.tag{
-  position:relative; width:150px; height:190px; border-radius:22px;
+.tag-orb{
+  position:relative; width:172px; height:172px; border-radius:50%;
   background:linear-gradient(155deg, var(--violet), var(--amber));
   border:1px solid var(--line);
   box-shadow:0 30px 60px -20px rgba(0,0,0,0.6), 0 0 50px -14px var(--violet);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
 }
 .tag-dest{
   font-family:var(--mono); font-size:0.78rem; color:var(--ink); height:18px;
   transition:opacity .3s ease;
 }
-.tag-icon{
-  width:64px; height:64px; border-radius:14px;
+.tag-flip{
+  width:44px; height:44px;
   display:flex; align-items:center; justify-content:center;
   color:#fff;
-  transition:opacity .3s ease;
+  transform-style:preserve-3d;
+  transition:transform .6s cubic-bezier(.65,0,.35,1);
 }
-.tag-icon svg{width:38px; height:38px;}
+.tag-flip svg{width:44px; height:44px;}
+@media (prefers-reduced-motion: reduce){ .tag-flip{transition:none;} }
 .ring{
   position:absolute; border-radius:50%; border:1px solid var(--violet);
   opacity:0; animation:ping 2.6s cubic-bezier(.2,.6,.35,1) infinite;
@@ -144,7 +147,7 @@ body.has-video-bg{background:var(--ink);}
 }
 .bg-video-overlay{
   position:fixed; inset:0; z-index:-1;
-  background:linear-gradient(180deg, rgba(11,13,15,0.55) 0%, rgba(11,13,15,0.72) 45%, rgba(11,13,15,0.92) 100%);
+  background:linear-gradient(180deg, rgba(11,13,15,0.55) 0%, rgba(11,13,15,0.75) 45%, rgba(11,13,15,1) 100%);
   pointer-events:none;
   transition:opacity .5s ease;
 }
