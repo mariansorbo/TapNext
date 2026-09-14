@@ -5,8 +5,9 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
-// Hero tag: cycle through the destinations a tap can open, con su ícono,
-// con un flip 3D (glyphs sólidos, no de línea como en el carrusel).
+// Hero tag: cycle through the destinations a tap can open. El ícono flota y
+// gira 360° todo el tiempo (CSS); acá solo cambiamos qué glyph muestra, con
+// un mini fade para disimular el corte del cambio.
 const TAG_ICONS = {
   WhatsApp: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.06L2 22l5.06-1.33A9.94 9.94 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.76 1.25-.45.07-1.02.1-1.64-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.07-1.42-1.07-2.72 0-1.3.68-1.93.92-2.2.24-.26.53-.33.71-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.45-.13.16-.28.36-.4.48-.13.13-.27.28-.12.55.16.27.7 1.16 1.5 1.88.99.9 1.85 1.18 2.12 1.31.27.13.43.11.6-.05.16-.17.65-.76.82-1.02.17-.26.35-.22.58-.13.24.08 1.5.71 1.76.84.26.13.43.19.49.3.06.11.06.65-.16 1.23z"/></svg>`,
   Instagram: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>`,
@@ -18,7 +19,6 @@ const dests = Object.keys(TAG_ICONS);
 const tagDest = document.getElementById('tagdest');
 const tagFlip = document.getElementById('tagflip');
 let destIndex = 0;
-let flipAngle = 0;
 
 function cycleDest() {
   const dest = dests[destIndex % dests.length];
@@ -28,15 +28,13 @@ function cycleDest() {
     tagDest.textContent = '→ ' + dest;
   } else {
     tagDest.style.opacity = 0;
-    if (tagFlip) {
-      flipAngle += 180;
-      tagFlip.style.transform = `rotateY(${flipAngle}deg)`;
-    }
+    const currentSvg = tagFlip ? tagFlip.firstElementChild : null;
+    if (currentSvg) currentSvg.style.opacity = 0;
     setTimeout(() => {
       if (tagFlip) tagFlip.innerHTML = TAG_ICONS[dest];
       tagDest.textContent = '→ ' + dest;
       tagDest.style.opacity = 1;
-    }, 300); // mitad del flip (.6s): el ícono está de canto, invisible
+    }, 220);
   }
 
   destIndex++;
