@@ -98,20 +98,22 @@ h1 em{font-style:normal; color:var(--violet);}
 }
 .tag{
   position:relative; width:150px; height:190px; border-radius:22px;
-  background:linear-gradient(155deg, var(--surface-2), var(--surface));
+  background:linear-gradient(155deg, var(--violet), var(--amber));
   border:1px solid var(--line);
-  box-shadow:0 30px 60px -20px rgba(0,0,0,0.6);
+  box-shadow:0 30px 60px -20px rgba(0,0,0,0.6), 0 0 50px -14px var(--violet);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
 }
 .tag-dest{
-  font-family:var(--mono); font-size:0.78rem; color:var(--amber); height:18px;
+  font-family:var(--mono); font-size:0.78rem; color:var(--ink); height:18px;
   transition:opacity .3s ease;
 }
 .tag-icon{
   width:64px; height:64px; border-radius:14px;
-  background:linear-gradient(155deg, var(--violet), var(--amber));
-  box-shadow:0 0 40px -6px var(--violet);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff;
+  transition:opacity .3s ease;
 }
+.tag-icon svg{width:38px; height:38px;}
 .ring{
   position:absolute; border-radius:50%; border:1px solid var(--violet);
   opacity:0; animation:ping 2.6s cubic-bezier(.2,.6,.35,1) infinite;
