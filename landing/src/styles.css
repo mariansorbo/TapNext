@@ -92,46 +92,58 @@ h1 em{font-style:normal; color:var(--violet);}
 }
 .btn-ghost:hover{color:var(--paper); border-color:var(--paper);}
 
-/* HERO VISUAL — tag + tap rings */
+/* HERO VISUAL — cinta de funciones: un reel continuo de lo que un tap puede
+   abrir. Nada de tarjeta ni borde: si tuviera forma de botón, invitaría a
+   tocarlo, y esto es solo la vidriera de lo que hace el llavero real. */
 .tag-stage{
   position:relative; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
-  perspective:700px;
 }
-.tag-orb{
-  position:relative; width:150px; height:190px; border-radius:22px;
-  background:linear-gradient(155deg, var(--violet), var(--amber));
-  border:1px solid var(--line);
-  box-shadow:0 30px 60px -20px rgba(0,0,0,0.6), 0 0 50px -14px var(--violet);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-  transition:transform .6s cubic-bezier(.34,1.56,.64,1);
+.tag-ticker{
+  position:relative; width:100%; max-width:230px; height:100%; max-height:320px;
+  overflow:hidden;
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+  mask-image:linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
 }
-.tag-orb.is-pulsing{transform:scale(1.1);}
-.tag-dest{
-  font-family:var(--mono); font-size:0.78rem; color:var(--ink); height:18px;
-  transition:opacity .3s ease;
+.tag-ticker-track{
+  display:flex; flex-direction:column; gap:40px;
+  animation:tag-ticker-scroll 18s linear infinite;
 }
-.tag-flip{
-  width:44px; height:44px;
-  display:flex; align-items:center; justify-content:center;
-  color:#fff;
+.tag-chip{
+  display:flex; align-items:center; gap:14px;
+  font-family:var(--mono); font-size:1rem; color:var(--paper); white-space:nowrap;
 }
-.tag-flip svg{
-  width:44px; height:44px;
-  transition:opacity .22s ease;
+.tag-chip-icon{
+  width:32px; height:32px; flex:0 0 32px; display:flex; align-items:center; justify-content:center;
+  color:var(--violet);
+  filter:drop-shadow(0 0 12px rgba(123,92,255,.6));
+  animation:tag-chip-pulse 18s linear infinite;
 }
-@media (prefers-reduced-motion: reduce){ .tag-orb{transition:none;} }
-.ring{
-  position:absolute; border-radius:50%; border:1px solid var(--violet);
-  opacity:0; animation:ping 2.6s cubic-bezier(.2,.6,.35,1) infinite;
+.tag-chip-icon svg{width:100%; height:100%;}
+/* Groove tap-respiración: 5 avances (uno por ítem único) alternando un
+   "tap" corto (glide rápido + pausa breve) y una "respiración" larga (glide
+   lento + pausa larga) — S L S L S. Todo son paradas exactas (valores
+   repetidos = velocidad 0), nunca easing continuo, así el patrón se repite
+   idéntico en cada vuelta en vez de sentirse al azar. */
+@keyframes tag-ticker-scroll{
+  0%        { transform:translateY(0); }
+  5%,  16%  { transform:translateY(-10%); }   /* tap 1: glide corto + pausa */
+  34%, 42%  { transform:translateY(-20%); }   /* respiración: glide largo + pausa corta */
+  47%, 58%  { transform:translateY(-30%); }   /* tap 2 */
+  76%, 84%  { transform:translateY(-40%); }   /* respiración */
+  89%, 100% { transform:translateY(-50%); }   /* tap 3: enlaza con el loop */
 }
-.ring:nth-child(1){width:120px; height:120px; animation-delay:0s;}
-.ring:nth-child(2){width:120px; height:120px; animation-delay:.65s;}
-.ring:nth-child(3){width:120px; height:120px; animation-delay:1.3s;}
-@keyframes ping{
-  0%{transform:scale(.6); opacity:.55;}
-  100%{transform:scale(2.1); opacity:0;}
+/* Pulsaciones ancladas a cada parada de arriba (mismo reloj, mismos %) —
+   nunca independientes del scroll para que no se perciban como ruido. */
+@keyframes tag-chip-pulse{
+  0%, 9%, 12%, 36.5%, 39.5%, 51%, 54%, 78.5%, 81.5%, 93%, 96%, 100%{
+    transform:scale(1); filter:drop-shadow(0 0 12px rgba(123,92,255,.6));
+  }
+  10.5%, 38%, 52.5%, 80%, 94.5%{
+    transform:scale(1.22); filter:drop-shadow(0 0 20px rgba(123,92,255,.95));
+  }
 }
-@media (prefers-reduced-motion: reduce){ .ring{animation:none; display:none;} }
+@media (prefers-reduced-motion: reduce){ .tag-chip-icon{animation:none;} }
+@media (prefers-reduced-motion: reduce){ .tag-ticker-track{animation:none;} }
 
 /* VIDEO BACKGROUND — vive DENTRO de la caja del hero + "por qué NFC"
    (.video-hero-scope), en flujo normal (ni sticky ni fixed): se ve intacto,
@@ -738,11 +750,6 @@ details[open] .add-icon{transform:rotate(45deg);}
   section{padding:60px 0;}
   .hero{padding:24px 20px 60px; gap:36px;}
   .tag-stage{max-width:220px; margin:0 auto;}
-  .ring:nth-child(1), .ring:nth-child(2), .ring:nth-child(3){width:90px; height:90px;}
-  @keyframes ping{
-    0%{width:90px; height:90px; opacity:.55;}
-    100%{width:250px; height:250px; opacity:0;}
-  }
   .cta-row{flex-direction:column; align-items:flex-start; gap:18px;}
   .btn-primary{width:100%; text-align:center;}
   section .wrap{padding:0 20px;}

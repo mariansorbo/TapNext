@@ -6,48 +6,6 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
-// Hero tag: cycle through the destinations a tap can open. La cajita crece
-// y se achica (pulso) en cada cambio, sincronizado con el fade del ícono.
-const TAG_ICONS = {
-  WhatsApp: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.38 5.06L2 22l5.06-1.33A9.94 9.94 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.76 1.25-.45.07-1.02.1-1.64-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.07-1.42-1.07-2.72 0-1.3.68-1.93.92-2.2.24-.26.53-.33.71-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.45-.13.16-.28.36-.4.48-.13.13-.27.28-.12.55.16.27.7 1.16 1.5 1.88.99.9 1.85 1.18 2.12 1.31.27.13.43.11.6-.05.16-.17.65-.76.82-1.02.17-.26.35-.22.58-.13.24.08 1.5.71 1.76.84.26.13.43.19.49.3.06.11.06.65-.16 1.23z"/></svg>`,
-  Instagram: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3 7.17 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>`,
-  'Menú': `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 2a1 1 0 0 1 1 1v6.5a1.5 1.5 0 0 1-1 1.41V22a1 1 0 1 1-2 0v-11.09A1.5 1.5 0 0 1 3 9.5V3a1 1 0 0 1 2 0v6a.5.5 0 0 0 1 0V3a1 1 0 0 1 1-1v6a.5.5 0 0 0 1 0V3a1 1 0 0 1 1-1Zm10 2c-2.21 0-4 2.24-4 5s1.79 5 3 5.86V22a1 1 0 1 0 2 0V3a1 1 0 0 0-1-1Z"/></svg>`,
-  Pago: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 15.93V19h-2v-1.07a3.5 3.5 0 0 1-2.83-2.9l1.9-.4c.16.77.86 1.37 1.68 1.37.9 0 1.6-.5 1.6-1.2 0-.66-.46-1-1.73-1.33-1.7-.44-3.12-1-3.12-2.9 0-1.44 1.1-2.5 2.6-2.77V6h2v1.05a3.2 3.2 0 0 1 2.5 2.42l-1.87.5c-.2-.62-.77-1.05-1.5-1.05-.8 0-1.36.44-1.36 1.02 0 .6.5.9 1.77 1.24 1.87.5 3.1 1.15 3.1 2.98 0 1.53-1.16 2.6-2.74 2.77Z"/></svg>`,
-  'Reseña': `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.2 21 12 17.77 5.8 21 7 14.14l-5-4.87 7.1-1.01L12 2Z"/></svg>`,
-};
-const dests = Object.keys(TAG_ICONS);
-const tagDest = document.getElementById('tagdest');
-const tagFlip = document.getElementById('tagflip');
-const tagOrb = document.getElementById('tagorb');
-let destIndex = 0;
-
-function cycleDest() {
-  const dest = dests[destIndex % dests.length];
-
-  if (destIndex === 0) {
-    if (tagFlip) tagFlip.innerHTML = TAG_ICONS[dest];
-    tagDest.textContent = '→ ' + dest;
-  } else {
-    tagDest.style.opacity = 0;
-    const currentSvg = tagFlip ? tagFlip.firstElementChild : null;
-    if (currentSvg) currentSvg.style.opacity = 0;
-    if (tagOrb) tagOrb.classList.add('is-pulsing');
-    setTimeout(() => {
-      if (tagFlip) tagFlip.innerHTML = TAG_ICONS[dest];
-      tagDest.textContent = '→ ' + dest;
-      tagDest.style.opacity = 1;
-      if (tagOrb) tagOrb.classList.remove('is-pulsing');
-    }, 300); // mitad del pulso (.6s): en el pico del crecimiento cambia el contenido
-  }
-
-  destIndex++;
-}
-
-if (tagDest) {
-  cycleDest();
-  setInterval(cycleDest, 2200);
-}
-
 // Fondo de video: sticky detrás del hero + "por qué NFC" (ver CSS). El
 // scroll normal del navegador lo va tapando progresivamente al final de esa
 // zona — nada de fade ni de corte por JS. Acá solo sumamos un parallax sutil.
