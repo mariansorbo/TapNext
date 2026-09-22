@@ -473,6 +473,18 @@ await db.executeMultiple(`
     despachado_en TIMESTAMPTZ
   );
   CREATE INDEX IF NOT EXISTS idx_venta_envios_estado ON venta_envios(estado);
+
+  -- === Meta Conversions API (CAPI) — dedup server-side del Purchase que ya
+  -- manda el pixel del navegador. El webhook de Mercado Pago (que dispara el
+  -- Purchase real) no tiene contexto del browser del comprador, así que estos
+  -- datos se capturan una sola vez, al crear la venta (POST /api/ventas, ahí sí
+  -- hay un request real del comprador), y quedan guardados para cuando el
+  -- webhook los necesite. Todo nullable: sin esto el CAPI manda el evento con
+  -- peor calidad de matching en vez de no mandarlo. ===
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fbp TEXT;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fbc TEXT;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ip TEXT;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ua TEXT;
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este

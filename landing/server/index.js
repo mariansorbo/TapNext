@@ -25,6 +25,7 @@ import {
   crearEnvio,
   etiquetaPdf,
 } from './enviopack.js';
+import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -863,9 +864,19 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     if (!vendedorIdVenta && sticker.vendedor_id) vendedorIdVenta = sticker.vendedor_id;
   }
 
+  // Datos del navegador para el Meta CAPI del webhook — este request es el
+  // único punto del flujo con contexto real del comprador (el webhook de
+  // Mercado Pago no lo tiene). _fbp/_fbc los manda el frontend (los lee de
+  // document.cookie, mismo dominio que el pixel); ip/user-agent, del request.
+  const fbp = String(req.body?.fbp || '').trim().slice(0, 200) || null;
+  const fbc = String(req.body?.fbc || '').trim().slice(0, 200) || null;
+  const clientIp = req.ip || null;
+  const clientUa = String(req.headers['user-agent'] || '').slice(0, 500) || null;
+
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id) VALUES (?, ?, ?, 'pendiente', ?)`,
-    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua)
+     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa]
   );
   const ventaId = ventaResult.lastInsertRowid;
 
@@ -1136,6 +1147,32 @@ async function crearEnvioParaVenta(ventaId) {
   }
 }
 
+// Manda el Purchase a Meta CAPI para una venta recién confirmada. Best-effort
+// e idempotente por event_id (Meta dedupea contra el Purchase que ya mandó el
+// pixel del navegador con el mismo `purchase_<ventaId>` — ver src/comprar.js).
+async function enviarCapiPurchaseDeVenta(venta, ventaId) {
+  if (!metaCapiDisponible) return;
+  try {
+    const comprador = venta.comprador_id
+      ? await get('SELECT email, whatsapp FROM compradores WHERE id = ?', [venta.comprador_id])
+      : null;
+    await enviarCapiPurchase({
+      eventId: `purchase_${ventaId}`,
+      value: venta.monto,
+      currency: 'ARS',
+      email: comprador?.email || null,
+      telefono: comprador?.whatsapp || null,
+      ip: venta.client_ip || null,
+      userAgent: venta.client_ua || null,
+      fbp: venta.fbp || null,
+      fbc: venta.fbc || null,
+      eventSourceUrl: FRONTEND_URL,
+    });
+  } catch (err) {
+    console.error(`[Meta CAPI] no se pudo mandar el Purchase de la venta ${ventaId}:`, err.message);
+  }
+}
+
 // Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
 // usuario en este request). Confirmamos el estado real contra la API de MP en
 // vez de confiar en el payload de la notificación (evita pagos falsificados).
@@ -1210,6 +1247,9 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // Compra online con envío a domicilio: recién ahora (pago confirmado)
       // creamos el envío en Enviopack. Ver "Envio a domicilio" en el vault.
       await crearEnvioParaVenta(ventaId);
+      // Meta CAPI: mismo event_id que el Purchase del pixel (src/comprar.js)
+      // para que Meta dedupe. Best-effort — nunca puede frenar la venta.
+      await enviarCapiPurchaseDeVenta(venta, ventaId);
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
         'rechazado',

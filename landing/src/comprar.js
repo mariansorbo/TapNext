@@ -1,4 +1,6 @@
 import './styles.css';
+import './pixel.js';
+import { trackEvent } from './pixel.js';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
 import { BRAND_ICONS } from './brand-icons.js';
@@ -696,17 +698,30 @@ backButton.addEventListener('click', () => {
   if (i > 0) showStep(STEP_SEQUENCE[i - 1]);
 });
 
+// Cookies que pone el propio pixel de Meta en este dominio — se mandan al
+// backend para que el webhook (que no ve el browser del comprador) pueda
+// armar el Purchase de Meta CAPI con el mismo contexto que el pixel.
+function leerCookie(nombre) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${nombre}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
 payButton.addEventListener('click', async () => {
   payButton.disabled = true;
   payButton.textContent = 'Redirigiendo a Mercado Pago...';
   try {
     const items = state.cart.map((item) => ({ modelo: item.modelId, destinoTipo: item.functionId, destinoValor: '' }));
-    const body = { items, vendedorToken: vendorToken || '' };
+    const body = { items, vendedorToken: vendorToken || '', fbp: leerCookie('_fbp'), fbc: leerCookie('_fbc') };
     if (state.envio.habilitado) body.envio = getEnvioFields();
     const data = await api('/ventas', {
       method: 'POST',
       headers: { Authorization: `Bearer ${state.authToken}` },
       body: JSON.stringify(body),
+    });
+    trackEvent('InitiateCheckout', {
+      content_type: 'product',
+      num_items: state.cart.length,
+      currency: 'ARS',
     });
     // Mercado Pago se encarga del cobro real — al volver, back_urls trae ?venta=&pago=.
     window.location.href = data.initPoint;
@@ -748,6 +763,21 @@ async function checkReturnFromMercadoPago() {
       if (!token) break;
       const venta = await api(`/ventas/${ventaId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (venta.estadoPago === 'confirmado') {
+        // event_id = mismo id que usa el webhook server-side (CAPI) para este
+        // pago, así Meta fusiona ambos envíos del mismo Purchase en vez de
+        // contarlo dos veces. sessionStorage evita reenviarlo si el usuario
+        // recarga esta pantalla de éxito.
+        const purchaseFiredKey = `nexttap_purchase_fired_${ventaId}`;
+        if (!sessionStorage.getItem(purchaseFiredKey)) {
+          trackEvent(
+            'Purchase',
+            { value: venta.monto, currency: 'ARS', content_type: 'product', num_items: venta.items.length },
+            `purchase_${ventaId}`
+          );
+          try {
+            sessionStorage.setItem(purchaseFiredKey, '1');
+          } catch {}
+        }
         // Guardamos el token para "ver mi compra" sin re-verificar.
         if (venta.tokenComprador) {
           try {
@@ -798,6 +828,6 @@ async function checkReturnFromMercadoPago() {
       break;
     }
   }
-  successSummary.textContent = 'Tu pago está en revisión. Te avisamos por WhatsApp apenas se confirme.';
+  successSummary.textContent = 'Tu pago está en revisión. Te avisamos por mail apenas se confirme.';
 }
 checkReturnFromMercadoPago();
