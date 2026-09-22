@@ -92,58 +92,81 @@ h1 em{font-style:normal; color:var(--violet);}
 }
 .btn-ghost:hover{color:var(--paper); border-color:var(--paper);}
 
-/* HERO VISUAL — cinta de funciones: un reel continuo de lo que un tap puede
-   abrir. Nada de tarjeta ni borde: si tuviera forma de botón, invitaría a
-   tocarlo, y esto es solo la vidriera de lo que hace el llavero real. */
+/* HERO VISUAL — rueda hexagonal: un tambor de 6 placas (una por función)
+   que gira sobre su eje horizontal. Se ve de frente: la placa activa queda
+   plana y las vecinas (arriba/abajo) se pliegan hacia atrás por la propia
+   curva del tambor — es geometría 3D real (rotateX + translateZ), no un
+   dibujo de hexágono. Nada de tarjeta suelta ni borde de botón: lo que se
+   ve es una pieza mecánica girando, no un control para tocar. */
 .tag-stage{
-  position:relative; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+  position:relative; width:100%; display:flex; align-items:center; justify-content:center;
 }
-.tag-ticker{
-  position:relative; width:100%; max-width:230px; height:100%; max-height:320px;
-  overflow:hidden;
-  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
-  mask-image:linear-gradient(to bottom, transparent 0%, #000 20%, #000 80%, transparent 100%);
+.hex-wheel-stage{
+  --hex-h: 96px; --hex-r: 83px;
+  position:relative; width:100%; max-width:230px; height:260px; margin:0 auto;
+  perspective:700px;
 }
-.tag-ticker-track{
-  display:flex; flex-direction:column; gap:40px;
-  animation:tag-ticker-scroll 18s linear infinite;
+.hex-wheel{
+  position:relative; width:100%; height:100%;
+  transform-style:preserve-3d;
+  animation:hex-wheel-spin 18s linear infinite;
 }
-.tag-chip{
-  display:flex; align-items:center; gap:14px;
-  font-family:var(--mono); font-size:1rem; color:var(--paper); white-space:nowrap;
+.hex-face{
+  position:absolute; left:6px; right:6px; top:50%; height:var(--hex-h);
+  margin-top:calc(var(--hex-h) / -2);
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  background:rgba(123,92,255,0.22);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(190,175,255,.4);
+  border-top-color:rgba(255,255,255,.55);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), inset 0 -10px 14px -12px rgba(0,0,0,.4);
+  backface-visibility:hidden;
+  font-family:var(--mono); font-size:0.98rem; color:var(--paper); white-space:nowrap;
 }
-.tag-chip-icon{
-  width:32px; height:32px; flex:0 0 32px; display:flex; align-items:center; justify-content:center;
-  color:var(--violet);
-  filter:drop-shadow(0 0 12px rgba(123,92,255,.6));
-  animation:tag-chip-pulse 18s linear infinite;
+.hex-face{ transform: rotateX(var(--hex-angle, 0deg)) translateZ(var(--hex-r)); }
+.hex-face:nth-child(1){ --hex-angle: 0deg; }
+.hex-face:nth-child(2){ --hex-angle: 60deg; }
+.hex-face:nth-child(3){ --hex-angle: 120deg; }
+.hex-face:nth-child(4){ --hex-angle: 180deg; }
+.hex-face:nth-child(5){ --hex-angle: 240deg; }
+.hex-face:nth-child(6){ --hex-angle: 300deg; }
+.hex-icon{ width:26px; height:26px; flex:0 0 26px; display:flex; align-items:center; justify-content:center; }
+.hex-icon svg{ width:100%; height:100%; }
+.hex-label{
+  display:inline-block;
+  animation:hex-label-pulse 18s linear infinite;
 }
-.tag-chip-icon svg{width:100%; height:100%;}
-/* Groove tap-respiración: 5 avances (uno por ítem único) alternando un
-   "tap" corto (glide rápido + pausa breve) y una "respiración" larga (glide
-   lento + pausa larga) — S L S L S. Todo son paradas exactas (valores
-   repetidos = velocidad 0), nunca easing continuo, así el patrón se repite
-   idéntico en cada vuelta en vez de sentirse al azar. */
-@keyframes tag-ticker-scroll{
-  0%        { transform:translateY(0); }
-  5%,  16%  { transform:translateY(-10%); }   /* tap 1: glide corto + pausa */
-  34%, 42%  { transform:translateY(-20%); }   /* respiración: glide largo + pausa corta */
-  47%, 58%  { transform:translateY(-30%); }   /* tap 2 */
-  76%, 84%  { transform:translateY(-40%); }   /* respiración */
-  89%, 100% { transform:translateY(-50%); }   /* tap 3: enlaza con el loop */
+.hex-face:nth-child(1) .hex-label{ animation-delay: -0.63s; }
+.hex-face:nth-child(2) .hex-label{ animation-delay: -2.776s; }
+.hex-face:nth-child(3) .hex-label{ animation-delay: -6.629s; }
+.hex-face:nth-child(4) .hex-label{ animation-delay: -8.775s; }
+.hex-face:nth-child(5) .hex-label{ animation-delay: -12.631s; }
+.hex-face:nth-child(6) .hex-label{ animation-delay: -14.776s; }
+/* Groove tap-respiración: 6 avances de 60°, alternando un "tap" corto
+   (giro rápido + pausa breve) y una "respiración" larga (giro lento +
+   pausa larga). Son todo paradas exactas (valores repetidos = velocidad 0)
+   nunca easing continuo, así el patrón se repite idéntico en cada vuelta
+   en vez de sentirse al azar — incluye la parada inicial en 0%. */
+@keyframes hex-wheel-spin{
+  0%,     10%    { transform:rotateX(0deg); }      /* parado inicial */
+  14%,    19.83% { transform:rotateX(-60deg); }     /* tap */
+  33.33%, 43.33% { transform:rotateX(-120deg); }    /* respiración */
+  47.33%, 53.17% { transform:rotateX(-180deg); }    /* tap */
+  66.67%, 76.67% { transform:rotateX(-240deg); }    /* respiración */
+  80.67%, 86.5%  { transform:rotateX(-300deg); }    /* tap */
+  100%           { transform:rotateX(-360deg); }    /* respiración: enlaza con el loop */
 }
-/* Pulsaciones ancladas a cada parada de arriba (mismo reloj, mismos %) —
-   nunca independientes del scroll para que no se perciban como ruido. */
-@keyframes tag-chip-pulse{
-  0%, 9%, 12%, 36.5%, 39.5%, 51%, 54%, 78.5%, 81.5%, 93%, 96%, 100%{
-    transform:scale(1); filter:drop-shadow(0 0 12px rgba(123,92,255,.6));
-  }
-  10.5%, 38%, 52.5%, 80%, 94.5%{
-    transform:scale(1.22); filter:drop-shadow(0 0 20px rgba(123,92,255,.95));
-  }
+/* Un solo pulso por vuelta, corrido con animation-delay para que caiga
+   justo en el punto medio de la pausa de CADA cara — nunca independiente
+   del giro de arriba. */
+@keyframes hex-label-pulse{
+  0%, 3%, 100% { transform:scale(1); }
+  1.5%         { transform:scale(1.3); }
 }
-@media (prefers-reduced-motion: reduce){ .tag-chip-icon{animation:none;} }
-@media (prefers-reduced-motion: reduce){ .tag-ticker-track{animation:none;} }
+@media (prefers-reduced-motion: reduce){ .hex-wheel{animation:none;} .hex-label{animation:none;} }
+@media (max-width:600px){
+  .hex-wheel-stage{ --hex-h:74px; --hex-r:64px; height:200px; }
+}
 
 /* VIDEO BACKGROUND — vive DENTRO de la caja del hero + "por qué NFC"
    (.video-hero-scope), en flujo normal (ni sticky ni fixed): se ve intacto,

@@ -91,7 +91,7 @@ const FUNCTIONS = [
   { id: 'web', icon: BRAND_ICONS.web, label: 'Web propia', desc: 'Tu sitio' },
   { id: 'agenda', icon: BRAND_ICONS.googleCalendar, label: 'Agenda', desc: 'Reservas y turnos' },
   { id: 'linktree', icon: BRAND_ICONS.linktree, label: 'LinkTree', desc: 'Todos tus links' },
-  { id: 'alias', icon: BRAND_ICONS.alias, label: 'Alias', desc: 'Mostrá tus datos para transferir' },
+  { id: 'alias', icon: BRAND_ICONS.alias, label: 'Datos de Transferencia', desc: 'Mostrá tus datos para transferir' },
 ];
 
 const MODELS = [
@@ -177,8 +177,25 @@ const funcOptions = document.getElementById('func-options');
 function renderFuncOptions() {
   if (!funcOptions) return;
   funcOptions.innerHTML = '';
-  const funciones = isLimitado ? FUNCTIONS.filter((fn) => FUNCIONES_DISPONIBLES.includes(fn.id)) : FUNCTIONS;
-  funciones.forEach((fn) => {
+  FUNCTIONS.forEach((fn) => {
+    // Igual que los modelos sin stock en renderCombos: en pedido.html (isLimitado)
+    // las funciones que todavía no se pueden cargar se VEN (mismo catálogo que
+    // pedidoFullCatalogo.html) pero deshabilitadas, no ocultas.
+    const disponible = !isLimitado || FUNCIONES_DISPONIBLES.includes(fn.id);
+    if (!disponible) {
+      const card = document.createElement('div');
+      card.className = 'option-card is-disabled';
+      card.dataset.id = fn.id;
+      card.innerHTML = `
+        <div class="option-text">
+          <div class="option-label">${fn.label}</div>
+          <div class="option-desc">Por ahora no disponible</div>
+        </div>
+        ${fn.icon ? `<div class="option-icon">${fn.icon}</div>` : ''}
+      `;
+      funcOptions.appendChild(card);
+      return;
+    }
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'option-card' + (state.selectedFunction === fn.id ? ' is-selected' : '');
