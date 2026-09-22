@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Demo</title>
+<style>
+  :root { --bg:#0b0b0c; --panel:#1a1a1c; --border:#2a2a2c; --text:#eee; --muted:#9a9a9a; --accent:#e1306c; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  #stage {
+    position: fixed; inset: 0;
+    background-color: #111;
+    background-size: cover;
+    background-position: center;
+    display: none;
+  }
+  #stage.active { display: block; }
+
+  #config {
+    height: 100%; width: 100%;
+    overflow-y: auto;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.hint { font-size: 12px; color: var(--muted); margin: 0 0 20px; line-height: 1.4; }
+
+  label { display: block; font-size: 12px; color: #b7b7b7; margin: 18px 0 6px; }
+  select, input[type=text], input[type=number] {
+    width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel); color: #fff; font-size: 15px;
+  }
+  input[type=file] { width: 100%; color: #b7b7b7; font-size: 13px; }
+
+  button {
+    width: 100%; padding: 15px; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 600; margin-top: 22px; cursor: pointer;
+  }
+  #startBtn { background: var(--accent); color: #fff; }
+  #clearBg { background: var(--panel); color: #ccc; margin-top: 10px; font-size: 13px; padding: 10px; }
+
+  #preview {
+    margin-top: 16px; border-radius: 12px; overflow: hidden; height: 120px;
+    background-size: cover; background-position: center; background-color: var(--panel);
+    border: 1px solid var(--border);
+  }
+
+  .foot { margin-top: 26px; font-size: 11px; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="config">
+  <h1>Demo Redirect — NextTap</h1>
+  <p class="hint">Configurá el destino y el tiempo de espera. Al tocar "Iniciar" la pantalla queda solo con el fondo elegido, y al cumplirse el tiempo abre directo el destino. Tocá 3 veces la pantalla en modo espera para volver acá.</p>
+
+  <label for="destType">Destino</label>
+  <select id="destType">
+    <option value="instagram">Instagram (usuario)</option>
+    <option value="whatsapp">WhatsApp (número)</option>
+    <option value="url">URL / link directo</option>
+  </select>
+
+  <label id="destLabel" for="destValue">Usuario de Instagram (sin @)</label>
+  <input type="text" id="destValue" placeholder="nexttap.oficial" autocapitalize="off" autocorrect="off" />
+
+  <label for="delay">Tiempo hasta redirigir (segundos)</label>
+  <input type="number" id="delay" min="0" step="0.1" value="1.5" />
+
+  <label for="bgImage">Fondo de pantalla (opcional, foto de tu home real)</label>
+  <input type="file" id="bgImage" accept="image/*" />
+  <div id="preview"></div>
+  <button id="clearBg">Quitar fondo</button>
+
+  <button id="startBtn">Iniciar</button>
+
+  <div class="foot">La configuración queda guardada solo en este navegador/dispositivo.</div>
+</div>
+
+<div id="stage"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var destType = $('destType'), destValue = $('destValue'), destLabel = $('destLabel');
+  var delayInput = $('delay'), bgImage = $('bgImage'), preview = $('preview');
+  var clearBg = $('clearBg'), startBtn = $('startBtn');
+  var config = $('config'), stage = $('stage');
+
+  var LABELS = {
+    instagram: 'Usuario de Instagram (sin @)',
+    whatsapp: 'Número de WhatsApp (con código país, sin +)',
+    url: 'URL completa (https://...)'
+  };
+  var PLACEHOLDERS = {
+    instagram: 'nexttap.oficial',
+    whatsapp: '5491122334455',
+    url: 'https://ejemplo.com'
+  };
+
+  function safe(fn) { try { return fn(); } catch (e) { return null; } }
+
+  function loadState() {
+    var s = safe(function () { return JSON.parse(localStorage.getItem('demoRedirectConfig') || '{}'); }) || {};
+    destType.value = s.destType || 'instagram';
+    destValue.value = s.destValue || '';
+    delayInput.value = (s.delay != null) ? s.delay : 1.5;
+    if (s.bgImage) preview.style.backgroundImage = 'url(' + s.bgImage + ')';
+    updateLabel();
+  }
+
+  function saveState(extra) {
+    var s = safe(function () { return JSON.parse(localStorage.getItem('demoRedirectConfig') || '{}'); }) || {};
+    s.destType = destType.value;
+    s.destValue = destValue.value;
+    s.delay = parseFloat(delayInput.value) || 0;
+    if (extra && 'bgImage' in extra) s.bgImage = extra.bgImage;
+    safe(function () { localStorage.setItem('demoRedirectConfig', JSON.stringify(s)); });
+    return s;
+  }
+
+  function updateLabel() {
+    destLabel.textContent = LABELS[destType.value];
+    destValue.placeholder = PLACEHOLDERS[destType.value];
+  }
+
+  destType.addEventListener('change', function () { updateLabel(); saveState(); });
+  destValue.addEventListener('input', function () { saveState(); });
+  delayInput.addEventListener('input', function () { saveState(); });
+
+  bgImage.addEventListener('change', function () {
+    var file = bgImage.files && bgImage.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      preview.style.backgroundImage = 'url(' + reader.result + ')';
+      saveState({ bgImage: reader.result });
+    };
+    reader.readAsDataURL(file);
+  });
+
+  clearBg.addEventListener('click', function () {
+    preview.style.backgroundImage = '';
+    bgImage.value = '';
+    saveState({ bgImage: null });
+  });
+
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var isAndroid = /Android/.test(navigator.userAgent);
+
+  function buildTargets() {
+    var type = destType.value, value = (destValue.value || '').trim();
+    if (!value) return null;
+
+    if (type === 'instagram') {
+      value = value.replace(/^@/, '');
+      var fallback = 'https://instagram.com/' + value;
+      if (isAndroid) {
+        return { primary: 'intent://instagram.com/_u/' + encodeURIComponent(value) +
+          '#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=' +
+          encodeURIComponent(fallback) + ';end' };
+      }
+      if (isIOS) return { primary: 'instagram://user?username=' + encodeURIComponent(value), fallback: fallback };
+      return { primary: fallback };
+    }
+
+    if (type === 'whatsapp') {
+      value = value.replace(/\D/g, '');
+      var wfallback = 'https://wa.me/' + value;
+      if (isAndroid) {
+        return { primary: 'intent://send?phone=' + value +
+          '#Intent;package=com.whatsapp;scheme=whatsapp;S.browser_fallback_url=' +
+          encodeURIComponent(wfallback) + ';end' };
+      }
+      if (isIOS) return { primary: 'whatsapp://send?phone=' + value, fallback: wfallback };
+      return { primary: wfallback };
+    }
+
+    if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
+    return { primary: value };
+  }
+
+  var tapCount = 0, tapTimer = null;
+  function backToConfig() {
+    stage.classList.remove('active');
+    config.style.display = 'block';
+  }
+
+  stage.addEventListener('click', function () {
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () { tapCount = 0; }, 800);
+    if (tapCount >= 3) { tapCount = 0; backToConfig(); }
+  });
+
+  startBtn.addEventListener('click', function () {
+    var s = saveState();
+    var targets = buildTargets();
+    if (!targets) { alert('Falta completar el destino.'); return; }
+
+    if (s.bgImage) stage.style.backgroundImage = 'url(' + s.bgImage + ')';
+    else stage.style.backgroundImage = '';
+
+    config.style.display = 'none';
+    stage.classList.add('active');
+
+    if (document.documentElement.requestFullscreen) {
+      safe(function () { document.documentElement.requestFullscreen(); });
+    }
+
+    setTimeout(function () {
+      window.location.href = targets.primary;
+      if (targets.fallback) {
+        setTimeout(function () {
+          if (!document.hidden) window.location.href = targets.fallback;
+        }, 1200);
+      }
+    }, Math.max(0, (parseFloat(delayInput.value) || 0) * 1000));
+  });
+
+  loadState();
+})();
+</script>
+</body>
+</html>

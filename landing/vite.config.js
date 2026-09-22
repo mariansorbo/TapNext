@@ -24,6 +24,7 @@ export default defineConfig({
         quienesSomos: resolve(root, 'quienes-somos.html'),
         admin: resolve(root, 'admin.html'),
         vendedor: resolve(root, 'vendedor.html'),
+        demo: resolve(root, 'demo.html'),
       },
     },
   },
