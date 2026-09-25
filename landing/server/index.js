@@ -2716,19 +2716,22 @@ function pantallaRedireccion(destino) {
     min-height:100svh;overflow:hidden;-webkit-font-smoothing:antialiased}
   .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;
     font-size:clamp(2.9rem,17vw,5.5rem);letter-spacing:-.03em;
-    opacity:0;transform:translateY(10px) scale(.95);
-    animation:rise .45s cubic-bezier(.2,.7,.2,1) forwards}
+    opacity:0;transform:translateY(8px) scale(.97);
+    animation:rise .22s cubic-bezier(.2,.7,.2,1) forwards}
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;
     border-radius:.16em;clip-path:inset(0 100% 0 0);
-    animation:wipe .5s .14s cubic-bezier(.4,0,.1,1) forwards}
+    animation:wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards}
   .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:rgba(237,239,233,.16);
-    overflow:hidden;opacity:0;animation:rise .3s .25s forwards}
+    overflow:hidden}
   .bar i{display:block;height:100%;background:var(--violet);
-    transform:translateX(-100%);animation:fill var(--dur) .2s linear forwards}
-  .cta{position:fixed;left:0;right:0;text-align:center;
-    bottom:calc(env(safe-area-inset-bottom) + 22px);
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.04em;
-    color:rgba(237,239,233,.42);opacity:0;animation:rise .4s .5s forwards}
+    transform:translateX(-100%);animation:fill var(--dur) linear forwards paused}
+  .run .bar i{animation-play-state:running}
+  .cta{position:fixed;left:50%;transform:translateX(-50%);white-space:nowrap;
+    bottom:calc(env(safe-area-inset-bottom) + 14px);padding:10px 16px;
+    font-size:.9rem;color:rgba(237,239,233,.72);text-decoration:none;
+    opacity:0;animation:show .2s .08s forwards}
+  .cta b{color:var(--violet);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+  @keyframes show{to{opacity:1}}
   @keyframes rise{to{opacity:1;transform:none}}
   @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
   @keyframes fill{to{transform:translateX(0)}}
@@ -2738,19 +2741,33 @@ function pantallaRedireccion(destino) {
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
-  <a class="cta" href="https://next-tap.tech">tu Instagram en un toque &middot; next-tap.tech</a>
+  <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
   (function(){
-    var to=${jsUrl}, dur=1400;
+    // Tiempos en pantalla, contados desde que la pantalla ya se pintó (no desde
+    // que llegó el HTML): 1ª vez / mismo sticker de nuevo en <12 h (el dueño).
+    var DUR_PRIMERA=1400, DUR_MINIMA=700;
+    var to=${jsUrl}, dur=DUR_PRIMERA;
     try{
       var k='nt:'+location.pathname, last=+localStorage.getItem(k)||0;
-      if(Date.now()-last<432e5) dur=350;
+      if(Date.now()-last<432e5) dur=DUR_MINIMA;
       localStorage.setItem(k,String(Date.now()));
     }catch(e){}
     document.documentElement.style.setProperty('--dur',dur+'ms');
     var go=function(){location.replace(to)};
-    var t=setTimeout(go,dur);
-    addEventListener('pointerdown',function(){clearTimeout(t);go()},{once:true});
+    var t=null;
+    // Doble rAF = recién después del primer frame pintado arranca la cuenta, así
+    // una carga lenta o un navegador que tarda en pintar no se come el tiempo.
+    requestAnimationFrame(function(){requestAnimationFrame(function(){
+      document.documentElement.className='run';
+      if(t!==false) t=setTimeout(go,dur);
+    })});
+    // Un toque en cualquier lado acelera la redirección, salvo en el link a la
+    // marca: ahí solo frena el timer y deja que el link lleve a next-tap.tech.
+    addEventListener('pointerdown',function(e){
+      clearTimeout(t); t=false;
+      if(!(e.target.closest&&e.target.closest('.cta'))) go();
+    });
   })();
   </script>
 </body>
@@ -2794,10 +2811,12 @@ function pantallaApp({ web, intent }) {
     overflow:hidden;opacity:0;animation:rise .3s .25s forwards}
   .bar i{display:block;height:100%;background:var(--violet);
     transform:translateX(-100%);animation:fill var(--dur) .2s linear forwards}
-  .cta{position:fixed;left:0;right:0;text-align:center;
-    bottom:calc(env(safe-area-inset-bottom) + 22px);
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.04em;
-    color:rgba(237,239,233,.42);opacity:0;animation:rise .4s .5s forwards}
+  .cta{position:fixed;left:50%;transform:translateX(-50%);white-space:nowrap;
+    bottom:calc(env(safe-area-inset-bottom) + 14px);padding:10px 16px;
+    font-size:.9rem;color:rgba(237,239,233,.72);text-decoration:none;
+    opacity:0;animation:show .4s .5s forwards}
+  .cta b{color:var(--violet);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+  @keyframes show{to{opacity:1}}
   .btn{display:none;background:var(--paper);color:var(--ink);text-decoration:none;
     font-weight:600;padding:13px 28px;border-radius:999px;font-size:1rem}
   body.stuck .bar,body.stuck .cta{display:none}
@@ -2812,7 +2831,7 @@ function pantallaApp({ web, intent }) {
   <div class="mark">Next<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
   <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
-  <a class="cta" href="https://next-tap.tech">tu Instagram en un toque &middot; next-tap.tech</a>
+  <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
   (function(){
     var web=${webJs}, intent=${intentJs};
@@ -2820,7 +2839,9 @@ function pantallaApp({ web, intent }) {
     document.getElementById('go').setAttribute('href', target);
     var go=function(){ try{ location.href=target; }catch(e){} };
     setTimeout(go,120);
-    addEventListener('pointerdown',go);
+    addEventListener('pointerdown',function(e){
+      if(!(e.target.closest&&e.target.closest('.cta'))) go();
+    });
     setTimeout(function(){
       if(document.visibilityState==='visible') document.body.classList.add('stuck');
     },2600);
