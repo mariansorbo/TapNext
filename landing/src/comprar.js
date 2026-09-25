@@ -1,5 +1,6 @@
 import './styles.css';
 import './pixel.js';
+import { evento, obtenerVisitanteId } from './visita.js';
 import { trackEvent } from './pixel.js';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
@@ -415,9 +416,15 @@ renderProgressDots();
 
 let currentStep = STEP_SEQUENCE[0];
 
+// Nombre legible de cada paso, para el registro del recorrido (visita.js).
+const NOMBRE_PASO = { 0: 'funcion', 1: 'modelo', 3: 'tyc', 4: 'contacto', 5: 'envio', [PAY_STEP]: 'pago' };
+
 function showStep(step) {
   currentStep = step;
   const seqIndex = STEP_SEQUENCE.indexOf(step);
+  if (step !== 'success') {
+    evento('wizard_paso', { paso: NOMBRE_PASO[step] || String(step), orden: seqIndex + 1, total: STEP_SEQUENCE.length });
+  }
 
   steps.forEach((el) => el.classList.toggle('is-active', el.dataset.step === String(step)));
   dots.forEach((dot, i) => {
@@ -492,6 +499,7 @@ confirmOtpButton.addEventListener('click', async () => {
     const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino, code }) });
     state.otpVerified = true;
     state.authToken = data.token;
+    evento('contacto_verificado');
     sessionStorage.setItem('tap_panel_token', data.token);
     otpStatus.textContent = '✓ Verificado.';
     otpStatus.className = 'modal-status is-success';
@@ -662,6 +670,7 @@ function openWizard() {
   payButton.disabled = false;
   payButton.textContent = 'Pagar';
   closeTyc();
+  evento('wizard_abierto', { flujo: document.body.dataset.flow || null });
   showStep(STEP_SEQUENCE[0]);
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
@@ -669,6 +678,10 @@ function openWizard() {
 }
 
 function closeWizard() {
+  // Cerrar sin haber pagado = abandono, con el paso en que quedó.
+  if (modal.classList.contains('is-open') && currentStep !== 'success') {
+    evento('wizard_cerrado', { paso: NOMBRE_PASO[currentStep] || String(currentStep) });
+  }
   modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
@@ -728,13 +741,23 @@ payButton.addEventListener('click', async () => {
   payButton.textContent = 'Redirigiendo a Mercado Pago...';
   try {
     const items = state.cart.map((item) => ({ modelo: item.modelId, destinoTipo: item.functionId, destinoValor: '' }));
-    const body = { items, vendedorToken: vendorToken || '', fbp: leerCookie('_fbp'), fbc: leerCookie('_fbc') };
+    const body = {
+      items,
+      vendedorToken: vendorToken || '',
+      fbp: leerCookie('_fbp'),
+      fbc: leerCookie('_fbc'),
+      // El server guarda la aceptación con versión, IP y user-agent.
+      aceptaTyc: tycCheckbox.checked,
+      // Une la venta con el recorrido anónimo (UTM, páginas, pasos).
+      visitanteId: await obtenerVisitanteId(),
+    };
     if (state.envio.habilitado) body.envio = getEnvioFields();
     const data = await api('/ventas', {
       method: 'POST',
       headers: { Authorization: `Bearer ${state.authToken}` },
       body: JSON.stringify(body),
     });
+    evento('pago_iniciado', { ventaId: data.ventaId, items: state.cart.length });
     trackEvent('InitiateCheckout', {
       content_type: 'product',
       num_items: state.cart.length,
@@ -759,6 +782,7 @@ async function checkReturnFromMercadoPago() {
   const ventaId = params.get('venta');
   const pago = params.get('pago');
   if (!ventaId || !pago) return;
+  evento('volvio_de_pago', { ventaId: Number(ventaId) || null, pago });
 
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');

@@ -26,6 +26,7 @@ import {
   etiquetaPdf,
 } from './enviopack.js';
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
+import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -119,6 +120,9 @@ function deriveChipPack(uidNfc) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Páginas vistas de la landing (beacon anónimo, ver server/tracking.js).
+app.use('/api', crearVisitasRouter());
 
 function isoInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
@@ -872,13 +876,35 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   const fbc = String(req.body?.fbc || '').trim().slice(0, 200) || null;
   const clientIp = req.ip || null;
   const clientUa = String(req.headers['user-agent'] || '').slice(0, 500) || null;
+  // Visitante anónimo de la landing (cookie nt_vid, ver server/tracking.js):
+  // une esta venta con su recorrido y sus UTM. Lo manda el front porque esta
+  // llamada va directo a Render y no ve la cookie de next-tap.tech.
+  const visitanteId = esVisitanteId(req.body?.visitanteId) ? req.body.visitanteId : null;
 
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua)
-     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?)`,
-    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua, visitante_id)
+     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa, visitanteId]
   );
   const ventaId = ventaResult.lastInsertRowid;
+
+  // Evidencia de aceptación de TyC (lo que promete el propio texto: fecha,
+  // versión, IP y user-agent). El wizard no deja avanzar sin el checkbox; si
+  // igual llega sin aceptaTyc (un bundle viejo cacheado), la venta sigue y se
+  // loguea — no cortamos una compra por esto.
+  if (req.body?.aceptaTyc === true) {
+    try {
+      await registrarAceptacionTyc(req, {
+        ventaId,
+        compradorId: req.comprador.id,
+        contexto: vendedorToken ? 'compra_presencial' : 'compra_online',
+      });
+    } catch (err) {
+      console.error('[TyC] no se pudo registrar la aceptación de la venta', ventaId, err.message);
+    }
+  } else {
+    console.warn('[TyC] venta', ventaId, 'creada sin aceptaTyc en el body');
+  }
 
   for (const { sticker, item, precio } of conPromo) {
     await run('INSERT INTO venta_items (venta_id, sticker_id, monto, destino_tipo, destino_valor) VALUES (?, ?, ?, ?, ?)', [
@@ -3056,11 +3082,14 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       // siempre es un redirect a una URL; filas viejas sin https:// las fuerza a
       // absoluta el propio resolver (si no, el browser las toma como relativas).
       const r = resolverDestino(destino.tipo, destino.valor);
+      const tap = { stickerId: sticker.id, destinoTipo: destino.tipo };
       if (r.modo === 'app') {
         // WhatsApp: pantalla mínima que abre la app con un intent:// de Android.
+        registrarTap(req, res, { ...tap, resultado: 'app' });
         return res.type('html').send(pantallaApp(r));
       }
       if (r.modo === 'redirect') {
+        registrarTap(req, res, { ...tap, resultado: 'destino' });
         // Pantalla de marca solo si es una URL http(s) normal y el plugin no
         // pidió redirect directo (interstitial: false).
         if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
@@ -3071,6 +3100,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       if (r.modo === 'landing') {
         // El tap no lleva a ningún lado: renderizamos la página de la función.
         // Hoy solo 'alias' (datos de transferencia + copiar).
+        registrarTap(req, res, { ...tap, resultado: 'landing' });
         return res.type('html').send(pantallaAlias(r.datos));
       }
     }
@@ -3083,6 +3113,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     sticker.estado !== 'activo' &&
     (esLoteEspecial(sticker.uid_nfc) || (await liberacionVigente(sticker.id)))
   ) {
+    registrarTap(req, res, { stickerId: sticker.id, resultado: 'activacion' });
     return res.redirect(302, `${FRONTEND_URL}/activacion/${sticker.codigo_publico}`);
   }
 
@@ -3125,6 +3156,10 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       vendedor: vendedorRow?.nombre || null,
     };
   }
+  registrarTap(req, res, {
+    stickerId: sticker ? sticker.id : null,
+    resultado: !sticker ? 'desconocido' : sticker.estado === 'activo' ? 'sin_destino' : 'no_activado',
+  });
   return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola));
 });
 

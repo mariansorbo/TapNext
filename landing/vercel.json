@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/activacion/:codigo", "destination": "/activacion.html" },
-    { "source": "/v/:codigo", "destination": "https://tapnext.onrender.com/v/:codigo" }
+    { "source": "/v/:codigo", "destination": "https://tapnext.onrender.com/v/:codigo" },
+    { "source": "/t/visita", "destination": "https://tapnext.onrender.com/api/visitas" },
+    { "source": "/t/evento", "destination": "https://tapnext.onrender.com/api/eventos" }
   ]
 }

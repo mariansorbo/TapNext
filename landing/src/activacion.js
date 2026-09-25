@@ -1,4 +1,5 @@
 import './styles.css';
+import './visita.js';
 import { applyBrand } from './brand.js';
 
 applyBrand('Activar llavero');

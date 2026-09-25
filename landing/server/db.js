@@ -485,6 +485,104 @@ await db.executeMultiple(`
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fbc TEXT;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ip TEXT;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ua TEXT;
+
+  -- === Registro de visitas (ver server/tracking.js). Todo anónimo: no hay
+  -- nombre ni contacto, solo lo que el navegador manda en cada request.
+  -- visitante_id es un id random guardado en el propio navegador (cookie en el
+  -- tap, localStorage en la landing) — sirve para contar repetidos, no identifica
+  -- a nadie. es_bot marca las previsualizaciones de link (WhatsApp, Facebook,
+  -- Google...) para poder excluirlas de las métricas sin perder el dato. ===
+
+  -- Un toque (o apertura del link) de un sticker: /v/:codigo.
+  CREATE TABLE IF NOT EXISTS taps (
+    id SERIAL PRIMARY KEY,
+    sticker_id INTEGER REFERENCES stickers(id) ON DELETE SET NULL,
+    codigo TEXT NOT NULL,                  -- tal como vino en la URL (puede no existir)
+    -- destino | app | landing | activacion | no_activado | sin_destino | desconocido
+    resultado TEXT NOT NULL,
+    destino_tipo TEXT,
+    visitante_id TEXT,
+    primera_vez BOOLEAN,                   -- primera vez que este navegador toca este sticker
+    ip TEXT,
+    pais TEXT,
+    region TEXT,
+    ciudad TEXT,
+    user_agent TEXT,
+    dispositivo TEXT,                      -- ios | android | desktop | otro
+    app_origen TEXT,                       -- instagram | facebook | whatsapp | tiktok | ... | NULL
+    idioma TEXT,
+    referer TEXT,
+    es_bot BOOLEAN NOT NULL DEFAULT FALSE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_taps_sticker ON taps(sticker_id, creado_en);
+  CREATE INDEX IF NOT EXISTS idx_taps_creado ON taps(creado_en);
+  CREATE INDEX IF NOT EXISTS idx_taps_visitante ON taps(visitante_id, codigo);
+
+  -- Una página vista de la landing (beacon desde el navegador, POST /api/visitas).
+  CREATE TABLE IF NOT EXISTS visitas (
+    id SERIAL PRIMARY KEY,
+    visitante_id TEXT,
+    primera_vez BOOLEAN,
+    pagina TEXT NOT NULL,
+    utm_source TEXT,
+    utm_medium TEXT,
+    utm_campaign TEXT,
+    utm_content TEXT,
+    utm_term TEXT,
+    vendedor_token TEXT,                   -- ?v= / ?ref= del link de un vendedor
+    referer TEXT,                          -- document.referrer (más fiel que el header)
+    ip TEXT,
+    pais TEXT,
+    region TEXT,
+    ciudad TEXT,
+    user_agent TEXT,
+    dispositivo TEXT,
+    app_origen TEXT,
+    idioma TEXT,
+    pantalla TEXT,                         -- '390x844'
+    zona_horaria TEXT,
+    es_bot BOOLEAN NOT NULL DEFAULT FALSE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_visitas_creado ON visitas(creado_en);
+  CREATE INDEX IF NOT EXISTS idx_visitas_visitante ON visitas(visitante_id);
+  -- Señales del navegador que se leen por JS sin pedir permiso. huella = hash
+  -- de todas ellas + user-agent: agrupa dispositivos "iguales" aunque borren
+  -- la cookie (no es único — dos iPhone del mismo modelo dan la misma huella).
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS sesion_id TEXT;       -- una pestaña/visita (sessionStorage)
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS pixel_ratio REAL;
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS modo_oscuro BOOLEAN;
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS tactil BOOLEAN;
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS nucleos INTEGER;       -- navigator.hardwareConcurrency
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS memoria_gb REAL;       -- navigator.deviceMemory (solo Chrome/Android, redondeado)
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS conexion TEXT;         -- 4g/3g/... (solo Chrome/Android)
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS ahorro_datos BOOLEAN;
+  ALTER TABLE visitas ADD COLUMN IF NOT EXISTS huella TEXT;
+  CREATE INDEX IF NOT EXISTS idx_visitas_huella ON visitas(huella);
+
+  -- Recorrido dentro de la landing: pasos del wizard, abandono, pago iniciado.
+  -- La compra confirmada no se loguea acá: sale de ventas.visitante_id + estado_pago.
+  CREATE TABLE IF NOT EXISTS eventos (
+    id SERIAL PRIMARY KEY,
+    visitante_id TEXT,
+    sesion_id TEXT,
+    nombre TEXT NOT NULL,
+    pagina TEXT,
+    datos JSONB,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_eventos_visitante ON eventos(visitante_id, creado_en);
+  CREATE INDEX IF NOT EXISTS idx_eventos_nombre ON eventos(nombre, creado_en);
+
+  -- Qué visitante (cookie nt_vid) hizo la compra: une el recorrido anónimo
+  -- (visitas, eventos, UTM) con la venta.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS visitante_id TEXT;
+
+  -- Aceptación de TyC: se registra una por venta (la tabla nació por sticker,
+  -- pero en la compra online el sticker todavía no está atado al comprador).
+  ALTER TABLE aceptaciones_tyc ADD COLUMN IF NOT EXISTS venta_id INTEGER REFERENCES ventas(id) ON DELETE CASCADE;
+  ALTER TABLE aceptaciones_tyc ADD COLUMN IF NOT EXISTS contexto TEXT;
 `);
 
 // Backfill: todo vendedor que no tenga link_token (altas previas a este

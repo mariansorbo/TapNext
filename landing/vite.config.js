@@ -8,6 +8,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3001',
+      // Mismo mapeo que los rewrites de vercel.json (tracking con cookie propia).
+      // Regex (no '/t' a secas: eso también agarraría /terminos.html).
+      '^/t/(visita|evento)$': {
+        target: 'http://localhost:3001',
+        rewrite: (p) => p.replace(/^\/t\/visita$/, '/api/visitas').replace(/^\/t\/evento$/, '/api/eventos'),
+      },
     },
   },
   build: {
