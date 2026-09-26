@@ -671,6 +671,9 @@ function openWizard() {
   payButton.textContent = 'Pagar';
   closeTyc();
   evento('wizard_abierto', { flujo: document.body.dataset.flow || null });
+  // Click en "comprar online" — distinto de InitiateCheckout (que recién se
+  // dispara al confirmar el pago), sirve como métrica líder de intención.
+  trackEvent('AddToCart', { content_type: 'product', currency: 'ARS' });
   showStep(STEP_SEQUENCE[0]);
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
