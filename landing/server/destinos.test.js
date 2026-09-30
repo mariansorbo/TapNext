@@ -205,6 +205,15 @@ test('alias: normaliza y guarda JSON con los campos limpios', () => {
   assert.equal(d.cuit, CUIT_OK);
 });
 
+test('alias: titular y banco son opcionales', () => {
+  const { valor, error } = normalizarDestino('alias', aliasCrudo({ alias: 'tienda.ok', titular: '', banco: '' }));
+  assert.equal(error, undefined);
+  const d = JSON.parse(valor);
+  assert.equal(d.alias, 'tienda.ok');
+  assert.equal(d.titular, '');
+  assert.equal(d.banco, '');
+});
+
 test('alias: CBU y CUIT son opcionales', () => {
   const { valor, error } = normalizarDestino('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana Perez', banco: 'Naranja X' }));
   assert.equal(error, undefined);
@@ -217,8 +226,9 @@ test('alias: errores con motivo', () => {
   errMatch('alias', aliasCrudo({ alias: 'ab', titular: 'x', banco: 'y' }), /6 a 20/);
   errMatch('alias', aliasCrudo({ alias: 'tienda_ok', titular: 'Juana', banco: 'y' }), /6 a 20/);
   errMatch('alias', aliasCrudo({ alias: 'a'.repeat(25), titular: 'Juana', banco: 'y' }), /6 a 20/);
-  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: '', banco: 'y' }), /titular/i);
-  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: '' }), /banco|billetera/i);
+  // Titular y banco son opcionales (f885f9b), pero si vienen se validan.
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'J', banco: 'y' }), /titular/i);
+  errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'b'.repeat(41) }), /banco/i);
   errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cbu: '123' }), /22 d[ií]gitos/);
   errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cbu: CBU_OK.slice(0, -1) + '0' }), /no es v[aá]lido/);
   errMatch('alias', aliasCrudo({ alias: 'tienda.ok', titular: 'Juana', banco: 'MP', cuit: '11112222333' }), /CUIT|CUIL/);
