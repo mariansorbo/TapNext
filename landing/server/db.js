@@ -285,6 +285,19 @@ await db.executeMultiple(`
   );
   -- Promo con la que se cerró la venta (NULL = venta estándar).
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS promocion_id INTEGER REFERENCES promociones(id);
+  -- Link de promo genérico, sin vendedor detrás — para campañas de pauta o
+  -- cualquier link de compra online (pedido.html?promo=<token>) que quiera
+  -- aplicar una promo sin pasar por el flujo presencial de un vendedor.
+  -- etiqueta es libre, solo para identificar el link en el admin (ej. "Ads —
+  -- 2x1 septiembre"). Se puede crear más de uno por promo (distintos canales).
+  CREATE TABLE IF NOT EXISTS promo_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    promocion_id INTEGER NOT NULL REFERENCES promociones(id) ON DELETE CASCADE,
+    etiqueta TEXT,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
   -- Limpieza de una iteración anterior (columnas efímeras, nunca tuvieron datos
   -- de valor): el modo de venta ahora es ventas.promocion_id + vendedor_promo_tokens.
   ALTER TABLE vendedores DROP COLUMN IF EXISTS link_token_2x1;
@@ -296,6 +309,27 @@ await db.executeMultiple(`
   -- no solo por whatsapp. Índice para el lookup del login; parcial porque hay
   -- filas históricas con email NULL.
   CREATE INDEX IF NOT EXISTS idx_compradores_email ON compradores(email) WHERE email IS NOT NULL;
+  -- Login del comprador: el mail es su identidad, así que es único (sin
+  -- distinguir mayúsculas) y se guarda normalizado. Si hubiera duplicados
+  -- históricos el índice no se crea y queda un WARNING en el log, en vez de
+  -- tirar abajo el arranque del server.
+  UPDATE compradores SET email = LOWER(TRIM(email)) WHERE email IS NOT NULL AND email <> LOWER(TRIM(email));
+  DO $$ BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_compradores_email_unico ON compradores (LOWER(email)) WHERE email IS NOT NULL;
+  EXCEPTION WHEN unique_violation THEN
+    RAISE WARNING 'compradores: hay emails duplicados, no se creó idx_compradores_email_unico';
+  END $$;
+  -- Contraseña opcional del comprador (se crea desde Mi panel después de entrar
+  -- con código). NULL = entra solo con código. email_verificado_en = última vez
+  -- que demostró ser dueño del mail (OTP o Google con email_verified).
+  ALTER TABLE compradores ADD COLUMN IF NOT EXISTS password_hash TEXT;
+  ALTER TABLE compradores ADD COLUMN IF NOT EXISTS password_actualizado_en TIMESTAMPTZ;
+  ALTER TABLE compradores ADD COLUMN IF NOT EXISTS email_verificado_en TIMESTAMPTZ;
+  -- Intentos fallidos contra cada OTP: al 5º se quema (anti fuerza bruta).
+  ALTER TABLE otp_sessions ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0;
+  -- Cómo se abrió cada sesión del comprador ('otp' | 'google' | 'password').
+  -- Crear/cambiar la contraseña exige una sesión reciente abierta con otp/google.
+  ALTER TABLE sesiones ADD COLUMN IF NOT EXISTS metodo TEXT;
   -- Alias o CVU de Mercado Pago del vendedor, para liquidarle la comisión por
   -- transferencia. Solo dato de contacto de pago — no se valida contra MP.
   ALTER TABLE vendedores ADD COLUMN IF NOT EXISTS alias_mp TEXT;

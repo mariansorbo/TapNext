@@ -11,6 +11,7 @@ import {
   fechaAR,
 } from './comision.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
+import { validarPassword, crearLimitador } from './password.js';
 import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
@@ -31,7 +32,11 @@ import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
 const OTP_THROTTLE_SECONDS = 30;
+const OTP_MAX_INTENTOS = 5; // fallos contra un mismo código antes de quemarlo
 const SESSION_TTL_MINUTES = 30;
+// Crear/cambiar la contraseña sin pedir la actual exige haber demostrado ser
+// dueño del mail (código o Google) hace menos de esto.
+const REAUTH_MINUTES = 10;
 
 // Lote especial: stickers ya impresos sobre un material que NO admite candado
 // físico (no se puede write-lock el chip) y que NO llevan ningún ID impreso.
@@ -313,19 +318,60 @@ app.post('/api/auth/otp/request', async (req, res) => {
   res.json({ ok: true, debug_otp: code });
 });
 
+// Sesión del comprador. `metodo` queda registrado para saber si es una sesión
+// "fuerte" (dueño del mail demostrado: otp/google) al crear la contraseña.
+async function crearSesionComprador(compradorId, metodo) {
+  const token = generateToken();
+  await run('INSERT INTO sesiones (comprador_id, token_hash, expira, metodo) VALUES (?, ?, ?, ?)', [
+    compradorId,
+    hashValue(token),
+    isoInMinutes(SESSION_TTL_MINUTES),
+    metodo,
+  ]);
+  return token;
+}
+
+// Tope por IP de intentos fallidos de login (código o contraseña), aparte del
+// tope por código: frena a quien prueba contra muchos mails distintos.
+const loginFallosPorIp = crearLimitador({ max: 30, ventanaMs: 15 * 60_000 });
+const passwordFallosPorEmail = crearLimitador({ max: 5, ventanaMs: 15 * 60_000 });
+const DEMASIADOS_INTENTOS = 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+
 app.post('/api/auth/otp/verify', async (req, res) => {
   const brutoDestino = req.body?.destino ?? req.body?.whatsapp ?? req.body?.email ?? '';
   const destino = canalVerificacion.normalizarDestino(brutoDestino) || String(brutoDestino).trim();
   const code = String(req.body?.code || '').trim();
   if (!destino || !code) return res.status(400).json({ error: 'Faltan datos.' });
 
+  const ip = req.ip || 'unknown';
+  if (!loginFallosPorIp.permitido(ip)) return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+
   const otp = await get(
     `SELECT * FROM otp_sessions WHERE whatsapp = ? AND usado = 0 AND expira > NOW() ORDER BY id DESC LIMIT 1`,
     [destino]
   );
 
-  if (!otp || otp.codigo_hash !== hashValue(code)) {
-    return res.status(401).json({ error: 'Código inválido o expirado.' });
+  if (!otp) {
+    loginFallosPorIp.registrarFallo(ip);
+    return res.status(401).json({ error: 'Código inválido o expirado. Pedí uno nuevo.' });
+  }
+  if (otp.codigo_hash !== hashValue(code)) {
+    loginFallosPorIp.registrarFallo(ip);
+    const intentos = otp.intentos + 1;
+    // Al llegar al tope el código se quema: hay que pedir otro (que a su vez
+    // tiene el throttle de /otp/request). Así no se puede barrer el millón.
+    await run('UPDATE otp_sessions SET intentos = ?, usado = ? WHERE id = ?', [
+      intentos,
+      intentos >= OTP_MAX_INTENTOS ? 1 : 0,
+      otp.id,
+    ]);
+    const restantes = OTP_MAX_INTENTOS - intentos;
+    return res.status(401).json({
+      error:
+        restantes > 0
+          ? `Código incorrecto. ${restantes === 1 ? 'Te queda 1 intento' : `Te quedan ${restantes} intentos`}.`
+          : 'Código incorrecto. Pedí un código nuevo.',
+    });
   }
 
   await run('UPDATE otp_sessions SET usado = 1 WHERE id = ?', [otp.id]);
@@ -343,19 +389,55 @@ app.post('/api/auth/otp/verify', async (req, res) => {
     const result = await run(`INSERT INTO compradores (${campo}) VALUES (?)`, [destino]);
     comprador = await get('SELECT * FROM compradores WHERE id = ?', [result.lastInsertRowid]);
   }
+  if (campo === 'email') {
+    await run('UPDATE compradores SET email_verificado_en = NOW() WHERE id = ?', [comprador.id]);
+  }
 
-  const token = generateToken();
-  await run('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)', [
-    comprador.id,
-    hashValue(token),
-    isoInMinutes(SESSION_TTL_MINUTES),
-  ]);
+  const token = await crearSesionComprador(comprador.id, 'otp');
 
   res.json({
     token,
     comprador: { id: comprador.id, whatsapp: comprador.whatsapp, nombre: comprador.nombre, email: comprador.email },
   });
 });
+
+// Login con contraseña (opcional — solo para quien la creó desde Mi panel). El
+// código por mail sigue funcionando siempre y es también el "me olvidé la
+// contraseña": no hay flujo de reseteo aparte.
+// Hash de relleno para comparar aunque el mail no exista / no tenga contraseña:
+// así el tiempo de respuesta no delata qué mails tienen cuenta.
+const HASH_RELLENO = bcrypt.hashSync(generateToken(), 10);
+
+app.post('/api/auth/password/login', async (req, res) => {
+  const email = normalizarEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+  if (!email || !password) return res.status(400).json({ error: 'Completá tu mail y tu contraseña.' });
+
+  const ip = req.ip || 'unknown';
+  if (!loginFallosPorIp.permitido(ip) || !passwordFallosPorEmail.permitido(email)) {
+    return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+  }
+
+  const comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
+  const ok = await bcrypt.compare(password, comprador?.password_hash || HASH_RELLENO);
+  if (!comprador || !comprador.password_hash || !ok) {
+    loginFallosPorIp.registrarFallo(ip);
+    passwordFallosPorEmail.registrarFallo(email);
+    return res.status(401).json({ error: 'Mail o contraseña incorrectos.' });
+  }
+  passwordFallosPorEmail.limpiar(email);
+
+  const token = await crearSesionComprador(comprador.id, 'password');
+  res.json({
+    token,
+    comprador: { id: comprador.id, whatsapp: comprador.whatsapp, nombre: comprador.nombre, email: comprador.email },
+  });
+});
+
+function normalizarEmail(raw) {
+  const t = String(raw || '').trim().toLowerCase();
+  return ES_EMAIL(t) ? t : null;
+}
 
 app.get('/api/auth/config', (req, res) => {
   res.json({
@@ -426,9 +508,17 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const profile = await profileRes.json();
     if (!profileRes.ok || !profile.sub) throw new Error('No se pudo leer el perfil de Google.');
 
+    // Solo confiamos en el mail de Google si Google dice que está verificado:
+    // si no, cualquiera podría crear una cuenta de Google con un mail ajeno y
+    // quedar enganchado a la cuenta NextTap de ese mail.
+    const email = profile.email_verified === true && profile.email ? String(profile.email).trim().toLowerCase() : null;
+    if (!email) {
+      return res.redirect(`${FRONTEND_URL}/mi-panel.html?google_error=email_no_verificado`);
+    }
+
     let comprador = await get('SELECT * FROM compradores WHERE google_id = ?', [profile.sub]);
-    if (!comprador && profile.email) {
-      comprador = await get('SELECT * FROM compradores WHERE email = ?', [profile.email]);
+    if (!comprador) {
+      comprador = await get('SELECT * FROM compradores WHERE LOWER(email) = ?', [email]);
       if (comprador) {
         await run('UPDATE compradores SET google_id = ? WHERE id = ?', [profile.sub, comprador.id]);
       }
@@ -436,18 +526,16 @@ app.get('/api/auth/google/callback', async (req, res) => {
     if (!comprador) {
       const result = await run('INSERT INTO compradores (google_id, email, nombre) VALUES (?, ?, ?)', [
         profile.sub,
-        profile.email || null,
+        email,
         profile.name || null,
       ]);
       comprador = await get('SELECT * FROM compradores WHERE id = ?', [result.lastInsertRowid]);
     }
+    if (comprador.email && comprador.email.toLowerCase() === email) {
+      await run('UPDATE compradores SET email_verificado_en = NOW() WHERE id = ?', [comprador.id]);
+    }
 
-    const token = generateToken();
-    await run('INSERT INTO sesiones (comprador_id, token_hash, expira) VALUES (?, ?, ?)', [
-      comprador.id,
-      hashValue(token),
-      isoInMinutes(SESSION_TTL_MINUTES),
-    ]);
+    const token = await crearSesionComprador(comprador.id, 'google');
 
     res.redirect(`${FRONTEND_URL}/mi-panel.html?token=${token}`);
   } catch (err) {
@@ -473,29 +561,129 @@ async function requireAuth(req, res, next) {
 
   await run('UPDATE sesiones SET expira = ? WHERE id = ?', [isoInMinutes(SESSION_TTL_MINUTES), sesion.id]);
 
+  req.sesion = sesion;
   req.comprador = await get('SELECT * FROM compradores WHERE id = ?', [sesion.comprador_id]);
   next();
 }
 
+// Sesión abierta con código o Google hace menos de REAUTH_MINUTES: prueba
+// fresca de que quien está del otro lado es dueño del mail.
+function sesionReciente(sesion) {
+  return (
+    ['otp', 'google'].includes(sesion.metodo) &&
+    new Date(sesion.creado_en).getTime() > Date.now() - REAUTH_MINUTES * 60_000
+  );
+}
+
 // --- Panel del comprador (/mi-panel) ---
 
+// El mail NO se edita desde el panel: es la identidad con la que se entra y se
+// verifica en cada login (código o Google). Cambiarlo sin verificar el nuevo
+// dejaría perder la cuenta o apropiarse de un mail ajeno.
 app.get('/api/me', requireAuth, (req, res) => {
-  const { id, whatsapp, nombre, email } = req.comprador;
-  res.json({ id, whatsapp, nombre, email });
+  const { id, whatsapp, nombre, email, password_hash, email_verificado_en } = req.comprador;
+  res.json({
+    id,
+    whatsapp,
+    nombre,
+    email,
+    emailVerificado: Boolean(email_verificado_en),
+    tienePassword: Boolean(password_hash),
+  });
 });
 
-// Mail de respaldo opcional — no se usa para loguearse, solo para avisos y recuperación
-// si el número de WhatsApp deja de estar en manos de su dueño original.
-app.patch('/api/me', requireAuth, async (req, res) => {
-  const email = String(req.body?.email ?? '').trim();
-  if (email && !email.includes('@')) {
-    return res.status(400).json({ error: 'Ese mail no parece válido.' });
+// Crear o cambiar la contraseña (opcional). Autoriza una de dos:
+//  - sesión reciente abierta con código/Google, o
+//  - la contraseña actual (si ya tenía una).
+// Si no alcanza, responde needsReauth y el panel pide un código por mail.
+app.post('/api/me/password', requireAuth, async (req, res) => {
+  const comprador = req.comprador;
+  if (!comprador.email) {
+    return res.status(400).json({ error: 'Tu cuenta no tiene mail: seguí entrando con código.' });
   }
-  await run('UPDATE compradores SET email = ? WHERE id = ?', [email || null, req.comprador.id]);
-  const actualizado = await get('SELECT id, whatsapp, nombre, email FROM compradores WHERE id = ?', [
-    req.comprador.id,
+  const nueva = String(req.body?.password ?? '');
+  const actual = String(req.body?.passwordActual ?? '');
+
+  let autorizado = sesionReciente(req.sesion);
+  if (!autorizado && actual && comprador.password_hash) {
+    const ip = req.ip || 'unknown';
+    if (!passwordFallosPorEmail.permitido(comprador.email)) {
+      return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+    }
+    autorizado = await bcrypt.compare(actual, comprador.password_hash);
+    if (!autorizado) {
+      passwordFallosPorEmail.registrarFallo(comprador.email);
+      loginFallosPorIp.registrarFallo(ip);
+      return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
+    }
+  }
+  if (!autorizado) {
+    return res.status(403).json({
+      error: 'Por seguridad, confirmá que sos vos con un código que te mandamos al mail.',
+      needsReauth: true,
+    });
+  }
+
+  const error = await validarPassword(nueva, { email: comprador.email });
+  if (error) return res.status(400).json({ error });
+
+  const hash = await bcrypt.hash(nueva, BCRYPT_ROUNDS);
+  await run('UPDATE compradores SET password_hash = ?, password_actualizado_en = NOW() WHERE id = ?', [
+    hash,
+    comprador.id,
   ]);
-  res.json(actualizado);
+  // Cierra todas las demás sesiones: si alguien más tenía una abierta, afuera.
+  await run('DELETE FROM sesiones WHERE comprador_id = ? AND id <> ?', [comprador.id, req.sesion.id]);
+
+  const habiaPassword = Boolean(comprador.password_hash);
+  enviarCorreo({
+    to: comprador.email,
+    subject: habiaPassword ? 'Cambiaste tu contraseña de NextTap' : 'Creaste una contraseña en NextTap',
+    text:
+      `${habiaPassword ? 'Se cambió' : 'Se creó'} la contraseña de tu cuenta de NextTap (${comprador.email}).\n\n` +
+      'Si fuiste vos, no tenés que hacer nada. Si no fuiste vos, entrá a Mi panel con un código por mail ' +
+      'y cambiala desde ahí: eso cierra cualquier otra sesión abierta.',
+  });
+
+  res.json({ ok: true, tienePassword: true });
+});
+
+// Quitar la contraseña: vuelve a entrar solo con código. Mismas reglas de
+// autorización que crearla.
+app.delete('/api/me/password', requireAuth, async (req, res) => {
+  const comprador = req.comprador;
+  if (!comprador.password_hash) return res.json({ ok: true, tienePassword: false });
+
+  const actual = String(req.body?.passwordActual ?? '');
+  let autorizado = sesionReciente(req.sesion);
+  if (!autorizado && actual) {
+    if (!passwordFallosPorEmail.permitido(comprador.email)) {
+      return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+    }
+    autorizado = await bcrypt.compare(actual, comprador.password_hash);
+    if (!autorizado) {
+      passwordFallosPorEmail.registrarFallo(comprador.email);
+      return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
+    }
+  }
+  if (!autorizado) {
+    return res.status(403).json({
+      error: 'Por seguridad, confirmá que sos vos con un código que te mandamos al mail.',
+      needsReauth: true,
+    });
+  }
+
+  await run('UPDATE compradores SET password_hash = NULL, password_actualizado_en = NOW() WHERE id = ?', [
+    comprador.id,
+  ]);
+  enviarCorreo({
+    to: comprador.email,
+    subject: 'Quitaste tu contraseña de NextTap',
+    text:
+      `Se quitó la contraseña de tu cuenta de NextTap (${comprador.email}). Desde ahora entrás solo con un código por mail.\n\n` +
+      'Si no fuiste vos, entrá a Mi panel con un código por mail y revisá tu cuenta.',
+  });
+  res.json({ ok: true, tienePassword: false });
 });
 
 app.get('/api/me/stickers', requireAuth, async (req, res) => {
@@ -540,7 +728,7 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
   const valor = norm.valor;
 
   if (sticker.estado !== 'activo') {
-    return res.status(400).json({ error: 'Este sticker todavía no está activado.' });
+    return res.status(400).json({ error: 'Este producto todavía no está activado.' });
   }
 
   const anterior = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
@@ -599,6 +787,21 @@ async function resolverRefPresencial(ref) {
   return { vendedor: v || null, promocionId: null };
 }
 
+// Resuelve un link de promo genérico (pedido.html?promo=<token>), sin vendedor
+// detrás — para campañas de pauta o cualquier link de compra online. Token
+// inactivo o inexistente = sin promo (no rompe la compra, cobra precio de lista).
+async function resolverPromoLink(token) {
+  if (!token) return null;
+  const row = await get(
+    `SELECT t.promocion_id
+       FROM promo_links t
+       JOIN promociones p ON p.id = t.promocion_id
+      WHERE t.token = ? AND t.activo AND p.activa`,
+    [token]
+  );
+  return row ? row.promocion_id : null;
+}
+
 // Aplica una promo a las unidades reservadas. En el flujo actual todas son del
 // mismo modelo, pero se agrupa por modelo por robustez. Devuelve el mismo array
 // con `precio` (final) en cada item. Sin promo → precio de lista.
@@ -635,6 +838,18 @@ function preciosConPromo(reservados, promo, montosPorModelo) {
   }
   return reservados.map((r, i) => ({ ...r, precio: precioFinal[i] }));
 }
+
+// Consulta pública de un link de promo online (pedido.html?promo=<token>):
+// el wizard lo usa para mostrar el aviso de "sumá N para el descuento", igual
+// que hace /vendedores/:ref/stock con la promo del link presencial.
+app.get('/api/public/promo/:token', async (req, res) => {
+  const token = String(req.params.token || '').trim().toLowerCase();
+  const promocionId = await resolverPromoLink(token);
+  if (!promocionId) return res.status(404).json({ error: 'Link de promo no encontrado.' });
+  const p = await get('SELECT slug, nombre, unidades_pack FROM promociones WHERE id = ? AND activa', [promocionId]);
+  if (!p) return res.status(404).json({ error: 'Link de promo no encontrado.' });
+  res.json({ promo: { slug: p.slug, nombre: p.nombre, unidadesPack: p.unidades_pack } });
+});
 
 app.get('/api/public/vendedores/:ref/stock', async (req, res) => {
   const ref = String(req.params.ref || '').trim().toLowerCase();
@@ -779,6 +994,9 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
 
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
   const vendedorToken = String(req.body?.vendedorToken || '').trim().toLowerCase();
+  // Link de promo online (pedido.html?promo=<token>), independiente del
+  // vendedorToken presencial — ver resolverPromoLink.
+  const promoToken = String(req.body?.promoToken || '').trim().toLowerCase();
 
   // Envío a domicilio (compra online). parseEnvio valida los campos; el costo se
   // cotiza contra Enviopack más abajo (nunca se confía en un precio del cliente).
@@ -789,8 +1007,8 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   for (const item of items) {
     const modelo = String(item?.modelo || '').trim();
     const destinoTipo = String(item?.destinoTipo || '').trim();
-    // 'suelto' = sticker sin impreso 3D — es una opción válida de compra, no un modelo real.
-    if (modelo !== 'suelto' && !MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
+    // 'suelto' (sin impreso 3D) ya no se vende: solo modelos reales.
+    if (!MODELOS.includes(modelo)) return res.status(400).json({ error: 'Modelo inválido.' });
     if (!DESTINO_TIPOS.includes(destinoTipo)) return res.status(400).json({ error: 'Tipo de destino inválido.' });
     // El valor del destino (el link/handle real) es opcional acá a propósito:
     // el comprador puede pagar y activar el NFC ahora, y configurar recién
@@ -805,13 +1023,16 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   // Resuelve vendedor + promo por el token del link presencial (acepta el token
   // común, un token de promo, o el codigo_ref legacy).
   const { vendedor, promocionId } = await resolverRefPresencial(vendedorToken);
+  // Sin promo de vendedor (venta online directa, sin link presencial): probamos
+  // el link de promo genérico que haya mandado el frontend.
+  const promocionIdFinal = promocionId || (await resolverPromoLink(promoToken));
 
   // Si el link era de una promo, la cargamos para calcular el descuento y
   // validar el mínimo de unidades.
   let promo = null;
   const montosPromo = new Map();
-  if (promocionId) {
-    promo = await get('SELECT * FROM promociones WHERE id = ? AND activa', [promocionId]);
+  if (promocionIdFinal) {
+    promo = await get('SELECT * FROM promociones WHERE id = ? AND activa', [promocionIdFinal]);
     if (promo) {
       if (items.length < promo.unidades_pack) {
         return res.status(400).json({ error: `La promo ${promo.nombre} necesita al menos ${promo.unidades_pack} unidades.` });
@@ -935,7 +1156,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
 
   try {
     const mpItems = conPromo.map(({ item, precio }) => ({
-      title: `Sticker AltoqueTap — ${item.modelo}`,
+      title: `NextTap — ${item.modelo.charAt(0).toUpperCase() + item.modelo.slice(1)}`,
       quantity: 1,
       unit_price: precio,
       currency_id: 'ARS',
@@ -1576,6 +1797,65 @@ app.post('/api/admin/vendedores', requireAdmin, async (req, res) => {
     email: email || null,
     aliasMp: aliasMp || null,
   });
+});
+
+// Promos activas, para elegir a cuál atar un link nuevo.
+app.get('/api/admin/promociones', requireAdmin, async (req, res) => {
+  const rows = await all('SELECT id, slug, nombre, unidades_pack, activa FROM promociones ORDER BY id');
+  res.json(rows.map((p) => ({ id: p.id, slug: p.slug, nombre: p.nombre, unidadesPack: p.unidades_pack, activa: p.activa })));
+});
+
+// Links de promo genéricos (sin vendedor) — para campañas de pauta u otro
+// canal online. Ver resolverPromoLink / GET /api/public/promo/:token.
+app.get('/api/admin/promo-links', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT t.id, t.token, t.etiqueta, t.activo, t.creado_en, p.nombre AS promo_nombre
+      FROM promo_links t
+      JOIN promociones p ON p.id = t.promocion_id
+     ORDER BY t.creado_en DESC
+  `);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      token: r.token,
+      etiqueta: r.etiqueta,
+      activo: r.activo,
+      promoNombre: r.promo_nombre,
+      url: `${PUBLIC_ROUTER_BASE}/pedido.html?promo=${r.token}`,
+    }))
+  );
+});
+
+app.post('/api/admin/promo-links', requireAdmin, async (req, res) => {
+  const promocionId = Number(req.body?.promocionId);
+  const etiqueta = String(req.body?.etiqueta || '').trim() || null;
+  if (!Number.isInteger(promocionId)) return res.status(400).json({ error: 'Falta promocionId.' });
+  const promo = await get('SELECT id, nombre FROM promociones WHERE id = ? AND activa', [promocionId]);
+  if (!promo) return res.status(404).json({ error: 'Promo no encontrada o inactiva.' });
+
+  const token = generateLinkToken();
+  const result = await run('INSERT INTO promo_links (token, promocion_id, etiqueta) VALUES (?, ?, ?)', [
+    token,
+    promocionId,
+    etiqueta,
+  ]);
+  res.status(201).json({
+    id: result.lastInsertRowid,
+    token,
+    etiqueta,
+    activo: true,
+    promoNombre: promo.nombre,
+    url: `${PUBLIC_ROUTER_BASE}/pedido.html?promo=${token}`,
+  });
+});
+
+app.patch('/api/admin/promo-links/:id', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const link = await get('SELECT id FROM promo_links WHERE id = ?', [id]);
+  if (!link) return res.status(404).json({ error: 'Link no encontrado.' });
+  const activo = Boolean(req.body?.activo);
+  await run('UPDATE promo_links SET activo = ? WHERE id = ?', [activo, id]);
+  res.json({ ok: true, activo });
 });
 
 app.patch('/api/admin/vendedores/:id', requireAdmin, async (req, res) => {
@@ -2904,7 +3184,7 @@ function pantallaNoActivado(codigo, cola = null) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap — sticker sin activar</title>
+<title>NextTap — producto sin activar</title>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -2929,7 +3209,7 @@ function pantallaNoActivado(codigo, cola = null) {
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
-  <h1>Este sticker todav&iacute;a no est&aacute; activado.</h1>
+  <h1>Este producto todav&iacute;a no est&aacute; activado.</h1>
   <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
   ${colaBloque}
   ${codigoLinea}
@@ -3173,7 +3453,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
 app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   if (!sticker) {
-    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+    return res.status(404).json({ error: 'Este código no corresponde a un producto activable.' });
   }
   const liberada = await liberacionVigente(sticker.id);
   // Servible si: es lote especial, tiene una liberación (vigente o ya usada, para
@@ -3181,7 +3461,7 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const tuvoLiberacion =
     liberada || (await get('SELECT 1 FROM activaciones_liberadas WHERE sticker_id = ? LIMIT 1', [sticker.id]));
   if (!esLoteEspecial(sticker.uid_nfc) && !tuvoLiberacion && sticker.estado !== 'activo') {
-    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+    return res.status(404).json({ error: 'Este código no corresponde a un producto activable.' });
   }
   const modelo = sticker.modelo || 'llavero';
   const precioRow = await get('SELECT precio FROM precios WHERE modelo = ?', [modelo]);
@@ -3238,7 +3518,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
   const liberada = sticker ? await liberacionVigente(sticker.id) : null;
   if (!sticker || (!esLoteEspecial(sticker.uid_nfc) && !liberada)) {
-    return res.status(404).json({ error: 'Este código no corresponde a un sticker activable.' });
+    return res.status(404).json({ error: 'Este código no corresponde a un producto activable.' });
   }
   if (sticker.estado === 'activo') {
     return res.status(409).json({ error: 'Este llavero ya está activado. Entrá a "Mi panel" para editarlo.' });

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>tap — Activar sticker</title>
+  <title>tap — Activar producto</title>
 
   <!--
     Redirección temprana (solo para chips ya impresos con /activacion/<codigo>;
     los nuevos se graban con el router /v/<codigo>).
-    Corre antes de las fuentes y del bundle: si el sticker ya está activado,
+    Corre antes de las fuentes y del bundle: si el producto ya está activado,
     lo mandamos al router del backend (/v/<codigo>), que muestra la pantalla de
     marca y redirige al destino — igual que un chip nuevo. Si todavía no está
     activado, revela el <html> y deja que el bundle muestre el formulario.
@@ -53,14 +53,14 @@
 
 <section class="buy-hero">
   <div class="wrap">
-    <div class="kicker">Activar sticker</div>
+    <div class="kicker">Activar producto</div>
 
     <div id="loading-view">
       <p class="lead">Cargando...</p>
     </div>
 
     <div id="error-view" hidden>
-      <h2>No pudimos activar este sticker.</h2>
+      <h2>No pudimos activar este producto.</h2>
       <p class="lead" id="error-text"></p>
       <a href="/" class="btn-ghost panel-btn">Volver al inicio</a>
     </div>
@@ -111,7 +111,7 @@
 </section>
 
 <footer>
-  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span><span data-brand>tap</span> — Tecnología NFC</span>
   <span>Buenos Aires, Argentina</span>
 </footer>
 

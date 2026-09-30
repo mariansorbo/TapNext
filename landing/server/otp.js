@@ -1,7 +1,11 @@
 import { randomInt, randomBytes, createHash } from 'node:crypto';
 
+// 6 dígitos: 1.000.000 de combinaciones. Junto con el tope de intentos por
+// código (ver /api/auth/otp/verify) adivinarlo es impracticable.
+export const OTP_DIGITOS = 6;
+
 export function generateOtp() {
-  return String(randomInt(0, 10000)).padStart(4, '0');
+  return String(randomInt(0, 10 ** OTP_DIGITOS)).padStart(OTP_DIGITOS, '0');
 }
 
 export function hashValue(value) {

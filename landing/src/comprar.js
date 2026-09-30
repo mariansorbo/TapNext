@@ -24,7 +24,7 @@ const isLimitado = document.body.dataset.flow === 'limitado';
 // Ambos usan el paso 0 (función) + paso 1 (modelo) en vez del combo único.
 const tieneWizardModelo = isFullCatalogo || isLimitado;
 
-applyBrand(isPresencial ? 'Comprá tu sticker' : isFullCatalogo ? 'Pedí tu sticker' : 'Pedí tu llavero');
+applyBrand(isPresencial ? 'Comprá tu producto' : isFullCatalogo ? 'Pedí tu producto' : 'Pedí tu llavero');
 initFaqAccordion();
 
 // Atribuye esta visita al sticker "NextTap oficial" del vendedor, si vino con
@@ -99,7 +99,6 @@ const MODELS = [
   { id: 'llavero', label: 'Llavero', desc: 'Para llevar encima', price: 8500, icon: `<img src="/images/modelo-llavero.png" alt="Llavero" loading="lazy">` },
   { id: 'tarjeta', label: 'Tarjeta', desc: 'Para dejar en el mostrador', price: 7500, icon: `<img src="/images/modelo-tarjeta.png" alt="Tarjeta" loading="lazy">` },
   { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000, icon: `<img src="/images/modelo-placa.png" alt="Placa" loading="lazy">` },
-  { id: 'suelto', label: 'Suelto', desc: 'Solo el sticker, sin impresión 3D', price: 4500 },
 ];
 
 // Precio real por modelo (mismo para cualquier función), cargado desde el
@@ -347,7 +346,7 @@ if (isPresencial && vendorToken) {
       // que el vendedor tiene con función asignada. Si tiene stock pero sin
       // función cargada, NO se ofrece nada (que la cargue en Admin) — nunca se
       // deja que el comprador elija la función.
-      const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion);
+      const combos = (data.combos || []).filter((c) => c.cantidad > 0 && c.funcion && c.modelo !== 'suelto');
       comboItems = combos.map((c) => comboItem(c.funcion, c.modelo, c.cantidad));
       renderCombos();
       updateNextButton();
@@ -359,6 +358,19 @@ if (isPresencial && vendorToken) {
       renderCombos();
       updateNextButton();
     });
+}
+
+// Link de promo online (pedido.html?promo=<token>), sin vendedor detrás —
+// independiente del flujo presencial de arriba. Token inválido o vencido =
+// sigue como venta estándar (no rompe la compra).
+const promoToken = new URLSearchParams(window.location.search).get('promo') || '';
+if (!isPresencial && promoToken) {
+  api(`/public/promo/${promoToken}`)
+    .then((data) => {
+      promo = data.promo || null;
+      renderPromoNote();
+    })
+    .catch(() => {});
 }
 
 const modal = document.getElementById('wizard-modal');
@@ -747,6 +759,7 @@ payButton.addEventListener('click', async () => {
     const body = {
       items,
       vendedorToken: vendorToken || '',
+      promoToken: promoToken || '',
       fbp: leerCookie('_fbp'),
       fbc: leerCookie('_fbc'),
       // El server guarda la aceptación con versión, IP y user-agent.
@@ -855,7 +868,7 @@ async function checkReturnFromMercadoPago() {
           ? `<div class="wizard-pay-note">Te lo enviamos a ${venta.envio.localidad} (${venta.envio.cp}) por Correo Argentino. Mientras tanto, ya podés configurar el destino desde tu panel.</div>`
           : `<div class="wizard-pay-note">Pedile al vendedor la unidad con este código — ya la tiene marcada para vos. Te llevamos a tu panel para configurar el destino...</div>`;
         successSummary.innerHTML = `
-          ${venta.items.length > 1 ? 'Tus stickers ya están activos.' : 'Tu sticker ya está activo.'}
+          ${venta.items.length > 1 ? 'Tus productos ya están activos.' : 'Tu producto ya está activo.'}
           ${detalle}
           ${cierre}
         `;

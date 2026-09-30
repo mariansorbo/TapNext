@@ -55,7 +55,7 @@ const esc = (s) =>
 
 // Nombre legible del modelo para los textos del mail.
 function nombreModelo(modelo) {
-  if (!modelo || modelo === 'suelto') return 'Sticker NFC (suelto)';
+  if (!modelo || modelo === 'suelto') return 'Producto NFC';
   return modelo.charAt(0).toUpperCase() + modelo.slice(1);
 }
 

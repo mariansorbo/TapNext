@@ -79,9 +79,30 @@ const loginStatus = document.getElementById('login-status');
 const stickerList = document.getElementById('sticker-list');
 const dashboardTitle = document.getElementById('dashboard-title');
 const logoutButton = document.getElementById('logout-button');
-const accountEmailInput = document.getElementById('account-email');
-const saveEmailButton = document.getElementById('save-email');
-const emailStatus = document.getElementById('email-status');
+const loginForm = document.getElementById('login-form');
+const passwordLoginField = document.getElementById('password-login-field');
+const loginPasswordInput = document.getElementById('login-password');
+const togglePasswordLogin = document.getElementById('toggle-password-login');
+const accountBox = document.getElementById('account-box');
+const accountEmailEl = document.getElementById('account-email');
+const accountVerifiedEl = document.getElementById('account-verified');
+const passwordLead = document.getElementById('password-lead');
+const passwordForm = document.getElementById('password-form');
+const passwordUsername = document.getElementById('password-username');
+const passwordActualField = document.getElementById('password-actual-field');
+const passwordActualInput = document.getElementById('password-actual');
+const passwordNuevaInput = document.getElementById('password-nueva');
+const passwordRepetirInput = document.getElementById('password-repetir');
+const passwordNuevaField = document.getElementById('password-nueva-field');
+const passwordRepetirField = document.getElementById('password-repetir-field');
+const passwordGuardar = document.getElementById('password-guardar');
+const reauthField = document.getElementById('reauth-field');
+const reauthOtpInput = document.getElementById('reauth-otp');
+const passwordCancelar = document.getElementById('password-cancelar');
+const passwordAcciones = document.getElementById('password-acciones');
+const passwordAbrir = document.getElementById('password-abrir');
+const passwordQuitar = document.getElementById('password-quitar');
+const passwordStatus = document.getElementById('password-status');
 const googleDivider = document.getElementById('google-divider');
 const googleButton = document.getElementById('google-login-button');
 
@@ -112,8 +133,18 @@ async function api(path, options = {}) {
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Error de conexión con el servidor.');
+  if (!res.ok) {
+    const err = new Error(data.error || 'Error de conexión con el servidor.');
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
   return data;
+}
+
+function setStatus(el, clase, texto) {
+  el.className = `modal-status${clase ? ` ${clase}` : ''}`;
+  el.textContent = texto;
 }
 
 function showLogin() {
@@ -127,28 +158,184 @@ async function showDashboard() {
   await Promise.all([loadStickers(), loadAccount()]);
 }
 
+// --- Cuenta: mail (solo lectura) + contraseña opcional ---
+// El mail es la identidad con la que se entra: no se edita acá.
+let cuenta = null;
+
 async function loadAccount() {
   try {
-    const me = await api('/me');
-    accountEmailInput.value = me.email || '';
-    if (me.nombre) dashboardTitle.textContent = `Hola, ${me.nombre}`;
+    cuenta = await api('/me');
+    if (cuenta.nombre) dashboardTitle.textContent = `Hola, ${cuenta.nombre}`;
+    renderCuenta();
   } catch {
-    // si falla, dejamos el campo vacío — no es crítico para ver los stickers
+    // no es crítico para ver los stickers
+    accountBox.hidden = true;
   }
 }
 
-saveEmailButton.addEventListener('click', async () => {
-  const email = accountEmailInput.value.trim();
-  emailStatus.className = 'modal-status';
-  emailStatus.textContent = 'Guardando...';
-  try {
-    await api('/me', { method: 'PATCH', body: JSON.stringify({ email }) });
-    emailStatus.className = 'modal-status is-success';
-    emailStatus.textContent = email ? 'Guardado.' : 'Mail eliminado.';
-  } catch (err) {
-    emailStatus.className = 'modal-status is-error';
-    emailStatus.textContent = err.message;
+function renderCuenta() {
+  if (!cuenta?.email) {
+    accountBox.hidden = true;
+    return;
   }
+  accountBox.hidden = false;
+  accountEmailEl.textContent = cuenta.email;
+  accountVerifiedEl.hidden = !cuenta.emailVerificado;
+  passwordUsername.value = cuenta.email;
+  passwordLead.textContent = cuenta.tienePassword
+    ? 'Podés entrar con tu contraseña o con un código por mail.'
+    : 'Hoy entrás con un código por mail. Si querés, creá una contraseña para entrar más rápido — el código va a seguir funcionando.';
+  passwordAbrir.textContent = cuenta.tienePassword ? 'Cambiar contraseña' : 'Crear contraseña';
+  passwordQuitar.hidden = !cuenta.tienePassword;
+  cerrarFormPassword();
+}
+
+function cerrarFormPassword() {
+  passwordForm.hidden = true;
+  passwordAcciones.hidden = false;
+  reauthField.hidden = true;
+  [passwordActualInput, passwordNuevaInput, passwordRepetirInput, reauthOtpInput].forEach((i) => (i.value = ''));
+}
+
+// Un solo form para crear/cambiar ('guardar') o quitar ('quitar') la contraseña.
+let modoPassword = 'guardar';
+function abrirFormPassword(modo) {
+  modoPassword = modo;
+  setStatus(passwordStatus, '', '');
+  passwordForm.hidden = false;
+  passwordAcciones.hidden = true;
+  passwordActualField.hidden = !cuenta.tienePassword;
+  passwordNuevaField.hidden = modo === 'quitar';
+  passwordRepetirField.hidden = modo === 'quitar';
+  passwordGuardar.textContent = modo === 'quitar' ? 'Quitar contraseña' : 'Guardar contraseña';
+  (modo === 'quitar' ? passwordActualInput : passwordNuevaInput).focus();
+}
+
+passwordAbrir.addEventListener('click', () => abrirFormPassword('guardar'));
+passwordQuitar.addEventListener('click', () => abrirFormPassword('quitar'));
+passwordCancelar.addEventListener('click', () => {
+  setStatus(passwordStatus, '', '');
+  cerrarFormPassword();
+});
+
+// Cuando el server pide reautenticar (needsReauth): mandamos un código al mail
+// de la cuenta y mostramos el campo. Al confirmarlo se abre una sesión nueva
+// (reciente) y se reintenta la operación.
+async function pedirCodigoReauth() {
+  const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino: cuenta.email }) });
+  reauthField.hidden = false;
+  if (data.debug_otp) reauthOtpInput.value = data.debug_otp;
+  reauthOtpInput.focus();
+}
+
+async function reauthSiHayCodigo() {
+  const code = reauthOtpInput.value.trim();
+  if (reauthField.hidden || !code) return;
+  const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino: cuenta.email, code }) });
+  setToken(data.token);
+  reauthField.hidden = true;
+  reauthOtpInput.value = '';
+}
+
+// Corre `accion`; si el server contesta needsReauth, pide el código por mail.
+async function conReauth(accion) {
+  try {
+    await reauthSiHayCodigo();
+    return await accion();
+  } catch (err) {
+    if (err.data?.needsReauth) {
+      try {
+        await pedirCodigoReauth();
+        setStatus(passwordStatus, '', `Te mandamos un código a ${cuenta.email}. Ingresalo y volvé a tocar el botón.`);
+      } catch (e) {
+        setStatus(passwordStatus, 'is-error', e.message);
+      }
+      return null;
+    }
+    setStatus(passwordStatus, 'is-error', err.message);
+    return null;
+  }
+}
+
+passwordForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const passwordActual = passwordActualInput.value;
+
+  if (modoPassword === 'quitar') {
+    setStatus(passwordStatus, '', 'Quitando...');
+    const ok = await conReauth(() =>
+      api('/me/password', { method: 'DELETE', body: JSON.stringify({ passwordActual }) })
+    );
+    if (!ok) return;
+    cuenta.tienePassword = false;
+    renderCuenta();
+    setStatus(passwordStatus, 'is-success', 'Contraseña quitada. Entrás con código por mail.');
+    return;
+  }
+
+  const password = passwordNuevaInput.value;
+  if (password.length < 8) {
+    setStatus(passwordStatus, 'is-error', 'La contraseña tiene que tener al menos 8 caracteres.');
+    passwordNuevaInput.focus();
+    return;
+  }
+  if (password !== passwordRepetirInput.value) {
+    setStatus(passwordStatus, 'is-error', 'Las contraseñas no coinciden.');
+    passwordRepetirInput.focus();
+    return;
+  }
+  setStatus(passwordStatus, '', 'Guardando...');
+  const habia = cuenta.tienePassword;
+  const ok = await conReauth(() =>
+    api('/me/password', { method: 'POST', body: JSON.stringify({ password, passwordActual }) })
+  );
+  if (!ok) return;
+  cuenta.tienePassword = true;
+  renderCuenta();
+  setStatus(
+    passwordStatus,
+    'is-success',
+    habia ? 'Contraseña cambiada. Cerramos tus otras sesiones.' : 'Contraseña creada. La próxima vez podés entrar con ella.'
+  );
+});
+
+// --- Login ---
+
+async function entrarConPassword() {
+  const email = loginWhatsapp.value.trim();
+  const password = loginPasswordInput.value;
+  if (!email || !password) {
+    setStatus(loginStatus, 'is-error', 'Completá tu mail y tu contraseña.');
+    return;
+  }
+  setStatus(loginStatus, '', 'Verificando...');
+  try {
+    const data = await api('/auth/password/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    setToken(data.token);
+    dashboardTitle.textContent = data.comprador.nombre ? `Hola, ${data.comprador.nombre}` : 'Tus productos';
+    setStatus(loginStatus, '', '');
+    loginPasswordInput.value = '';
+    await showDashboard();
+  } catch (err) {
+    setStatus(loginStatus, 'is-error', err.message);
+  }
+}
+
+// El form de login solo se "envía" con contraseña (Enter o botón Ingresar):
+// así el navegador ofrece guardarla. El código va por sus propios botones.
+loginForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!passwordLoginField.hidden) entrarConPassword();
+});
+
+togglePasswordLogin.addEventListener('click', () => {
+  const mostrar = passwordLoginField.hidden;
+  passwordLoginField.hidden = !mostrar;
+  sendOtpButton.hidden = mostrar;
+  otpField.hidden = true;
+  togglePasswordLogin.textContent = mostrar ? 'Mejor mandame un código' : 'Tengo contraseña';
+  setStatus(loginStatus, '', '');
+  (mostrar ? loginPasswordInput : loginWhatsapp).focus();
 });
 
 sendOtpButton.addEventListener('click', async () => {
@@ -208,8 +395,10 @@ logoutButton.addEventListener('click', async () => {
   otpField.hidden = true;
   sendOtpButton.textContent = 'Enviar código';
   loginStatus.textContent = '';
-  accountEmailInput.value = '';
-  emailStatus.textContent = '';
+  loginPasswordInput.value = '';
+  cuenta = null;
+  accountBox.hidden = true;
+  setStatus(passwordStatus, '', '');
   showLogin();
 });
 
@@ -417,8 +606,10 @@ async function checkGoogleLogin() {
       loginWhatsapp.placeholder = verif.placeholder;
       loginWhatsapp.value = '';
       if (verifTitleEl) verifTitleEl.textContent = `Entrá con tu ${verif.nombre}.`;
-      if (verifSubEl) verifSubEl.textContent = `Sin contraseñas. Te mandamos un código por ${verif.nombre} para confirmar que sos vos.`;
+      if (verifSubEl) verifSubEl.textContent = `Te mandamos un código por ${verif.nombre} para confirmar que sos vos. Si creaste una contraseña, también podés usarla.`;
       if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
+      // La contraseña va atada al mail: con otro canal de verificación no aplica.
+      togglePasswordLogin.hidden = verif.canal !== 'email';
     }
   } catch {
     googleButton.hidden = true;
@@ -443,7 +634,9 @@ if (googleToken) {
   loginStatus.textContent =
     googleError === 'not_configured'
       ? 'Login con Google todavía no está configurado.'
-      : 'No se pudo iniciar sesión con Google. Probá de nuevo.';
+      : googleError === 'email_no_verificado'
+        ? 'Tu cuenta de Google no tiene el mail verificado. Entrá con un código por mail.'
+        : 'No se pudo iniciar sesión con Google. Probá de nuevo.';
 }
 
 checkGoogleLogin();

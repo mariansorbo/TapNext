@@ -125,7 +125,7 @@ async function init() {
     if (paso2) paso2.innerHTML = '<b>Verificá tu email</b> con el código que te mandamos — sin pago, es un regalo.';
     pagarButton.textContent = 'Enviar código';
     if (formHint) {
-      formHint.textContent = 'Te mandamos un código de un solo uso a ese mail. Si ya activaste otro NextTap con este email, este se suma a tu cuenta.';
+      formHint.textContent = 'Te mandamos un código de un solo uso a ese mail. Si ya activaste otro producto con este email, este se suma a tu cuenta.';
     }
   } else if (!info.pagosHabilitados) {
     setStatus('is-error', 'Los pagos todavía no están habilitados. Probá más tarde.');

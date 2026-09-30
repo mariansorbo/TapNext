@@ -17,24 +17,35 @@
 <section class="buy-hero" id="login-view">
   <div class="wrap">
     <div class="kicker">Mi panel</div>
-    <h2 id="verif-title">Entrá sin contraseña.</h2>
-    <p class="lead" id="verif-sub">Sin contraseñas. Te mandamos un código para confirmar que sos vos.</p>
+    <h2 id="verif-title">Entrá a tu panel.</h2>
+    <p class="lead" id="verif-sub">Te mandamos un código para confirmar que sos vos.</p>
 
-    <div class="modal-form panel-login-form">
-      <label>
-        <span id="verif-label">Tu contacto</span>
-        <input type="text" id="login-whatsapp" placeholder="">
-      </label>
-    </div>
-    <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
+    <form id="login-form" autocomplete="on">
+      <div class="modal-form panel-login-form">
+        <label>
+          <span id="verif-label">Tu contacto</span>
+          <input type="text" id="login-whatsapp" name="email" autocomplete="username" placeholder="">
+        </label>
+      </div>
+      <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
 
-    <div class="modal-form panel-otp-form" id="login-otp-field" hidden>
-      <label>
-        <span>Código recibido</span>
-        <input type="text" inputmode="numeric" maxlength="4" id="login-otp" placeholder="0000">
-      </label>
-      <button type="button" class="btn-primary panel-btn modal-submit" id="confirm-login-otp">Ingresar</button>
-    </div>
+      <div class="modal-form panel-otp-form" id="login-otp-field" hidden>
+        <label>
+          <span>Código recibido</span>
+          <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" id="login-otp" placeholder="000000">
+        </label>
+        <button type="button" class="btn-primary panel-btn modal-submit" id="confirm-login-otp">Ingresar</button>
+      </div>
+
+      <div class="modal-form" id="password-login-field" hidden>
+        <label>
+          <span>Contraseña</span>
+          <input type="password" id="login-password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn-primary panel-btn modal-submit" id="confirm-login-password">Ingresar</button>
+      </div>
+      <button type="button" class="link-inline" id="toggle-password-login">Tengo contraseña</button>
+    </form>
     <p class="modal-status" id="login-status"></p>
 
     <div class="panel-divider" id="google-divider" hidden>o</div>
@@ -45,30 +56,64 @@
 <section class="buy-hero" id="dashboard-view" hidden>
   <div class="wrap">
     <div class="kicker">Mi panel</div>
-    <h2 id="dashboard-title">Tus stickers</h2>
-    <p class="lead">Elegí un sticker para ver o cambiar a dónde redirige.</p>
+    <h2 id="dashboard-title">Tus productos</h2>
+    <p class="lead">Elegí un producto para ver o cambiar a dónde redirige.</p>
     <button type="button" class="btn-ghost" id="logout-button">Cerrar sesión</button>
 
     <h3 class="sticker-list-title">Mis NFC's</h3>
     <div class="sticker-list" id="sticker-list"></div>
 
-    <div class="account-email">
-      <div class="kicker">Mail de respaldo (opcional)</div>
-      <p class="section-lead">Te avisamos acá si cambia el destino de algún sticker — sirve como respaldo si en algún momento perdés tu número de WhatsApp.</p>
-      <div class="modal-form">
-        <label>
-          <span>Tu mail</span>
-          <input type="email" id="account-email" placeholder="tu@mail.com">
-        </label>
+    <div class="account-box" id="account-box" hidden>
+      <div class="kicker">Tu cuenta</div>
+      <p class="account-login-as">Entrás con <b id="account-email"></b><span class="account-verified" id="account-verified" hidden>✓ verificado</span></p>
+
+      <div class="kicker" style="margin-top:28px">Contraseña (opcional)</div>
+      <p class="section-lead" id="password-lead"></p>
+
+      <form id="password-form" hidden>
+        <!-- Para que el gestor de contraseñas asocie la clave a este mail. -->
+        <input type="email" id="password-username" name="email" autocomplete="username" hidden>
+        <div class="modal-form">
+          <label id="password-actual-field" hidden>
+            <span>Contraseña actual</span>
+            <input type="password" id="password-actual" autocomplete="current-password">
+            <small class="field-hint">Si no la recordás, dejala vacía y te mandamos un código.</small>
+          </label>
+          <label id="password-nueva-field">
+            <span>Nueva contraseña</span>
+            <input type="password" id="password-nueva" name="new-password" autocomplete="new-password" minlength="8" maxlength="64">
+            <small class="field-hint">Mínimo 8 caracteres. Mejor una frase larga que una palabra rara.</small>
+          </label>
+          <label id="password-repetir-field">
+            <span>Repetila</span>
+            <input type="password" id="password-repetir" autocomplete="new-password" minlength="8" maxlength="64">
+          </label>
+        </div>
+
+        <div class="modal-form" id="reauth-field" hidden>
+          <label>
+            <span>Código que te mandamos al mail</span>
+            <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" id="reauth-otp" placeholder="000000">
+          </label>
+        </div>
+
+        <div class="account-actions">
+          <button type="submit" class="btn-primary" id="password-guardar">Guardar contraseña</button>
+          <button type="button" class="btn-ghost" id="password-cancelar">Cancelar</button>
+        </div>
+      </form>
+
+      <div class="account-actions" id="password-acciones">
+        <button type="button" class="btn-ghost" id="password-abrir">Crear contraseña</button>
+        <button type="button" class="btn-ghost" id="password-quitar" hidden>Quitar contraseña</button>
       </div>
-      <button type="button" class="btn-ghost" id="save-email">Guardar</button>
-      <p class="modal-status" id="email-status"></p>
+      <p class="modal-status" id="password-status"></p>
     </div>
   </div>
 </section>
 
 <footer>
-  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span><span data-brand>tap</span> — Tecnología NFC</span>
   <span>Buenos Aires, Argentina</span>
 </footer>
 
