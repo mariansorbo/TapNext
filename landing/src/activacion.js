@@ -13,6 +13,20 @@ const FUNCION_CTA = {
   web: 'tu web',
   agenda: 'tu agenda',
   linktree: 'tu Linktree',
+  alias: 'tus datos de transferencia',
+};
+
+// Paso 3 ("Listo") según la función que fijó el admin: qué carga el comprador.
+const FUNCION_PASO_LISTO = {
+  whatsapp: 'cargás tu número y listo.',
+  instagram: 'cargás tu usuario de Instagram y listo.',
+  pago: 'pegás tu link de pago y listo.',
+  menu: 'pegás el link de tu menú y listo.',
+  review: 'pegás el link de reseñas de Google de tu negocio y listo.',
+  web: 'pegás el link de tu web y listo.',
+  agenda: 'pegás el link de tu agenda y listo.',
+  linktree: 'cargás tu usuario de Linktree y listo.',
+  alias: 'cargás tu alias y listo.',
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
@@ -118,6 +132,9 @@ async function init() {
   modeloLabel.textContent = info.modelo || 'llavero';
   ctaDestino.textContent = FUNCION_CTA[info.funcion] || 'tu contenido';
   if (info.precio != null) precioLabel.textContent = `(${formatoPrecio(info.precio)})`;
+  const pasoListo = FUNCION_PASO_LISTO[info.funcion];
+  const paso3 = document.querySelector('.activacion-pasos li:nth-child(3)');
+  if (pasoListo && paso3) paso3.innerHTML = `<b>Listo</b> — ${pasoListo}`;
 
   if (info.liberada) {
     // Activación gratis: se verifica el email por código antes de activar.
