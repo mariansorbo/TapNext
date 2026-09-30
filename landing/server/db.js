@@ -520,6 +520,10 @@ await db.executeMultiple(`
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ip TEXT;
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS client_ua TEXT;
 
+  -- Alerta al admin "no llegó el pago" (ver avisarPagosQueNoLlegaron en
+  -- index.js): cuándo se mandó, para avisar una sola vez por venta.
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS aviso_admin_sin_pago_en TIMESTAMPTZ;
+
   -- === Registro de visitas (ver server/tracking.js). Todo anónimo: no hay
   -- nombre ni contacto, solo lo que el navegador manda en cada request.
   -- visitante_id es un id random guardado en el propio navegador (cookie en el

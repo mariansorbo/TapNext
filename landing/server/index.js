@@ -12,7 +12,7 @@ import {
 } from './comision.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
 import { validarPassword, crearLimitador } from './password.js';
-import { enviarCorreo, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
+import { enviarCorreo, correoDisponible, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { montarConsolaSticker } from './consola-sticker.js';
@@ -27,6 +27,7 @@ import {
   etiquetaPdf,
 } from './enviopack.js';
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
+import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 
 const PORT = process.env.PORT || 3001;
@@ -990,6 +991,7 @@ async function reservarUnidad({ vendedorId, modelo, funcion, excluir = [] }) {
 }
 
 app.post('/api/ventas', requireAuth, async (req, res) => {
+  alertarSiFallaCheckout(req, res, { flujo: 'compra' });
   if (!MP_ENABLED) return res.status(503).json({ error: 'Los pagos todavía no están configurados.' });
 
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
@@ -1079,6 +1081,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
       envioCotizado = { ...envioDatos, costo: q.costo, servicio: q.servicio };
     } catch (err) {
       console.error('[Enviopack] cotizar en /ventas:', err.message);
+      res.locals.detalleError = `Enviopack (cotizar): ${err.message}`;
       return res.status(502).json({ error: 'No pudimos calcular el envío. Probá de nuevo en un momento.' });
     }
   }
@@ -1178,8 +1181,13 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
       },
     });
     res.status(201).json({ ventaId, initPoint: preference.init_point });
+    alertaVenta(ventaId, `🛒 Fue a pagar — venta #${ventaId} (${pesos(monto)})`, {
+      antes: ['Un comprador llegó al final del checkout y fue a Mercado Pago.', ''],
+      despues: ['', `Si en ${MIN_AVISO_SIN_PAGO} min no llega el pago (aprobado o rechazado), te aviso.`],
+    });
   } catch (err) {
     console.error('[Mercado Pago] error creando preferencia:', err.message);
+    res.locals.detalleError = `Mercado Pago (crear preferencia): ${err.message}`;
     // Si no se pudo iniciar el pago, no dejamos nada reservado a medias:
     // liberamos los stickers reservados y borramos la venta que recién armamos.
     await run('DELETE FROM venta_envios WHERE venta_id = ?', [ventaId]);
@@ -1265,9 +1273,11 @@ app.get('/api/ventas/:id', requireAuth, async (req, res) => {
 // parte y sigue. Se llama una sola vez por venta — el webhook sale temprano si
 // la venta ya estaba 'confirmado'.
 async function notificarVentaConfirmada(ventaId) {
+  // Resultado de cada mail, para la alerta al admin (ver alertaVentaConfirmada).
+  const r = { comprador: 'sin_mail', vendedor: 'no_aplica', error: null };
   try {
     const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
-    if (!venta) return;
+    if (!venta) return r;
 
     const items = await all(
       `SELECT s.codigo_publico, s.modelo
@@ -1276,7 +1286,7 @@ async function notificarVentaConfirmada(ventaId) {
         ORDER BY vi.id`,
       [ventaId]
     );
-    if (!items.length) return;
+    if (!items.length) return r;
     const itemsMail = items.map((r) => ({ codigoPublico: r.codigo_publico, modelo: r.modelo }));
     const panelComprador = `${FRONTEND_URL}/mi-panel.html`;
     const panelVendedor = `${FRONTEND_URL}/vendedor.html`;
@@ -1292,7 +1302,7 @@ async function notificarVentaConfirmada(ventaId) {
       const { subject, text, html } = conCola
         ? mailRetiroComprador({ codigoRetiro: venta.codigo_retiro, panelUrl: panelComprador })
         : mailCompraComprador({ items: itemsMail, panelUrl: panelComprador });
-      await enviarCorreo({ to: comprador.email, subject, text, html });
+      r.comprador = estadoCorreo(await enviarCorreo({ to: comprador.email, subject, text, html }));
     } else {
       console.log(`[correo] Venta ${ventaId}: el comprador no tiene mail cargado — no se le avisa.`);
     }
@@ -1314,13 +1324,23 @@ async function notificarVentaConfirmada(ventaId) {
             monto: venta.monto,
             panelUrl: panelVendedor,
           });
-      await enviarCorreo({ to: vendedor.email, subject, text, html });
+      r.vendedor = estadoCorreo(await enviarCorreo({ to: vendedor.email, subject, text, html }));
     } else if (venta.vendedor_id) {
+      r.vendedor = 'sin_mail';
       console.log(`[correo] Venta ${ventaId}: el vendedor no tiene mail cargado — no se le avisa.`);
     }
   } catch (err) {
+    r.error = err.message;
     console.error(`[correo] Error armando los avisos de la venta ${ventaId}:`, err.message);
   }
+  return r;
+}
+
+// true/false de enviarCorreo → estado legible (false puede ser "falló" o
+// "Resend no configurado").
+function estadoCorreo(ok) {
+  if (ok) return 'enviado';
+  return correoDisponible ? 'fallo' : 'no_configurado';
 }
 
 // Aviso de ACTIVACIÓN GRATIS al comprador (no pagó nada). Texto distinto según
@@ -1364,11 +1384,13 @@ async function notificarActivacionGratis(ventaId) {
 // Best-effort e idempotente: si ya tiene enviopack_id o no hay fila de envío,
 // no hace nada. Si Enviopack falla, deja la fila en 'error_enviopack' con el
 // detalle — el admin la reintenta desde el panel.
+// Devuelve { estado, tracking?, error? } para la alerta al admin.
 async function crearEnvioParaVenta(ventaId) {
-  if (!enviopackDisponible) return;
   try {
     const e = await get('SELECT * FROM venta_envios WHERE venta_id = ?', [ventaId]);
-    if (!e || e.enviopack_id) return;
+    if (!e) return { estado: 'no_aplica' };
+    if (!enviopackDisponible) return { estado: 'no_configurado' };
+    if (e.enviopack_id) return { estado: 'ya_creado' };
     try {
       const venta = await get(
         `SELECT v.monto, c.email FROM ventas v LEFT JOIN compradores c ON c.id = v.comprador_id WHERE v.id = ?`,
@@ -1382,15 +1404,18 @@ async function crearEnvioParaVenta(ventaId) {
         `UPDATE venta_envios SET enviopack_id = ?, tracking_numero = ?, estado = ?, enviopack_error = NULL WHERE id = ?`,
         [enviopackId, tracking, confirmado ? 'por_despachar' : 'por_confirmar_enviopack', e.id]
       );
+      return { estado: confirmado ? 'por_despachar' : 'por_confirmar_enviopack', tracking };
     } catch (err) {
       console.error(`[Enviopack] no se pudo crear el envío de la venta ${ventaId}:`, err.message);
       await run(`UPDATE venta_envios SET estado = 'error_enviopack', enviopack_error = ? WHERE id = ?`, [
         String(err.message).slice(0, 500),
         e.id,
       ]);
+      return { estado: 'error_enviopack', error: err.message };
     }
   } catch (err) {
     console.error(`[Enviopack] error procesando el envío de la venta ${ventaId}:`, err.message);
+    return { estado: 'error_enviopack', error: err.message };
   }
 }
 
@@ -1398,7 +1423,7 @@ async function crearEnvioParaVenta(ventaId) {
 // e idempotente por event_id (Meta dedupea contra el Purchase que ya mandó el
 // pixel del navegador con el mismo `purchase_<ventaId>` — ver src/comprar.js).
 async function enviarCapiPurchaseDeVenta(venta, ventaId) {
-  if (!metaCapiDisponible) return;
+  if (!metaCapiDisponible) return { estado: 'no_configurado' };
   try {
     const comprador = venta.comprador_id
       ? await get('SELECT email, whatsapp FROM compradores WHERE id = ?', [venta.comprador_id])
@@ -1415,10 +1440,185 @@ async function enviarCapiPurchaseDeVenta(venta, ventaId) {
       fbc: venta.fbc || null,
       eventSourceUrl: FRONTEND_URL,
     });
+    return { estado: 'enviado' };
   } catch (err) {
     console.error(`[Meta CAPI] no se pudo mandar el Purchase de la venta ${ventaId}:`, err.message);
+    return { estado: 'fallo', error: err.message };
   }
 }
+
+// --- Alertas al admin (ver server/alertas-admin.js) ---
+
+const horaAR = () => new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+
+// Resumen de una venta para las alertas. Por RF-22 NO incluye el valor del
+// destino del comprador — solo si lo cargó o no.
+async function resumenVenta(ventaId) {
+  const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+  if (!venta) return [`Venta #${ventaId} (no está en la base)`];
+  const items = await all(
+    `SELECT vi.monto, vi.destino_tipo, vi.destino_valor, s.codigo_publico, s.modelo
+       FROM venta_items vi JOIN stickers_actual s ON s.id = vi.sticker_id
+      WHERE vi.venta_id = ? ORDER BY vi.id`,
+    [ventaId]
+  );
+  const comprador = venta.comprador_id
+    ? await get('SELECT nombre, email, whatsapp FROM compradores WHERE id = ?', [venta.comprador_id])
+    : null;
+  const vendedor = venta.vendedor_id ? await get('SELECT nombre FROM vendedores WHERE id = ?', [venta.vendedor_id]) : null;
+  const envio = await get('SELECT * FROM venta_envios WHERE venta_id = ?', [ventaId]);
+  const origen = venta.visitante_id
+    ? await get(
+        `SELECT utm_source, utm_medium, utm_campaign, utm_content, referer FROM visitas
+          WHERE visitante_id = ? AND (utm_source IS NOT NULL OR referer IS NOT NULL) ORDER BY id LIMIT 1`,
+        [venta.visitante_id]
+      )
+    : null;
+  const origenTxt = origen
+    ? [origen.utm_source, origen.utm_medium, origen.utm_campaign, origen.utm_content].filter(Boolean).join(' / ') ||
+      origen.referer
+    : null;
+  return [
+    `Venta #${venta.id} — ${pesos(venta.monto)}`,
+    `Comprador: ${[comprador?.nombre, comprador?.email, comprador?.whatsapp].filter(Boolean).join(' · ') || '—'}`,
+    `Vendedor: ${vendedor?.nombre || 'ninguno (online)'}`,
+    `Productos (${items.length}):`,
+    ...items.map(
+      (it) =>
+        `  • ${it.modelo || '—'} — ID ${it.codigo_publico} — ${pesos(it.monto)} — ${it.destino_tipo || 'sin función'}${
+          it.destino_valor ? '' : ' (destino sin cargar)'
+        }`
+    ),
+    envio
+      ? `Envío: ${envio.calle} ${envio.numero}${envio.piso ? ` piso ${envio.piso}` : ''}${envio.depto ? ` dto ${envio.depto}` : ''}, ${envio.localidad}, ${envio.provincia} (CP ${envio.cp}) — ${pesos(envio.costo)} — para ${envio.dest_nombre} (${envio.dest_telefono || 'sin tel'})`
+      : 'Envío: no (retira / presencial)',
+    origenTxt && `Origen: ${origenTxt}`,
+    `Hora: ${horaAR()}`,
+  ];
+}
+
+// Alerta con el resumen de la venta en el medio. Fire-and-forget: nunca lanza.
+function alertaVenta(ventaId, asunto, { antes = [], despues = [] } = {}) {
+  resumenVenta(ventaId)
+    .catch((err) => [`Venta #${ventaId} (no se pudo armar el resumen: ${err.message})`])
+    .then((resumen) => avisarAdmin({ asunto, lineas: [...antes, ...resumen, ...despues] }));
+}
+
+const TXT_MAIL = {
+  enviado: 'enviado',
+  fallo: 'FALLÓ',
+  sin_mail: 'no tiene mail cargado',
+  no_configurado: 'no se mandó (Resend sin configurar)',
+  no_aplica: 'no aplica',
+};
+
+// Venta confirmada: resumen + qué pasó con cada paso posterior al pago. El
+// asunto marca ⚠️ si algo falló, para verlo sin abrir el mail.
+function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDeEntrega }) {
+  const problemas = [];
+  if (avisos.comprador !== 'enviado') problemas.push('mail al comprador');
+  if (avisos.vendedor === 'fallo' || avisos.vendedor === 'sin_mail') problemas.push('mail al vendedor');
+  if (avisos.error) problemas.push('avisos');
+
+  let txtEnvio = 'no aplica';
+  let accion = null;
+  if (envio.estado === 'por_despachar') {
+    txtEnvio = `creado en Enviopack (tracking ${envio.tracking || '—'}) — falta llevarlo al correo`;
+    accion = 'despachar el envío';
+  } else if (envio.estado === 'por_confirmar_enviopack') {
+    txtEnvio = 'creado en Enviopack pero SIN confirmar — confirmalo a mano en el panel de Enviopack';
+    accion = 'confirmar el envío en Enviopack';
+  } else if (envio.estado === 'error_enviopack') {
+    txtEnvio = `FALLÓ: ${envio.error} — reintentá desde Admin > Envíos`;
+    problemas.push('Enviopack');
+  } else if (envio.estado === 'no_configurado') {
+    txtEnvio = 'NO se creó: Enviopack no está configurado en el server — crealo a mano';
+    problemas.push('Enviopack');
+  } else if (envio.estado === 'ya_creado') {
+    txtEnvio = 'ya estaba creado';
+  }
+  if (capi.estado === 'fallo') problemas.push('Meta CAPI');
+
+  const asunto = problemas.length
+    ? `⚠️ Venta #${ventaId} cobrada con problemas: ${problemas.join(', ')}`
+    : `✅ Venta #${ventaId} confirmada${accion ? ` — falta ${accion}` : ''}`;
+  alertaVenta(ventaId, asunto, {
+    antes: [`Mercado Pago aprobó el pago ${payment.id} (${payment.payment_method_id || '—'}).`, ''],
+    despues: [
+      '',
+      'Qué pasó después del pago:',
+      `  • Unidades: ${enColaDeEntrega ? 'en cola de entrega del vendedor (se activan al despachar)' : 'activadas'}`,
+      `  • Mail al comprador: ${TXT_MAIL[avisos.comprador]}`,
+      `  • Mail al vendedor: ${TXT_MAIL[avisos.vendedor]}`,
+      avisos.error && `  • Error armando los mails: ${avisos.error}`,
+      `  • Envío: ${txtEnvio}`,
+      `  • Meta CAPI: ${capi.estado === 'fallo' ? `FALLÓ: ${capi.error}` : capi.estado === 'enviado' ? 'enviado' : 'no configurado'}`,
+    ],
+  });
+}
+
+// Checkout que termina en error (4xx/5xx): avisa al admin con el mensaje que
+// vio el comprador + el detalle técnico si el handler lo dejó en
+// res.locals.detalleError. Se engancha al principio del handler.
+function alertarSiFallaCheckout(req, res, { flujo, ignorar = [] }) {
+  let respuesta = null;
+  const json = res.json.bind(res);
+  res.json = (body) => {
+    respuesta = body;
+    return json(body);
+  };
+  res.on('finish', () => {
+    if (res.statusCode < 400 || ignorar.includes(res.statusCode)) return;
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const envio = req.body?.envio;
+    avisarAdmin({
+      asunto: `❌ Checkout falló (${flujo}): ${respuesta?.error || `HTTP ${res.statusCode}`}`,
+      lineas: [
+        `Un comprador intentó pagar y el server respondió ${res.statusCode}.`,
+        '',
+        `Lo que vio: ${respuesta?.error || '(sin mensaje — error interno)'}`,
+        res.locals.detalleError && `Detalle técnico: ${res.locals.detalleError}`,
+        `Comprador: ${req.comprador?.email || req.body?.email || '—'}`,
+        req.params?.codigo && `Llavero: ${req.params.codigo}`,
+        items.length > 0 && `Pidió: ${items.map((i) => i?.modelo || '?').join(', ')}`,
+        envio && `Envío a: ${envio.localidad || '—'}, ${envio.provincia || '—'} (CP ${envio.cp || '—'})`,
+        req.body?.vendedorToken && `Link de vendedor: ${req.body.vendedorToken}`,
+        req.body?.promoToken && `Promo: ${req.body.promoToken}`,
+        `Hora: ${horaAR()}`,
+      ],
+    });
+  });
+}
+
+// Barrido: ventas en las que el comprador fue a Mercado Pago pero, pasados
+// MIN_AVISO_SIN_PAGO minutos, no llegó ni pago aprobado ni rechazado. Una sola
+// alerta por venta (aviso_admin_sin_pago_en). Ventana de 1 día para no avisar
+// en masa las pendientes viejas la primera vez que corre.
+async function avisarPagosQueNoLlegaron() {
+  try {
+    const ventas = await all(
+      `SELECT id, monto FROM ventas
+        WHERE estado_pago = 'pendiente' AND aviso_admin_sin_pago_en IS NULL
+          AND fecha < NOW() - make_interval(mins => ?::int)
+          AND fecha > NOW() - INTERVAL '1 day'
+        ORDER BY id`,
+      [MIN_AVISO_SIN_PAGO]
+    );
+    for (const v of ventas) {
+      await run('UPDATE ventas SET aviso_admin_sin_pago_en = NOW() WHERE id = ?', [v.id]);
+      alertaVenta(v.id, `⏳ No llegó el pago — venta #${v.id} (${pesos(v.monto)})`, {
+        antes: [
+          `El comprador fue a Mercado Pago hace más de ${MIN_AVISO_SIN_PAGO} min y no llegó ningún pago (ni aprobado ni rechazado).`,
+          'Puede haber abandonado, o estar pagando en efectivo (Rapipago/Pago Fácil). Las unidades siguen reservadas.',
+          '',
+        ],
+      });
+    }
+  } catch (err) {
+    console.error('[alerta admin] barrido de pagos que no llegaron:', err.message);
+  }
+}
+setInterval(avisarPagosQueNoLlegaron, 5 * 60 * 1000);
 
 // Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
 // usuario en este request). Confirmamos el estado real contra la API de MP en
@@ -1434,6 +1634,17 @@ app.post('/api/pagos/webhook', async (req, res) => {
     const payment = await new Payment(mpClient).get({ id: paymentId });
     const ventaId = Number(payment.external_reference);
     const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
+    if (!venta && payment.status === 'approved') {
+      avisarAdmin({
+        asunto: `🚨 Pago aprobado sin venta — MP ${payment.id}`,
+        lineas: [
+          `Mercado Pago aprobó el pago ${payment.id} por ${pesos(payment.transaction_amount)}, pero no hay ninguna venta #${payment.external_reference || '—'} en la base.`,
+          'Nadie recibió nada: revisalo en Mercado Pago y contactá al comprador.',
+          `Pagador: ${payment.payer?.email || '—'}`,
+          `Hora: ${horaAR()}`,
+        ],
+      });
+    }
     if (!venta || venta.estado_pago === 'confirmado') return res.sendStatus(200);
 
     const items = await all('SELECT * FROM venta_items WHERE venta_id = ?', [ventaId]);
@@ -1490,14 +1701,27 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // Aviso por mail (best-effort) al comprador y al vendedor con el/los
       // codigo_publico que corresponden a esta venta — es el ID que el
       // vendedor tiene que entregar y el comprador tiene que recibir.
-      await notificarVentaConfirmada(ventaId);
+      const avisos = await notificarVentaConfirmada(ventaId);
       // Compra online con envío a domicilio: recién ahora (pago confirmado)
       // creamos el envío en Enviopack. Ver "Envio a domicilio" en el vault.
-      await crearEnvioParaVenta(ventaId);
+      const envio = await crearEnvioParaVenta(ventaId);
       // Meta CAPI: mismo event_id que el Purchase del pixel (src/comprar.js)
       // para que Meta dedupe. Best-effort — nunca puede frenar la venta.
-      await enviarCapiPurchaseDeVenta(venta, ventaId);
+      const capi = await enviarCapiPurchaseDeVenta(venta, ventaId);
+      // Alerta al admin con el resultado de cada paso de arriba.
+      alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDeEntrega });
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
+      // MP notifica el mismo pago más de una vez: avisamos solo la primera.
+      if (venta.estado_pago !== 'rechazado' || venta.payment_id !== String(payment.id)) {
+        alertaVenta(ventaId, `🔴 Pago rechazado — venta #${ventaId} (${pesos(venta.monto)})`, {
+          antes: [
+            `Mercado Pago: ${payment.status} — ${payment.status_detail || 'sin detalle'}`,
+            `Medio: ${[payment.payment_method_id, payment.payment_type_id].filter(Boolean).join(' / ') || '—'}`,
+            'Se liberaron las unidades reservadas.',
+            '',
+          ],
+        });
+      }
       await run('UPDATE ventas SET estado_pago = ?, payment_id = ? WHERE id = ?', [
         'rechazado',
         String(payment.id),
@@ -1514,6 +1738,16 @@ app.post('/api/pagos/webhook', async (req, res) => {
     res.sendStatus(200);
   } catch (err) {
     console.error('[Mercado Pago] error procesando webhook:', err.message);
+    avisarAdmin({
+      asunto: `🚨 Error procesando un pago de Mercado Pago (${paymentId})`,
+      lineas: [
+        `Pago MP: ${paymentId}`,
+        `Error: ${err.message}`,
+        '',
+        'Puede haber quedado cobrado pero sin activar / sin envío. Revisá la venta en el admin y el pago en Mercado Pago.',
+        `Hora: ${horaAR()}`,
+      ],
+    });
     res.sendStatus(200); // devolvemos 200 igual — si no, MP reintenta agresivamente
   }
 });
@@ -3502,6 +3736,8 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
 // (login por código). Riesgo aceptado: alguien podría activar con un email
 // ajeno, pero hace falta tener el llavero físico en la mano.
 app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
+  // 401 = "verificá tu email" — es un paso normal del flujo, no un error.
+  alertarSiFallaCheckout(req, res, { flujo: 'activación', ignorar: [401] });
   // Sesión de comprador verificada por OTP (Authorization: Bearer). Para la
   // activación GRATIS es obligatoria; para la paga, el email sin verificar
   // alcanza (Mercado Pago es la barrera).
@@ -3639,8 +3875,13 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
       },
     });
     res.status(201).json({ ventaId: venta.id, initPoint: preference.init_point });
+    alertaVenta(venta.id, `🛒 Fue a pagar una activación — venta #${venta.id} (${pesos(precio)})`, {
+      antes: [`Alguien con el llavero ${sticker.codigo_publico} fue a Mercado Pago a pagar la activación.`, ''],
+      despues: ['', `Si en ${MIN_AVISO_SIN_PAGO} min no llega el pago (aprobado o rechazado), te aviso.`],
+    });
   } catch (err) {
     console.error('[Mercado Pago] error creando preferencia (activación):', err.message);
+    res.locals.detalleError = `Mercado Pago (crear preferencia): ${err.message}`;
     res.status(502).json({ error: 'No se pudo iniciar el pago. Probá de nuevo.' });
   }
 });
