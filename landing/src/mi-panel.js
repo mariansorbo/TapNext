@@ -70,19 +70,25 @@ const TOKEN_KEY = 'tap_panel_token';
 
 const loginView = document.getElementById('login-view');
 const dashboardView = document.getElementById('dashboard-view');
-const loginWhatsapp = document.getElementById('login-whatsapp');
-const sendOtpButton = document.getElementById('send-login-otp');
-const otpField = document.getElementById('login-otp-field');
-const otpInput = document.getElementById('login-otp');
-const confirmOtpButton = document.getElementById('confirm-login-otp');
 const loginStatus = document.getElementById('login-status');
 const stickerList = document.getElementById('sticker-list');
 const dashboardTitle = document.getElementById('dashboard-title');
 const logoutButton = document.getElementById('logout-button');
 const loginForm = document.getElementById('login-form');
-const passwordLoginField = document.getElementById('password-login-field');
+const loginEmailInput = document.getElementById('login-email');
 const loginPasswordInput = document.getElementById('login-password');
-const togglePasswordLogin = document.getElementById('toggle-password-login');
+const forgotPasswordLink = document.getElementById('forgot-password');
+const resetCodeForm = document.getElementById('reset-code-form');
+const resetCodeLead = document.getElementById('reset-code-lead');
+const resetCodeInput = document.getElementById('reset-code');
+const resetResendLink = document.getElementById('reset-resend');
+const resetBackLink = document.getElementById('reset-back');
+const resetPasswordForm = document.getElementById('reset-password-form');
+const resetUsername = document.getElementById('reset-username');
+const resetPasswordInput = document.getElementById('reset-password');
+const resetPassword2Input = document.getElementById('reset-password-2');
+const firstTimeLink = document.getElementById('first-time');
+const resetPasswordLead = document.getElementById('reset-password-lead');
 const accountBox = document.getElementById('account-box');
 const accountEmailEl = document.getElementById('account-email');
 const accountVerifiedEl = document.getElementById('account-verified');
@@ -93,15 +99,10 @@ const passwordActualField = document.getElementById('password-actual-field');
 const passwordActualInput = document.getElementById('password-actual');
 const passwordNuevaInput = document.getElementById('password-nueva');
 const passwordRepetirInput = document.getElementById('password-repetir');
-const passwordNuevaField = document.getElementById('password-nueva-field');
-const passwordRepetirField = document.getElementById('password-repetir-field');
-const passwordGuardar = document.getElementById('password-guardar');
 const reauthField = document.getElementById('reauth-field');
 const reauthOtpInput = document.getElementById('reauth-otp');
 const passwordCancelar = document.getElementById('password-cancelar');
-const passwordAcciones = document.getElementById('password-acciones');
 const passwordAbrir = document.getElementById('password-abrir');
-const passwordQuitar = document.getElementById('password-quitar');
 const passwordStatus = document.getElementById('password-status');
 const googleDivider = document.getElementById('google-divider');
 const googleButton = document.getElementById('google-login-button');
@@ -158,8 +159,10 @@ async function showDashboard() {
   await Promise.all([loadStickers(), loadAccount()]);
 }
 
-// --- Cuenta: mail (solo lectura) + contraseña opcional ---
-// El mail es la identidad con la que se entra: no se edita acá.
+// --- Cuenta: mail (solo lectura) + contraseña ---
+// El mail es la identidad con la que se entra: no se edita acá. La contraseña
+// se crea (si la cuenta nació en una compra, sin contraseña) o se cambia
+// pidiendo la actual, como en cualquier cuenta.
 let cuenta = null;
 
 async function loadAccount() {
@@ -183,44 +186,35 @@ function renderCuenta() {
   accountVerifiedEl.hidden = !cuenta.emailVerificado;
   passwordUsername.value = cuenta.email;
   passwordLead.textContent = cuenta.tienePassword
-    ? 'Podés entrar con tu contraseña o con un código por mail.'
-    : 'Hoy entrás con un código por mail. Si querés, creá una contraseña para entrar más rápido — el código va a seguir funcionando.';
+    ? ''
+    : 'Todavía no tenés contraseña. Creala para entrar con tu mail y contraseña.';
+  passwordLead.hidden = cuenta.tienePassword;
   passwordAbrir.textContent = cuenta.tienePassword ? 'Cambiar contraseña' : 'Crear contraseña';
-  passwordQuitar.hidden = !cuenta.tienePassword;
   cerrarFormPassword();
 }
 
 function cerrarFormPassword() {
   passwordForm.hidden = true;
-  passwordAcciones.hidden = false;
+  passwordAbrir.hidden = false;
   reauthField.hidden = true;
   [passwordActualInput, passwordNuevaInput, passwordRepetirInput, reauthOtpInput].forEach((i) => (i.value = ''));
 }
 
-// Un solo form para crear/cambiar ('guardar') o quitar ('quitar') la contraseña.
-let modoPassword = 'guardar';
-function abrirFormPassword(modo) {
-  modoPassword = modo;
+passwordAbrir.addEventListener('click', () => {
   setStatus(passwordStatus, '', '');
   passwordForm.hidden = false;
-  passwordAcciones.hidden = true;
+  passwordAbrir.hidden = true;
   passwordActualField.hidden = !cuenta.tienePassword;
-  passwordNuevaField.hidden = modo === 'quitar';
-  passwordRepetirField.hidden = modo === 'quitar';
-  passwordGuardar.textContent = modo === 'quitar' ? 'Quitar contraseña' : 'Guardar contraseña';
-  (modo === 'quitar' ? passwordActualInput : passwordNuevaInput).focus();
-}
-
-passwordAbrir.addEventListener('click', () => abrirFormPassword('guardar'));
-passwordQuitar.addEventListener('click', () => abrirFormPassword('quitar'));
+  (cuenta.tienePassword ? passwordActualInput : passwordNuevaInput).focus();
+});
 passwordCancelar.addEventListener('click', () => {
   setStatus(passwordStatus, '', '');
   cerrarFormPassword();
 });
 
-// Cuando el server pide reautenticar (needsReauth): mandamos un código al mail
-// de la cuenta y mostramos el campo. Al confirmarlo se abre una sesión nueva
-// (reciente) y se reintenta la operación.
+// Crear la primera contraseña sin pedir nada solo vale con una sesión recién
+// abierta por código. Si la sesión es vieja, el server contesta needsReauth:
+// mandamos un código al mail, se ingresa y se reintenta.
 async function pedirCodigoReauth() {
   const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino: cuenta.email }) });
   reauthField.hidden = false;
@@ -237,43 +231,15 @@ async function reauthSiHayCodigo() {
   reauthOtpInput.value = '';
 }
 
-// Corre `accion`; si el server contesta needsReauth, pide el código por mail.
-async function conReauth(accion) {
-  try {
-    await reauthSiHayCodigo();
-    return await accion();
-  } catch (err) {
-    if (err.data?.needsReauth) {
-      try {
-        await pedirCodigoReauth();
-        setStatus(passwordStatus, '', `Te mandamos un código a ${cuenta.email}. Ingresalo y volvé a tocar el botón.`);
-      } catch (e) {
-        setStatus(passwordStatus, 'is-error', e.message);
-      }
-      return null;
-    }
-    setStatus(passwordStatus, 'is-error', err.message);
-    return null;
-  }
-}
-
 passwordForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const passwordActual = passwordActualInput.value;
-
-  if (modoPassword === 'quitar') {
-    setStatus(passwordStatus, '', 'Quitando...');
-    const ok = await conReauth(() =>
-      api('/me/password', { method: 'DELETE', body: JSON.stringify({ passwordActual }) })
-    );
-    if (!ok) return;
-    cuenta.tienePassword = false;
-    renderCuenta();
-    setStatus(passwordStatus, 'is-success', 'Contraseña quitada. Entrás con código por mail.');
+  const password = passwordNuevaInput.value;
+  if (cuenta.tienePassword && !passwordActual) {
+    setStatus(passwordStatus, 'is-error', 'Ingresá tu contraseña actual.');
+    passwordActualInput.focus();
     return;
   }
-
-  const password = passwordNuevaInput.value;
   if (password.length < 8) {
     setStatus(passwordStatus, 'is-error', 'La contraseña tiene que tener al menos 8 caracteres.');
     passwordNuevaInput.focus();
@@ -286,109 +252,170 @@ passwordForm.addEventListener('submit', async (e) => {
   }
   setStatus(passwordStatus, '', 'Guardando...');
   const habia = cuenta.tienePassword;
-  const ok = await conReauth(() =>
-    api('/me/password', { method: 'POST', body: JSON.stringify({ password, passwordActual }) })
-  );
-  if (!ok) return;
+  try {
+    await reauthSiHayCodigo();
+    await api('/me/password', { method: 'POST', body: JSON.stringify({ password, passwordActual }) });
+  } catch (err) {
+    if (err.data?.needsReauth) {
+      try {
+        await pedirCodigoReauth();
+        setStatus(passwordStatus, '', `Por seguridad te mandamos un código a ${cuenta.email}. Ingresalo y volvé a tocar "Guardar contraseña".`);
+      } catch (e2) {
+        setStatus(passwordStatus, 'is-error', e2.message);
+      }
+      return;
+    }
+    setStatus(passwordStatus, 'is-error', err.message);
+    return;
+  }
   cuenta.tienePassword = true;
   renderCuenta();
   setStatus(
     passwordStatus,
     'is-success',
-    habia ? 'Contraseña cambiada. Cerramos tus otras sesiones.' : 'Contraseña creada. La próxima vez podés entrar con ella.'
+    habia ? 'Contraseña cambiada. Cerramos tus otras sesiones.' : 'Contraseña creada. La próxima vez entrás con tu mail y contraseña.'
   );
 });
 
 // --- Login ---
+// Lo estándar: mail + contraseña. "Olvidé mi contraseña" y "¿Primera vez?
+// Creá tu contraseña" (las cuentas nacen en la compra, sin contraseña) son el
+// mismo flujo: código al mail → contraseña nueva → adentro.
 
-async function entrarConPassword() {
-  const email = loginWhatsapp.value.trim();
+function mostrarPasoLogin(paso) {
+  loginForm.hidden = paso !== 'login';
+  resetCodeForm.hidden = paso !== 'codigo';
+  resetPasswordForm.hidden = paso !== 'nueva';
+}
+
+function resetLogin() {
+  [loginEmailInput, loginPasswordInput, resetCodeInput, resetPasswordInput, resetPassword2Input].forEach(
+    (i) => (i.value = '')
+  );
+  setStatus(loginStatus, '', '');
+  mostrarPasoLogin('login');
+}
+
+async function entrarAlPanel(data) {
+  setToken(data.token);
+  dashboardTitle.textContent = data.comprador?.nombre ? `Hola, ${data.comprador.nombre}` : 'Tus productos';
+  setStatus(loginStatus, '', '');
+  await showDashboard();
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = loginEmailInput.value.trim();
   const password = loginPasswordInput.value;
   if (!email || !password) {
     setStatus(loginStatus, 'is-error', 'Completá tu mail y tu contraseña.');
+    (email ? loginPasswordInput : loginEmailInput).focus();
     return;
   }
   setStatus(loginStatus, '', 'Verificando...');
   try {
     const data = await api('/auth/password/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-    setToken(data.token);
-    dashboardTitle.textContent = data.comprador.nombre ? `Hola, ${data.comprador.nombre}` : 'Tus productos';
-    setStatus(loginStatus, '', '');
     loginPasswordInput.value = '';
-    await showDashboard();
+    await entrarAlPanel(data);
   } catch (err) {
-    // Lo más común: alguien que nunca creó contraseña (entra con código).
-    const pista = err.status === 401 ? ' Si todavía no creaste una, tocá "Entrar con código".' : '';
+    // Lo más común: alguien que todavía no creó su contraseña.
+    const pista = err.status === 401 ? ' Si es tu primera vez, tocá "Creá tu contraseña".' : '';
     setStatus(loginStatus, 'is-error', err.message + pista);
   }
-}
-
-// El form de login solo se "envía" con contraseña (Enter o botón Ingresar):
-// así el navegador ofrece guardarla. El código va por sus propios botones.
-loginForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (!passwordLoginField.hidden) entrarConPassword();
 });
 
-// Dos modos de login: 'password' (por defecto: el campo ya está a mano) y
-// 'codigo' (código por mail; también es el "me olvidé la contraseña").
-function setModoLogin(modo) {
-  const conPassword = modo === 'password';
-  passwordLoginField.hidden = !conPassword;
-  sendOtpButton.hidden = conPassword;
-  otpField.hidden = true;
-  togglePasswordLogin.textContent = conPassword ? 'Entrar con código' : 'Entrar con contraseña';
+let resetEmail = '';
+
+async function enviarCodigoReset() {
+  setStatus(loginStatus, '', 'Enviando código...');
+  const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino: resetEmail }) });
+  resetCodeLead.textContent = `Te mandamos un código de 6 dígitos a ${resetEmail}. Vence en 5 minutos.`;
+  if (data.debug_otp) {
+    resetCodeInput.value = data.debug_otp;
+    setStatus(loginStatus, 'is-error', `MODO DEMO — el mail no está configurado. Tu código es ${data.debug_otp}.`);
+  } else {
+    setStatus(loginStatus, '', '');
+  }
 }
 
-togglePasswordLogin.addEventListener('click', () => {
-  const aPassword = passwordLoginField.hidden;
-  setModoLogin(aPassword ? 'password' : 'codigo');
-  setStatus(loginStatus, '', '');
-  (aPassword ? loginPasswordInput : loginWhatsapp).focus();
-});
-
-sendOtpButton.addEventListener('click', async () => {
-  const destino = loginWhatsapp.value.trim();
-  if (!destino) {
-    loginStatus.className = 'modal-status is-error';
-    loginStatus.textContent = `Ingresá tu ${verif.nombre} primero.`;
-    loginWhatsapp.focus();
+// modo: 'olvido' | 'primera' — solo cambia el texto del paso final.
+async function iniciarReset(modo) {
+  const email = loginEmailInput.value.trim();
+  if (!email) {
+    setStatus(loginStatus, 'is-error', 'Escribí tu mail arriba y volvé a tocar el link.');
+    loginEmailInput.focus();
     return;
   }
-  loginStatus.className = 'modal-status';
-  loginStatus.textContent = 'Enviando código...';
+  resetEmail = email;
+  resetPasswordLead.textContent = modo === 'primera' ? 'Creá tu contraseña.' : 'Elegí tu contraseña nueva.';
   try {
-    const data = await api('/auth/otp/request', { method: 'POST', body: JSON.stringify({ destino }) });
-    otpField.hidden = false;
-    sendOtpButton.textContent = 'Reenviar código';
-    loginStatus.className = 'modal-status is-success';
-    if (data.debug_otp) {
-      otpInput.value = data.debug_otp;
-      loginStatus.textContent = `Código autocompletado (demo, no hay ${verif.nombre} real conectado).`;
-    } else {
-      loginStatus.textContent = 'Código enviado.';
-    }
+    await enviarCodigoReset();
+    mostrarPasoLogin('codigo');
+    resetCodeInput.focus();
   } catch (err) {
-    loginStatus.className = 'modal-status is-error';
-    loginStatus.textContent = err.message;
+    setStatus(loginStatus, 'is-error', err.message);
+  }
+}
+
+forgotPasswordLink.addEventListener('click', () => iniciarReset('olvido'));
+firstTimeLink.addEventListener('click', () => iniciarReset('primera'));
+
+resetResendLink.addEventListener('click', async () => {
+  try {
+    await enviarCodigoReset();
+    setStatus(loginStatus, 'is-success', 'Te mandamos un código nuevo.');
+  } catch (err) {
+    setStatus(loginStatus, 'is-error', err.message);
   }
 });
 
-confirmOtpButton.addEventListener('click', async () => {
-  const destino = loginWhatsapp.value.trim();
-  const code = otpInput.value.trim();
+resetBackLink.addEventListener('click', () => {
+  setStatus(loginStatus, '', '');
+  mostrarPasoLogin('login');
+});
+
+let sesionDelCodigo = null; // sesión abierta con el código, para entrar tras elegir contraseña
+
+resetCodeForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = resetCodeInput.value.trim();
   if (!code) return;
-  loginStatus.className = 'modal-status';
-  loginStatus.textContent = 'Verificando...';
+  setStatus(loginStatus, '', 'Verificando...');
   try {
-    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino, code }) });
+    const data = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ destino: resetEmail, code }) });
+    // La sesión ya está abierta (y es "reciente"): con ella se crea la
+    // contraseña sin pedir la anterior.
     setToken(data.token);
-    dashboardTitle.textContent = data.comprador.nombre ? `Hola, ${data.comprador.nombre}` : 'Tus stickers';
-    loginStatus.textContent = '';
-    await showDashboard();
+    sesionDelCodigo = data;
+    resetUsername.value = resetEmail;
+    setStatus(loginStatus, '', '');
+    mostrarPasoLogin('nueva');
+    resetPasswordInput.focus();
   } catch (err) {
-    loginStatus.className = 'modal-status is-error';
-    loginStatus.textContent = err.message;
+    setStatus(loginStatus, 'is-error', err.message);
+  }
+});
+
+resetPasswordForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = resetPasswordInput.value;
+  if (password.length < 8) {
+    setStatus(loginStatus, 'is-error', 'La contraseña tiene que tener al menos 8 caracteres.');
+    resetPasswordInput.focus();
+    return;
+  }
+  if (password !== resetPassword2Input.value) {
+    setStatus(loginStatus, 'is-error', 'Las contraseñas no coinciden.');
+    resetPassword2Input.focus();
+    return;
+  }
+  setStatus(loginStatus, '', 'Guardando...');
+  try {
+    await api('/me/password', { method: 'POST', body: JSON.stringify({ password }) });
+    await entrarAlPanel(sesionDelCodigo);
+    resetLogin();
+  } catch (err) {
+    setStatus(loginStatus, 'is-error', err.message);
   }
 });
 
@@ -399,13 +426,7 @@ logoutButton.addEventListener('click', async () => {
     // sigue el logout local aunque falle el pedido al server
   }
   clearToken();
-  loginWhatsapp.value = '';
-  otpInput.value = '';
-  otpField.hidden = true;
-  sendOtpButton.textContent = 'Enviar código';
-  loginStatus.textContent = '';
-  loginPasswordInput.value = '';
-  setModoLogin(verif.canal === 'email' ? 'password' : 'codigo');
+  resetLogin();
   cuenta = null;
   accountBox.hidden = true;
   setStatus(passwordStatus, '', '');
@@ -596,37 +617,13 @@ function renderStickers(stickers) {
   });
 }
 
-// Canal de verificación activo (email / whatsapp / ...) — fallback por si falla.
-const verif = { canal: 'email', nombre: 'email', tipoInput: 'email', placeholder: 'vos@ejemplo.com' };
-const verifTitleEl = document.getElementById('verif-title');
-const verifSubEl = document.getElementById('verif-sub');
-const verifLabelEl = document.getElementById('verif-label');
-
 // Login con Google — opcional, se muestra solo si el backend tiene credenciales cargadas.
-// De paso trae la config del canal de verificación (misma llamada).
 async function checkGoogleLogin() {
   try {
     const res = await fetch(`${API_BASE}/api/auth/config`);
     const data = await res.json();
     googleButton.hidden = !data.googleEnabled;
     googleDivider.hidden = !data.googleEnabled;
-    if (data.verificacion) {
-      Object.assign(verif, data.verificacion);
-      loginWhatsapp.type = verif.tipoInput;
-      loginWhatsapp.placeholder = verif.placeholder;
-      loginWhatsapp.value = '';
-      if (verifTitleEl) verifTitleEl.textContent = `Entrá con tu ${verif.nombre}.`;
-      if (verifSubEl) {
-        verifSubEl.textContent =
-          verif.canal === 'email'
-            ? 'Entrá con tu contraseña o pedí un código por mail.'
-            : `Te mandamos un código por ${verif.nombre} para confirmar que sos vos.`;
-      }
-      if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
-      // La contraseña va atada al mail: con otro canal de verificación no aplica.
-      togglePasswordLogin.hidden = verif.canal !== 'email';
-      if (verif.canal !== 'email') setModoLogin('codigo');
-    }
   } catch {
     googleButton.hidden = true;
     googleDivider.hidden = true;

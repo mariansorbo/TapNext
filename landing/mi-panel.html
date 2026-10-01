@@ -17,37 +17,62 @@
 <section class="buy-hero" id="login-view">
   <div class="wrap">
     <div class="kicker">Mi panel</div>
-    <h2 id="verif-title">Entrá a tu panel.</h2>
-    <p class="lead" id="verif-sub">Entrá con tu contraseña o pedí un código por mail.</p>
+    <h2>Entrá a tu panel.</h2>
 
-    <form id="login-form" autocomplete="on">
-      <div class="modal-form panel-login-form">
+    <!-- Paso 1: mail + contraseña (lo estándar). -->
+    <form id="login-form" class="panel-login" autocomplete="on">
+      <p class="lead">Entrá con tu mail y tu contraseña.</p>
+      <div class="modal-form">
         <label>
-          <span id="verif-label">Tu contacto</span>
-          <input type="text" id="login-whatsapp" name="email" autocomplete="username" placeholder="">
+          <span>Email</span>
+          <input type="email" id="login-email" name="email" autocomplete="username" placeholder="vos@ejemplo.com">
         </label>
-      </div>
-      <div class="modal-form" id="password-login-field">
         <label>
           <span>Contraseña</span>
           <input type="password" id="login-password" name="password" autocomplete="current-password">
         </label>
-        <button type="submit" class="btn-primary panel-btn modal-submit" id="confirm-login-password">Ingresar</button>
       </div>
-
       <div class="panel-login-actions">
-        <button type="button" class="btn-primary panel-btn" id="send-login-otp" hidden>Enviar código</button>
-        <button type="button" class="btn-outline" id="toggle-password-login">Entrar con código</button>
+        <button type="submit" class="btn-primary">Entrar</button>
+        <button type="button" class="link-sutil" id="forgot-password">Olvidé mi contraseña</button>
       </div>
+      <p class="panel-hint">¿Primera vez? <button type="button" class="link-sutil" id="first-time">Creá tu contraseña</button></p>
+    </form>
 
-      <div class="modal-form panel-otp-form" id="login-otp-field" hidden>
+    <!-- Paso 2: código que llegó al mail. -->
+    <form id="reset-code-form" class="panel-login" hidden>
+      <p class="lead" id="reset-code-lead">Te mandamos un código al mail.</p>
+      <div class="modal-form">
         <label>
-          <span>Código recibido</span>
-          <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" id="login-otp" placeholder="000000">
+          <span>Código</span>
+          <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" id="reset-code" placeholder="000000">
         </label>
-        <button type="button" class="btn-primary panel-btn modal-submit" id="confirm-login-otp">Ingresar</button>
       </div>
+      <div class="panel-login-actions">
+        <button type="submit" class="btn-primary">Continuar</button>
+        <button type="button" class="link-sutil" id="reset-resend">Reenviar código</button>
+        <button type="button" class="link-sutil" id="reset-back">Volver</button>
+      </div>
+    </form>
 
+    <!-- Paso 3: contraseña nueva (ya con sesión abierta por el código). -->
+    <form id="reset-password-form" class="panel-login" hidden>
+      <p class="lead" id="reset-password-lead">Elegí tu contraseña nueva.</p>
+      <input type="email" id="reset-username" name="email" autocomplete="username" hidden>
+      <div class="modal-form">
+        <label>
+          <span>Nueva contraseña</span>
+          <input type="password" id="reset-password" autocomplete="new-password" minlength="8" maxlength="64">
+          <small class="field-hint">Mínimo 8 caracteres. Mejor una frase larga que una palabra rara.</small>
+        </label>
+        <label>
+          <span>Repetila</span>
+          <input type="password" id="reset-password-2" autocomplete="new-password" minlength="8" maxlength="64">
+        </label>
+      </div>
+      <div class="panel-login-actions">
+        <button type="submit" class="btn-primary">Guardar y entrar</button>
+      </div>
     </form>
     <p class="modal-status" id="login-status"></p>
 
@@ -70,7 +95,7 @@
       <div class="kicker">Tu cuenta</div>
       <p class="account-login-as">Entrás con <b id="account-email"></b><span class="account-verified" id="account-verified" hidden>✓ verificado</span></p>
 
-      <div class="kicker" style="margin-top:28px">Contraseña (opcional)</div>
+      <div class="kicker" style="margin-top:28px">Contraseña</div>
       <p class="section-lead" id="password-lead"></p>
 
       <form id="password-form" hidden>
@@ -80,14 +105,14 @@
           <label id="password-actual-field" hidden>
             <span>Contraseña actual</span>
             <input type="password" id="password-actual" autocomplete="current-password">
-            <small class="field-hint">Si no la recordás, dejala vacía y te mandamos un código.</small>
+            <small class="field-hint">Si no la recordás, cerrá sesión y usá "Olvidé mi contraseña".</small>
           </label>
-          <label id="password-nueva-field">
+          <label>
             <span>Nueva contraseña</span>
             <input type="password" id="password-nueva" name="new-password" autocomplete="new-password" minlength="8" maxlength="64">
             <small class="field-hint">Mínimo 8 caracteres. Mejor una frase larga que una palabra rara.</small>
           </label>
-          <label id="password-repetir-field">
+          <label>
             <span>Repetila</span>
             <input type="password" id="password-repetir" autocomplete="new-password" minlength="8" maxlength="64">
           </label>
@@ -101,15 +126,12 @@
         </div>
 
         <div class="account-actions">
-          <button type="submit" class="btn-primary" id="password-guardar">Guardar contraseña</button>
+          <button type="submit" class="btn-primary">Guardar contraseña</button>
           <button type="button" class="btn-ghost" id="password-cancelar">Cancelar</button>
         </div>
       </form>
 
-      <div class="account-actions" id="password-acciones">
-        <button type="button" class="btn-ghost" id="password-abrir">Crear contraseña</button>
-        <button type="button" class="btn-ghost" id="password-quitar" hidden>Quitar contraseña</button>
-      </div>
+      <button type="button" class="btn-ghost" id="password-abrir">Crear contraseña</button>
       <p class="modal-status" id="password-status"></p>
     </div>
   </div>

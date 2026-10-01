@@ -593,9 +593,11 @@ app.get('/api/me', requireAuth, (req, res) => {
   });
 });
 
-// Crear o cambiar la contraseña (opcional). Autoriza una de dos:
-//  - sesión reciente abierta con código/Google, o
-//  - la contraseña actual (si ya tenía una).
+// Crear o cambiar la contraseña. Como en cualquier cuenta:
+//  - Cambiarla desde el panel: con la contraseña actual (si se manda, tiene
+//    que ser correcta, sin excepciones).
+//  - "Olvidé mi contraseña" / primera vez: sin la actual, pero solo con una
+//    sesión recién abierta por código o Google (demostró ser dueño del mail).
 // Si no alcanza, responde needsReauth y el panel pide un código por mail.
 app.post('/api/me/password', requireAuth, async (req, res) => {
   const comprador = req.comprador;
@@ -605,8 +607,8 @@ app.post('/api/me/password', requireAuth, async (req, res) => {
   const nueva = String(req.body?.password ?? '');
   const actual = String(req.body?.passwordActual ?? '');
 
-  let autorizado = sesionReciente(req.sesion);
-  if (!autorizado && actual && comprador.password_hash) {
+  let autorizado = !actual && sesionReciente(req.sesion);
+  if (actual && comprador.password_hash) {
     const ip = req.ip || 'unknown';
     if (!passwordFallosPorEmail.permitido(comprador.email)) {
       return res.status(429).json({ error: DEMASIADOS_INTENTOS });
@@ -647,44 +649,6 @@ app.post('/api/me/password', requireAuth, async (req, res) => {
   });
 
   res.json({ ok: true, tienePassword: true });
-});
-
-// Quitar la contraseña: vuelve a entrar solo con código. Mismas reglas de
-// autorización que crearla.
-app.delete('/api/me/password', requireAuth, async (req, res) => {
-  const comprador = req.comprador;
-  if (!comprador.password_hash) return res.json({ ok: true, tienePassword: false });
-
-  const actual = String(req.body?.passwordActual ?? '');
-  let autorizado = sesionReciente(req.sesion);
-  if (!autorizado && actual) {
-    if (!passwordFallosPorEmail.permitido(comprador.email)) {
-      return res.status(429).json({ error: DEMASIADOS_INTENTOS });
-    }
-    autorizado = await bcrypt.compare(actual, comprador.password_hash);
-    if (!autorizado) {
-      passwordFallosPorEmail.registrarFallo(comprador.email);
-      return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
-    }
-  }
-  if (!autorizado) {
-    return res.status(403).json({
-      error: 'Por seguridad, confirmá que sos vos con un código que te mandamos al mail.',
-      needsReauth: true,
-    });
-  }
-
-  await run('UPDATE compradores SET password_hash = NULL, password_actualizado_en = NOW() WHERE id = ?', [
-    comprador.id,
-  ]);
-  enviarCorreo({
-    to: comprador.email,
-    subject: 'Quitaste tu contraseña de NextTap',
-    text:
-      `Se quitó la contraseña de tu cuenta de NextTap (${comprador.email}). Desde ahora entrás solo con un código por mail.\n\n` +
-      'Si no fuiste vos, entrá a Mi panel con un código por mail y revisá tu cuenta.',
-  });
-  res.json({ ok: true, tienePassword: false });
 });
 
 app.get('/api/me/stickers', requireAuth, async (req, res) => {

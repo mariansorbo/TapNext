@@ -574,17 +574,18 @@ body.modal-open{overflow:hidden;}
 /* PANEL (mi-panel.html) */
 .panel-login-form{max-width:360px;}
 .panel-btn{margin-top:16px;}
-.panel-login-actions{display:flex; flex-wrap:wrap; gap:10px; max-width:360px; margin-top:16px;}
-.panel-login-actions .btn-primary, .panel-login-actions .btn-outline{margin-top:0;}
-/* Botón secundario con borde, mismo tamaño que .btn-primary (el .btn-ghost
-   del sitio es un link subrayado y acá se perdía). */
-.btn-outline{
-  background:transparent; color:var(--paper); font-weight:600; font-family:var(--body);
-  padding:14px 22px; border-radius:10px; font-size:0.95rem; border:1px solid rgba(237,239,233,0.35);
-  cursor:pointer; transition:border-color .2s ease, background .2s ease;
+.panel-login{max-width:360px;}
+.panel-login .lead{margin-bottom:18px;}
+.panel-login-actions{display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; margin-top:20px;}
+.panel-login-actions .btn-primary{margin-top:0;}
+/* Link de bajo perfil (gris, chico, subrayado) para las acciones secundarias. */
+.link-sutil{
+  background:none; border:0; padding:0; cursor:pointer;
+  color:var(--paper-dim); opacity:0.75; font:inherit; font-size:0.82rem; text-decoration:underline;
 }
-.btn-outline:hover{border-color:var(--paper); background:rgba(237,239,233,0.06);}
-#login-otp-field{max-width:360px;}
+.link-sutil:hover{opacity:1; color:var(--paper);}
+.panel-hint{margin-top:18px; font-size:0.8rem; color:var(--paper-dim); opacity:0.75; line-height:1.45;}
+.panel-hint b{font-weight:600;}
 .panel-divider{
   display:flex; align-items:center; gap:12px; margin:24px 0 0; max-width:360px;
   font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim);
@@ -597,12 +598,6 @@ body.modal-open{overflow:hidden;}
 .account-login-as b{color:var(--paper);}
 .account-verified{color:var(--amber); font-family:var(--mono); font-size:0.78rem; margin-left:6px; white-space:nowrap;}
 .account-actions{display:flex; flex-wrap:wrap; gap:10px;}
-.link-inline{
-  display:block; background:none; border:0; padding:0; margin-top:14px; cursor:pointer;
-  color:var(--paper-dim); font:inherit; font-size:0.85rem; text-decoration:underline;
-}
-.link-inline:hover{color:var(--paper);}
-#password-login-field{max-width:360px;}
 .sticker-list-title{font-family:var(--display); font-weight:600; font-size:1.1rem; margin-top:40px;}
 .sticker-list{margin-top:20px; display:flex; flex-direction:column; gap:16px; max-width:560px;}
 .sticker-card{
@@ -795,7 +790,6 @@ details[open] .add-icon{transform:rotate(45deg);}
   .tag-stage{max-width:220px; margin:0 auto;}
   .cta-row{flex-direction:column; align-items:flex-start; gap:18px;}
   .btn-primary{width:100%; text-align:center;}
-  .panel-login-actions .btn-outline{width:100%; text-align:center;}
   section .wrap{padding:0 20px;}
   h2{margin-bottom:32px;}
   .video-card{flex:0 0 190px;}
