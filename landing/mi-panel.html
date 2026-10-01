@@ -18,7 +18,7 @@
   <div class="wrap">
     <div class="kicker">Mi panel</div>
     <h2 id="verif-title">Entrá a tu panel.</h2>
-    <p class="lead" id="verif-sub">Te mandamos un código para confirmar que sos vos.</p>
+    <p class="lead" id="verif-sub">Entrá con tu contraseña o pedí un código por mail.</p>
 
     <form id="login-form" autocomplete="on">
       <div class="modal-form panel-login-form">
@@ -27,7 +27,7 @@
           <input type="text" id="login-whatsapp" name="email" autocomplete="username" placeholder="">
         </label>
       </div>
-      <div class="modal-form" id="password-login-field" hidden>
+      <div class="modal-form" id="password-login-field">
         <label>
           <span>Contraseña</span>
           <input type="password" id="login-password" name="password" autocomplete="current-password">
@@ -36,8 +36,8 @@
       </div>
 
       <div class="panel-login-actions">
-        <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
-        <button type="button" class="btn-outline" id="toggle-password-login">Entrar con contraseña</button>
+        <button type="button" class="btn-primary panel-btn" id="send-login-otp" hidden>Enviar código</button>
+        <button type="button" class="btn-outline" id="toggle-password-login">Entrar con código</button>
       </div>
 
       <div class="modal-form panel-otp-form" id="login-otp-field" hidden>

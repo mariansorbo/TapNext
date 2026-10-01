@@ -317,7 +317,9 @@ async function entrarConPassword() {
     loginPasswordInput.value = '';
     await showDashboard();
   } catch (err) {
-    setStatus(loginStatus, 'is-error', err.message);
+    // Lo más común: alguien que nunca creó contraseña (entra con código).
+    const pista = err.status === 401 ? ' Si todavía no creaste una, tocá "Entrar con código".' : '';
+    setStatus(loginStatus, 'is-error', err.message + pista);
   }
 }
 
@@ -328,14 +330,21 @@ loginForm.addEventListener('submit', (e) => {
   if (!passwordLoginField.hidden) entrarConPassword();
 });
 
-togglePasswordLogin.addEventListener('click', () => {
-  const mostrar = passwordLoginField.hidden;
-  passwordLoginField.hidden = !mostrar;
-  sendOtpButton.hidden = mostrar;
+// Dos modos de login: 'password' (por defecto: el campo ya está a mano) y
+// 'codigo' (código por mail; también es el "me olvidé la contraseña").
+function setModoLogin(modo) {
+  const conPassword = modo === 'password';
+  passwordLoginField.hidden = !conPassword;
+  sendOtpButton.hidden = conPassword;
   otpField.hidden = true;
-  togglePasswordLogin.textContent = mostrar ? 'Entrar con código' : 'Entrar con contraseña';
+  togglePasswordLogin.textContent = conPassword ? 'Entrar con código' : 'Entrar con contraseña';
+}
+
+togglePasswordLogin.addEventListener('click', () => {
+  const aPassword = passwordLoginField.hidden;
+  setModoLogin(aPassword ? 'password' : 'codigo');
   setStatus(loginStatus, '', '');
-  (mostrar ? loginPasswordInput : loginWhatsapp).focus();
+  (aPassword ? loginPasswordInput : loginWhatsapp).focus();
 });
 
 sendOtpButton.addEventListener('click', async () => {
@@ -396,9 +405,7 @@ logoutButton.addEventListener('click', async () => {
   sendOtpButton.textContent = 'Enviar código';
   loginStatus.textContent = '';
   loginPasswordInput.value = '';
-  passwordLoginField.hidden = true;
-  sendOtpButton.hidden = false;
-  togglePasswordLogin.textContent = 'Entrar con contraseña';
+  setModoLogin(verif.canal === 'email' ? 'password' : 'codigo');
   cuenta = null;
   accountBox.hidden = true;
   setStatus(passwordStatus, '', '');
@@ -609,10 +616,16 @@ async function checkGoogleLogin() {
       loginWhatsapp.placeholder = verif.placeholder;
       loginWhatsapp.value = '';
       if (verifTitleEl) verifTitleEl.textContent = `Entrá con tu ${verif.nombre}.`;
-      if (verifSubEl) verifSubEl.textContent = `Te mandamos un código por ${verif.nombre} para confirmar que sos vos. Si creaste una contraseña, también podés usarla.`;
+      if (verifSubEl) {
+        verifSubEl.textContent =
+          verif.canal === 'email'
+            ? 'Entrá con tu contraseña o pedí un código por mail.'
+            : `Te mandamos un código por ${verif.nombre} para confirmar que sos vos.`;
+      }
       if (verifLabelEl) verifLabelEl.textContent = `Tu ${verif.nombre}`;
       // La contraseña va atada al mail: con otro canal de verificación no aplica.
       togglePasswordLogin.hidden = verif.canal !== 'email';
+      if (verif.canal !== 'email') setModoLogin('codigo');
     }
   } catch {
     googleButton.hidden = true;
