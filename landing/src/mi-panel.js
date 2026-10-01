@@ -333,7 +333,7 @@ togglePasswordLogin.addEventListener('click', () => {
   passwordLoginField.hidden = !mostrar;
   sendOtpButton.hidden = mostrar;
   otpField.hidden = true;
-  togglePasswordLogin.textContent = mostrar ? 'Mejor mandame un código' : 'Tengo contraseña';
+  togglePasswordLogin.textContent = mostrar ? 'Entrar con código' : 'Entrar con contraseña';
   setStatus(loginStatus, '', '');
   (mostrar ? loginPasswordInput : loginWhatsapp).focus();
 });
@@ -396,6 +396,9 @@ logoutButton.addEventListener('click', async () => {
   sendOtpButton.textContent = 'Enviar código';
   loginStatus.textContent = '';
   loginPasswordInput.value = '';
+  passwordLoginField.hidden = true;
+  sendOtpButton.hidden = false;
+  togglePasswordLogin.textContent = 'Entrar con contraseña';
   cuenta = null;
   accountBox.hidden = true;
   setStatus(passwordStatus, '', '');

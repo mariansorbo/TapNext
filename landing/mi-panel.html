@@ -27,7 +27,18 @@
           <input type="text" id="login-whatsapp" name="email" autocomplete="username" placeholder="">
         </label>
       </div>
-      <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
+      <div class="modal-form" id="password-login-field" hidden>
+        <label>
+          <span>Contraseña</span>
+          <input type="password" id="login-password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn-primary panel-btn modal-submit" id="confirm-login-password">Ingresar</button>
+      </div>
+
+      <div class="panel-login-actions">
+        <button type="button" class="btn-primary panel-btn" id="send-login-otp">Enviar código</button>
+        <button type="button" class="btn-outline" id="toggle-password-login">Entrar con contraseña</button>
+      </div>
 
       <div class="modal-form panel-otp-form" id="login-otp-field" hidden>
         <label>
@@ -37,14 +48,6 @@
         <button type="button" class="btn-primary panel-btn modal-submit" id="confirm-login-otp">Ingresar</button>
       </div>
 
-      <div class="modal-form" id="password-login-field" hidden>
-        <label>
-          <span>Contraseña</span>
-          <input type="password" id="login-password" name="password" autocomplete="current-password">
-        </label>
-        <button type="submit" class="btn-primary panel-btn modal-submit" id="confirm-login-password">Ingresar</button>
-      </div>
-      <button type="button" class="link-inline" id="toggle-password-login">Tengo contraseña</button>
     </form>
     <p class="modal-status" id="login-status"></p>
 

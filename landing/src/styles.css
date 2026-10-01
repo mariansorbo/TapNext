@@ -574,6 +574,16 @@ body.modal-open{overflow:hidden;}
 /* PANEL (mi-panel.html) */
 .panel-login-form{max-width:360px;}
 .panel-btn{margin-top:16px;}
+.panel-login-actions{display:flex; flex-wrap:wrap; gap:10px; max-width:360px; margin-top:16px;}
+.panel-login-actions .btn-primary, .panel-login-actions .btn-outline{margin-top:0;}
+/* Botón secundario con borde, mismo tamaño que .btn-primary (el .btn-ghost
+   del sitio es un link subrayado y acá se perdía). */
+.btn-outline{
+  background:transparent; color:var(--paper); font-weight:600; font-family:var(--body);
+  padding:14px 22px; border-radius:10px; font-size:0.95rem; border:1px solid rgba(237,239,233,0.35);
+  cursor:pointer; transition:border-color .2s ease, background .2s ease;
+}
+.btn-outline:hover{border-color:var(--paper); background:rgba(237,239,233,0.06);}
 #login-otp-field{max-width:360px;}
 .panel-divider{
   display:flex; align-items:center; gap:12px; margin:24px 0 0; max-width:360px;
@@ -785,6 +795,7 @@ details[open] .add-icon{transform:rotate(45deg);}
   .tag-stage{max-width:220px; margin:0 auto;}
   .cta-row{flex-direction:column; align-items:flex-start; gap:18px;}
   .btn-primary{width:100%; text-align:center;}
+  .panel-login-actions .btn-outline{width:100%; text-align:center;}
   section .wrap{padding:0 20px;}
   h2{margin-bottom:32px;}
   .video-card{flex:0 0 190px;}
