@@ -314,7 +314,7 @@ export function crearVisitasRouter() {
 
 // Versión vigente de los TyC de compra. Subirla cada vez que cambie el texto
 // de terminos.html / el modal del wizard (y la fecha que muestran).
-export const TYC_VERSION = '1 (2026-09-05)';
+export const TYC_VERSION = '2 (2026-09-30)';
 
 export async function registrarAceptacionTyc(req, { ventaId, compradorId, stickerId = null, contexto }) {
   const cliente = datosDelCliente(req);
