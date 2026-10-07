@@ -218,6 +218,13 @@ pagarButton.addEventListener('click', async () => {
     emailInput.focus();
     return;
   }
+  // Mi panel prellena el login con este mail (misma clave que mi-panel.js):
+  // al volver de Mercado Pago no hay sesión y tiene que entrar con código.
+  try {
+    localStorage.setItem('tap_ultimo_email', email);
+  } catch {
+    /* sin storage: escribe el mail a mano */
+  }
 
   if (infoActual?.liberada) {
     await flujoGratis(email);

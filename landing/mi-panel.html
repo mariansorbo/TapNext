@@ -19,60 +19,50 @@
     <div class="kicker">Mi panel</div>
     <h2>Entrá a tu panel.</h2>
 
-    <!-- Paso 1: mail + contraseña (lo estándar). -->
+    <!-- Pantalla 1: el mail. Primera vez o no, es lo mismo. -->
     <form id="login-form" class="panel-login" autocomplete="on">
-      <p class="lead">Entrá con tu mail y tu contraseña.</p>
+      <p class="lead">Escribí tu mail y te mandamos un código para entrar.</p>
       <div class="modal-form">
         <label>
-          <span>Email</span>
-          <input type="email" id="login-email" name="email" autocomplete="username" placeholder="vos@ejemplo.com">
+          <span>Tu mail</span>
+          <input type="email" id="login-email" name="email" autocomplete="username" inputmode="email" placeholder="vos@ejemplo.com">
         </label>
+      </div>
+      <button type="submit" class="btn-primary panel-btn-full">Continuar</button>
+      <p class="panel-hint">Usá el mail con el que compraste o activaste tu producto. No hace falta registrarse.</p>
+    </form>
+
+    <!-- Pantalla 2: el código que llegó al mail. -->
+    <form id="code-form" class="panel-login" hidden>
+      <p class="lead" id="code-lead">Te mandamos un código al mail.</p>
+      <div class="modal-form">
+        <label>
+          <span>Código de 6 dígitos</span>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" id="login-code" class="input-codigo" placeholder="000000">
+          <small class="field-hint">Si no lo ves, revisá Spam o Promociones. Puede tardar un minuto.</small>
+        </label>
+      </div>
+      <button type="submit" class="btn-primary panel-btn-full">Entrar</button>
+      <div class="panel-login-actions">
+        <button type="button" class="link-sutil" id="code-resend">Reenviar código</button>
+        <button type="button" class="link-sutil" data-otro-mail>Usar otro mail</button>
+      </div>
+      <p class="panel-hint">¿Creaste una contraseña? <button type="button" class="link-sutil" id="to-password">Entrar con contraseña</button></p>
+    </form>
+
+    <!-- Alternativa: contraseña (solo para quien la creó desde el panel). -->
+    <form id="password-login-form" class="panel-login" autocomplete="on" hidden>
+      <p class="lead">Entrá con tu contraseña.</p>
+      <p class="panel-mail-actual"><b id="password-login-email"></b> <button type="button" class="link-sutil" data-otro-mail>Cambiar</button></p>
+      <input type="email" id="password-login-username" name="email" autocomplete="username" hidden>
+      <div class="modal-form">
         <label>
           <span>Contraseña</span>
           <input type="password" id="login-password" name="password" autocomplete="current-password">
         </label>
       </div>
-      <div class="panel-login-actions">
-        <button type="submit" class="btn-primary">Entrar</button>
-        <button type="button" class="link-sutil" id="forgot-password">Olvidé mi contraseña</button>
-      </div>
-      <p class="panel-hint">¿Primera vez? <button type="button" class="link-sutil" id="first-time">Creá tu contraseña</button></p>
-    </form>
-
-    <!-- Paso 2: código que llegó al mail. -->
-    <form id="reset-code-form" class="panel-login" hidden>
-      <p class="lead" id="reset-code-lead">Te mandamos un código al mail.</p>
-      <div class="modal-form">
-        <label>
-          <span>Código</span>
-          <input type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" id="reset-code" placeholder="000000">
-        </label>
-      </div>
-      <div class="panel-login-actions">
-        <button type="submit" class="btn-primary">Continuar</button>
-        <button type="button" class="link-sutil" id="reset-resend">Reenviar código</button>
-        <button type="button" class="link-sutil" id="reset-back">Volver</button>
-      </div>
-    </form>
-
-    <!-- Paso 3: contraseña nueva (ya con sesión abierta por el código). -->
-    <form id="reset-password-form" class="panel-login" hidden>
-      <p class="lead" id="reset-password-lead">Elegí tu contraseña nueva.</p>
-      <input type="email" id="reset-username" name="email" autocomplete="username" hidden>
-      <div class="modal-form">
-        <label>
-          <span>Nueva contraseña</span>
-          <input type="password" id="reset-password" autocomplete="new-password" minlength="8" maxlength="64">
-          <small class="field-hint">Mínimo 8 caracteres. Mejor una frase larga que una palabra rara.</small>
-        </label>
-        <label>
-          <span>Repetila</span>
-          <input type="password" id="reset-password-2" autocomplete="new-password" minlength="8" maxlength="64">
-        </label>
-      </div>
-      <div class="panel-login-actions">
-        <button type="submit" class="btn-primary">Guardar y entrar</button>
-      </div>
+      <button type="submit" class="btn-primary panel-btn-full">Entrar</button>
+      <p class="panel-hint">¿No te acordás? <button type="button" class="link-sutil" id="to-code">Mandame un código</button></p>
     </form>
     <p class="modal-status" id="login-status"></p>
 
@@ -84,11 +74,19 @@
 <section class="buy-hero" id="dashboard-view" hidden>
   <div class="wrap">
     <div class="kicker">Mi panel</div>
-    <h2 id="dashboard-title">Tus productos</h2>
-    <p class="lead">Elegí un producto para ver o cambiar a dónde redirige.</p>
-    <button type="button" class="btn-ghost" id="logout-button">Cerrar sesión</button>
+    <h2 id="dashboard-title">Hola</h2>
+    <p class="lead">Acá ves a dónde lleva cada producto cuando alguien lo toca con el celular. Lo podés cambiar cuando quieras.</p>
 
-    <h3 class="sticker-list-title">Mis NFC's</h3>
+    <!-- Sugerencia de contraseña: aparece al entrar por código si la cuenta no tiene. -->
+    <div class="panel-aviso" id="password-sugerencia" hidden>
+      <p><b>¿Querés entrar más rápido la próxima vez?</b> Creá una contraseña y no vas a necesitar el código.</p>
+      <div class="panel-aviso-actions">
+        <button type="button" class="btn-primary" id="sugerencia-crear">Crear contraseña</button>
+        <button type="button" class="link-sutil" id="sugerencia-cerrar">Ahora no</button>
+      </div>
+    </div>
+
+    <h3 class="sticker-list-title">Tus productos</h3>
     <div class="sticker-list" id="sticker-list"></div>
 
     <div class="account-box" id="account-box" hidden>
@@ -105,7 +103,7 @@
           <label id="password-actual-field" hidden>
             <span>Contraseña actual</span>
             <input type="password" id="password-actual" autocomplete="current-password">
-            <small class="field-hint">Si no la recordás, cerrá sesión y usá "Olvidé mi contraseña".</small>
+            <small class="field-hint">Si no la recordás, dejala vacía: te pedimos un código por mail.</small>
           </label>
           <label>
             <span>Nueva contraseña</span>
@@ -133,7 +131,10 @@
 
       <button type="button" class="btn-ghost" id="password-abrir">Crear contraseña</button>
       <p class="modal-status" id="password-status"></p>
+
     </div>
+
+    <p class="panel-logout"><button type="button" class="link-sutil" id="logout-button">Cerrar sesión</button></p>
   </div>
 </section>
 
