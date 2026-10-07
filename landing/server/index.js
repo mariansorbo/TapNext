@@ -16,6 +16,7 @@ import { enviarCorreo, correoDisponible, mailCompraComprador, mailVentaVendedor,
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { montarConsolaSticker } from './consola-sticker.js';
+import { montarEdicionForzada } from './edicion-forzada.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
 import { crearDespachoRouter } from './despacho.js';
 import {
@@ -267,6 +268,20 @@ montarConsolaSticker(app, {
   registrarEventoAdmin,
   esLoteEspecial,
   DESTINO_TIPOS,
+});
+
+// Edición forzada (botón 🧪 del panel, para pruebas) — función + valor del
+// destino de cualquier chip, sin importar estado. Ver server/edicion-forzada.js.
+montarEdicionForzada(app, {
+  get,
+  run,
+  requireAdmin,
+  transicionarSticker,
+  registrarEventoAdmin,
+  DESTINO_TIPOS,
+  DESTINO_META,
+  normalizarDestino,
+  PUBLIC_ROUTER_BASE,
 });
 
 // --- Auth: OTP passwordless, canal de verificación intercambiable (RF-12/RF-13) ---

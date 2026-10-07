@@ -63,6 +63,9 @@
           <button type="button" class="admin-add-btn" id="toggle-consola-sticker" title="Editar sticker: cargá un código, mirá su estado en el ciclo y corregí vendedor / función / modelo en tanda. Para cuando tenés un pedazo de stock en la mano.">
             <span class="add-icon">✏️</span> Editar sticker
           </button>
+          <button type="button" class="admin-add-btn" id="toggle-edicion-forzada" title="Edición forzada (pruebas): cambiá la función y el valor del destino de cualquier chip, en cualquier estado. Queda en la bitácora.">
+            <span class="add-icon">🧪</span> Edición forzada
+          </button>
           <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
             <span class="add-icon">$</span> Precios
           </button>
@@ -384,6 +387,49 @@
       <button type="button" class="btn-primary modal-submit" id="consola-guardar">Guardar cambios</button>
     </div>
     <div class="admin-table" id="consola-log"></div>
+  </div>
+</div>
+
+<!-- Modal: edición forzada (pruebas) — función + valor del destino -->
+<div class="modal-overlay" id="forzada-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="forzada-modal-close">✕</button>
+    <h3>🧪 Edición forzada</h3>
+    <p class="modal-sub">Para pruebas: cambiá la función y el valor del destino de cualquier chip, sin importar su estado. Queda anotado en la bitácora.</p>
+    <div class="modal-form">
+      <label>
+        <span>Código / UID / URL</span>
+        <input type="text" id="forzada-q" placeholder="abc123, 04a2b3c4… o link pegado" autocomplete="off">
+      </label>
+    </div>
+    <p class="modal-status" id="forzada-status"></p>
+    <div id="forzada-panel" hidden>
+      <div class="wizard-summary" id="forzada-estado"></div>
+      <div class="modal-form">
+        <label>
+          <span>Función</span>
+          <select id="forzada-funcion"></select>
+        </label>
+        <label>
+          <span id="forzada-valor-label">Valor</span>
+          <input type="text" id="forzada-valor" autocomplete="off">
+          <small class="admin-muted" id="forzada-valor-ayuda"></small>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;">
+          <input type="checkbox" id="forzada-sin-validar" style="width:auto;">
+          <span>Guardar sin validar (tal cual lo escribí)</span>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;" id="forzada-activo-row">
+          <input type="checkbox" id="forzada-activo" style="width:auto;">
+          <span>Forzar estado a activo (para que el tap siga el destino)</span>
+        </label>
+        <label>
+          <span>Motivo (opcional)</span>
+          <input type="text" id="forzada-motivo" placeholder="prueba forzada" autocomplete="off">
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="forzada-guardar">Forzar cambios</button>
+    </div>
   </div>
 </div>
 

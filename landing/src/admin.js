@@ -2,6 +2,7 @@ import './styles.css';
 import { applyBrand } from './brand.js';
 import { initNfcGrabar } from './nfc-grabar.js';
 import { initConsolaSticker } from './consola-sticker.js';
+import { initEdicionForzada } from './edicion-forzada.js';
 import { initDespacho } from './despacho.js';
 import { modoCeldaHtml, wireModoButtons, MODO_INFO } from './modo-activacion-ui.js';
 
@@ -1438,6 +1439,8 @@ initConsolaSticker({
   getVendedores: () => vendedoresCache,
   onChange: () => { loadStickers(); },
 });
+
+initEdicionForzada({ api, onChange: () => { loadStickers(); } });
 
 initDespacho({ api });
 
