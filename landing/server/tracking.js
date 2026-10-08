@@ -204,6 +204,9 @@ const EVENTOS = new Set([
   'contacto_verificado',
   'pago_iniciado',
   'volvio_de_pago',
+  'sorteo_visto',
+  'sorteo_seguir',
+  'sorteo_participo',
 ]);
 
 // Las dos rutas las llama src/visita.js a través del rewrite de Vercel

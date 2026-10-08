@@ -160,6 +160,35 @@
       <div class="admin-table admin-table--scroll" id="envios-table"></div>
     </div>
 
+    <!-- Sorteo de Instagram (QR del disfraz) — ver server/sorteo.js -->
+    <div class="admin-section" id="sorteo-section">
+      <div class="admin-section-head">
+        <h3>Sorteo Instagram</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="sorteo-csv-btn"><span class="add-icon">⬇</span> CSV</button>
+          <button type="button" class="admin-add-btn" id="sorteo-sortear-btn"><span class="add-icon">🎲</span> Sortear</button>
+        </div>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;" id="sorteo-resumen"></p>
+      <div class="sorteo-ruleta" id="sorteo-ruleta" hidden></div>
+
+      <div class="sorteo-marcar">
+        <p class="section-lead" style="margin:0 0 8px;">Sumar chances en bloque: pegá el texto de las notificaciones o DMs de Instagram ("@juan te mencionó en su historia"), o la lista de seguidores copiada. Se marcan los @ que estén anotados.</p>
+        <div class="sorteo-marcar-fila">
+          <select id="sorteo-marcar-campo">
+            <option value="historia">Subieron historia (+1)</option>
+            <option value="posteo">Hicieron posteo (+1)</option>
+            <option value="sigue">Siguen la cuenta</option>
+          </select>
+          <button type="button" class="btn-primary" id="sorteo-marcar-btn" style="width:auto;">Marcar</button>
+        </div>
+        <textarea id="sorteo-marcar-texto" rows="4" placeholder="@juan.perez te mencionó en su historia&#10;@maru_g te mencionó en su historia"></textarea>
+        <p class="modal-status" id="sorteo-marcar-status"></p>
+      </div>
+
+      <div class="admin-table admin-table--scroll" id="sorteo-table"></div>
+    </div>
+
     <!-- Comisiones -->
     <div class="admin-section">
       <h3>Comisiones</h3>

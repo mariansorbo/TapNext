@@ -941,3 +941,73 @@ details[open] .add-icon{transform:rotate(45deg);}
   border-top:1px solid var(--line); font-size:0.78rem; color:var(--paper-dim);
 }
 .comision-stats b{display:block; color:var(--paper); font-family:var(--mono); font-size:1rem; margin-top:3px;}
+
+/* SORTEO (modal del QR del disfraz, ver src/sorteo.js) */
+.sorteo-badge{
+  display:inline-block; font-family:var(--mono); font-size:0.72rem; letter-spacing:0.04em;
+  color:var(--amber); border:1px solid rgba(242,184,75,0.35); border-radius:999px;
+  padding:4px 10px; margin-bottom:14px;
+}
+.sorteo-modal .modal-sub{margin-bottom:18px;}
+.sorteo-pasos{list-style:none; display:flex; flex-direction:column; gap:10px; margin-bottom:18px;}
+.sorteo-pasos li{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+  font-size:0.92rem;
+}
+.sorteo-pasos li > div{flex:1; min-width:120px;}
+.sorteo-num{
+  width:24px; height:24px; border-radius:50%; flex:none;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--violet); color:var(--paper); font-family:var(--mono); font-size:0.78rem;
+}
+.sorteo-seguir{
+  display:inline-block; text-decoration:none; font-weight:600; font-size:0.85rem;
+  color:var(--paper); padding:9px 14px; border-radius:10px;
+  background:linear-gradient(45deg,#F58529,#DD2A7B 45%,#8134AF 80%);
+}
+.sorteo-seguir--full{display:block; text-align:center; margin:18px 0 10px; padding:13px 14px; font-size:0.95rem;}
+.sorteo-arroba{display:flex; align-items:stretch;}
+.sorteo-arroba span{
+  display:flex; align-items:center; padding:0 10px; color:var(--paper-dim);
+  border:1px solid var(--line); border-right:none; border-radius:8px 0 0 8px; background:var(--surface-2);
+}
+.sorteo-arroba input{flex:1; min-width:0; border-radius:0 8px 8px 0 !important;}
+/* 16px: con menos, iOS hace zoom al tocar el campo */
+.sorteo-modal .modal-form input[type="text"]{font-size:16px;}
+.sorteo-hp{position:absolute; left:-9999px; width:1px; height:1px; opacity:0;}
+.sorteo-modal .modal-check a{color:var(--violet);}
+.sorteo-extra{
+  background:var(--surface-2); border:1px dashed rgba(123,92,255,0.5); border-radius:12px;
+  padding:14px 16px; font-size:0.9rem;
+}
+.sorteo-extra ul{list-style:none; margin-top:8px; display:flex; flex-direction:column; gap:6px; color:var(--paper-dim);}
+.sorteo-extra ul b{color:var(--paper);}
+.sorteo-pastilla{
+  position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:90;
+  max-width:calc(100% - 32px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  background:var(--violet); color:var(--paper); font:600 0.9rem var(--body);
+  border:none; border-radius:999px; padding:12px 20px; cursor:pointer;
+  box-shadow:0 12px 30px -8px rgba(123,92,255,0.6);
+}
+@media (max-width:480px){
+  .sorteo-modal{padding:28px 20px;}
+}
+
+/* Sorteo — panel admin (src/sorteo-admin.js) */
+.sorteo-marcar{margin-bottom:18px;}
+.sorteo-marcar-fila{display:flex; gap:10px; margin-bottom:8px; flex-wrap:wrap;}
+.sorteo-marcar select, .sorteo-marcar textarea{
+  font:inherit; font-size:0.88rem; color:var(--paper); background:var(--surface-2);
+  border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+}
+.sorteo-marcar textarea{width:100%; resize:vertical; font-family:var(--mono); font-size:0.8rem;}
+.sorteo-ruleta{
+  background:var(--surface); border:1px solid var(--violet); border-radius:16px;
+  padding:28px 20px; margin-bottom:20px; text-align:center;
+}
+.sorteo-ruleta-nombre{font-family:var(--display); font-size:clamp(1.6rem,6vw,2.8rem); font-weight:700; color:var(--violet); word-break:break-all;}
+.sorteo-ruleta-info{margin-top:14px; font-size:0.9rem; color:var(--paper-dim); line-height:1.6;}
+.sorteo-ruleta-info a{color:var(--violet);}
+.sorteo-ruleta-acciones{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
+.sorteo-ruleta-acciones .btn-primary, .sorteo-ruleta-acciones .btn-ghost{width:auto;}

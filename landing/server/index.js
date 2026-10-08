@@ -30,6 +30,7 @@ import {
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
+import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -130,6 +131,9 @@ app.use(express.json());
 
 // Páginas vistas de la landing (beacon anónimo, ver server/tracking.js).
 app.use('/api', crearVisitasRouter());
+
+// Sorteo de Instagram (disfraz del cubo QR) — ver server/sorteo.js.
+app.use('/api/sorteo', crearSorteoRouter());
 
 function isoInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
@@ -2679,6 +2683,7 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
 // Modo de activación (bloqueada / liberada / gratis) por sticker y por lote.
 // Ver server/modo-activacion.js.
 app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
+app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
 
 // Cola de entrega y botón de despacho (late binding). Ver server/despacho.js y
 // "Cola de entrega y botón de despacho" en el vault. El router aplica

@@ -31,6 +31,7 @@ export default defineConfig({
         admin: resolve(root, 'admin.html'),
         vendedor: resolve(root, 'vendedor.html'),
         demo: resolve(root, 'demo.html'),
+        sorteo: resolve(root, 'sorteo.html'),
       },
     },
   },

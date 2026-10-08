@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Bases del sorteo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo" data-brand-logo></a>
+  <div class="nav-actions">
+    <a href="/" class="nav-cta">Volver al inicio</a>
+  </div>
+</nav>
+
+<section class="buy-hero">
+  <div class="wrap">
+    <div class="kicker">Legales</div>
+    <h2>Bases y condiciones del sorteo</h2>
+    <p class="lead">Sorteo de <span data-sorteo="premioCorto"></span>. Participar es gratis y sin obligación de compra.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="tyc-body legal-page-body">
+      <h4>1. Organizador</h4>
+      <p>El sorteo lo organiza NextTap (next-tap.tech), con domicilio en la Ciudad de Buenos Aires, Argentina ("el Organizador").</p>
+
+      <h4>2. Vigencia</h4>
+      <p>Se puede participar desde la publicación de estas bases hasta el <span data-sorteo="cierreTexto"></span>. Las participaciones posteriores no se tienen en cuenta.</p>
+
+      <h4>3. Quiénes pueden participar</h4>
+      <p>Personas humanas mayores de 18 años (o menores con autorización de su madre, padre o tutor) con domicilio en la República Argentina y una cuenta de Instagram pública o visible para el Organizador. No pueden participar empleados ni vendedores del Organizador.</p>
+
+      <h4>4. Cómo participar</h4>
+      <p>(a) Seguir la cuenta <b>@<span data-sorteo="instagram"></span></b> en Instagram, y (b) completar el formulario de next-tap.tech con el usuario de Instagram y un WhatsApp o mail de contacto. Se admite una participación por usuario de Instagram. <b>No es necesario comprar nada para participar ni para ganar.</b></p>
+
+      <h4>5. Chances adicionales (opcional)</h4>
+      <p>Cada participante tiene 1 chance. Suma 1 chance más si publica una historia etiquetando a @<span data-sorteo="instagram"></span> y 1 más si publica un posteo etiquetándola, mientras el sorteo esté vigente (máximo 3 chances). El Organizador verifica las publicaciones a través de las menciones que recibe en la cuenta.</p>
+
+      <h4>6. Premio</h4>
+      <p>Se eligen dos (2) ganadores. Cada uno recibe <span data-sorteo="premio"></span>, configurados por el Organizador con los datos que indique el ganador. El premio no se puede cambiar por dinero ni por otros productos. Se entrega en persona en CABA / GBA o por envío a domicilio a cargo del Organizador dentro de Argentina.</p>
+
+      <h4>7. Sorteo y elección del ganador</h4>
+      <p>El sorteo se realiza el <span data-sorteo="fechaSorteoTexto"></span> mediante un sistema de selección al azar que asigna a cada participante tantos boletos como chances tenga. Se transmite o publica en las historias de @<span data-sorteo="instagram"></span>. Los ganadores se eligen de a uno; quien ya ganó no vuelve a participar de la siguiente elección. Si el participante elegido no sigue la cuenta o no cumple estas bases, queda descalificado y se sortea de nuevo.</p>
+
+      <h4>8. Aviso y reclamo del premio</h4>
+      <p>Los ganadores se anuncian en Instagram y se les escribe por mensaje directo y al contacto que dejaron. Cada uno tiene 7 días corridos desde el aviso para responder; si no responde, se sortea un nuevo ganador en su lugar. El Organizador nunca pide datos bancarios, claves ni pagos para entregar el premio.</p>
+
+      <h4>9. Datos personales</h4>
+      <p>El usuario de Instagram y el contacto se usan para gestionar este sorteo y avisar al ganador, y para comunicaciones de NextTap que el participante puede pedir dejar de recibir cuando quiera. El titular puede ejercer sus derechos de acceso, rectificación y supresión (Ley 25.326) escribiendo a ventas@next-tap.tech. La Agencia de Acceso a la Información Pública es el órgano de control de esa ley.</p>
+
+      <h4>10. Instagram</h4>
+      <p>Esta promoción no está patrocinada, avalada, administrada ni asociada de ninguna forma con Instagram ni con Meta Platforms, Inc. Cada participante libera a Instagram de toda responsabilidad.</p>
+
+      <h4>11. Aceptación</h4>
+      <p>Participar implica aceptar estas bases. El Organizador puede descalificar participaciones falsas, duplicadas o automatizadas.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-bottom">
+    <span>Buenos Aires, Argentina</span>
+    <span><a href="/terminos-de-uso.html">Términos de uso</a> · © 2026 NextTap</span>
+  </div>
+</footer>
+
+<script type="module">
+  import '/src/styles.css';
+  import { applyBrand } from '/src/brand.js';
+  import { SORTEO } from '/src/sorteo-config.js';
+  applyBrand('Bases del sorteo');
+  document.querySelectorAll('[data-sorteo]').forEach((el) => {
+    el.textContent = SORTEO[el.dataset.sorteo] ?? '';
+  });
+</script>
+</body>
+</html>
