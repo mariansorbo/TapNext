@@ -1011,3 +1011,14 @@ details[open] .add-icon{transform:rotate(45deg);}
 .sorteo-ruleta-info a{color:var(--violet);}
 .sorteo-ruleta-acciones{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
 .sorteo-ruleta-acciones .btn-primary, .sorteo-ruleta-acciones .btn-ghost{width:auto;}
+.sorteo-pasos li{opacity:0.55;}
+.sorteo-pasos li.is-actual{opacity:1; border-color:var(--violet);}
+.sorteo-x2-mini{margin-top:14px; font-size:0.82rem; color:var(--paper-dim); text-align:center;}
+.sorteo-x2-mini b{color:var(--paper);}
+.sorteo-aviso{
+  background:rgba(242,184,75,0.1); border:1px solid rgba(242,184,75,0.5); border-radius:12px;
+  padding:14px 16px; font-size:0.98rem; line-height:1.45; margin-top:6px;
+}
+.sorteo-aviso b{color:var(--amber);}
+.sorteo-extra p{margin-top:6px; color:var(--paper-dim); line-height:1.45;}
+.sorteo-extra p b{color:var(--paper);}

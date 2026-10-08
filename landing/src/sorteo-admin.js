@@ -41,7 +41,7 @@ export function initSorteoAdmin({ api }) {
     const ganadores = ps.filter((p) => p.ganador_en);
     resumen.innerHTML = `
       <b>${ps.length}</b> anotados · <b>${boletos}</b> boletos ·
-      ${ps.filter((p) => p.historia).length} con historia · ${ps.filter((p) => p.posteo).length} con posteo ·
+      ${ps.filter((p) => p.historia).length} con historia (x2) ·
       ${abierto ? `abierto hasta el ${esc(sorteo.cierreTexto)}` : '<b>cerrado</b> — listo para sortear'}
       <br>🏆 Ganadores ${ganadores.length}/${sorteo.ganadores}${ganadores.length ? ': ' + ganadores.map((g) => `<b>@${esc(g.instagram)}</b>`).join(', ') : ''}`;
     btnSortear.innerHTML = `<span class="add-icon">🎲</span> Sortear ${Math.min(ganadores.length + 1, sorteo.ganadores)}º ganador`;
@@ -62,7 +62,6 @@ export function initSorteoAdmin({ api }) {
         <td>${contacto}</td>
         <td><button type="button" class="row-btn" data-ciclo-sigue>${sigue}</button></td>
         <td><input type="checkbox" data-campo="historia"${p.historia ? ' checked' : ''}></td>
-        <td><input type="checkbox" data-campo="posteo"${p.posteo ? ' checked' : ''}></td>
         <td><b>${p.chances}</b></td>
         <td>${estado}</td>
         <td><small>${fecha(p.creado_en)}</small></td>
@@ -70,7 +69,7 @@ export function initSorteoAdmin({ api }) {
       </tr>`;
     });
     tabla.innerHTML = `<table><thead><tr>
-      <th>Instagram</th><th>Contacto</th><th>Sigue</th><th>Historia</th><th>Posteo</th><th>Chances</th><th></th><th>Anotado</th><th></th>
+      <th>Instagram</th><th>Contacto</th><th>Sigue</th><th>Historia (x2)</th><th>Chances</th><th></th><th>Anotado</th><th></th>
     </tr></thead><tbody>${filas.join('')}</tbody></table>`;
   }
 
@@ -122,7 +121,7 @@ export function initSorteoAdmin({ api }) {
   });
 
   btnCsv.addEventListener('click', () => {
-    const cols = ['instagram', 'contacto', 'contacto_tipo', 'sigue', 'historia', 'posteo', 'chances', 'descalificado', 'ganador_en', 'creado_en'];
+    const cols = ['instagram', 'contacto', 'sigue', 'historia', 'chances', 'descalificado', 'ganador_en', 'creado_en'];
     const csv = [cols.join(',')]
       .concat(datos.participantes.map((p) => cols.map((c) => `"${String(p[c] ?? '').replace(/"/g, '""')}"`).join(',')))
       .join('\n');

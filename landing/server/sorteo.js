@@ -7,8 +7,8 @@
 //           POST  /api/admin/sorteo/marcar           → { campo, texto }: pega una lista de @ y los marca
 //           POST  /api/admin/sorteo/sortear          → saca un ganador al azar, ponderado por chances
 //
-// Chances: 1 por participar + 1 si subió historia etiquetando la cuenta + 1 si
-// hizo un posteo etiquetándola. Instagram no deja leer seguidores ni historias
+// Chances: 1 por participar, x2 si subió una historia arrobando la cuenta (la
+// columna posteo quedó de la primera versión y ya no suma). Instagram no deja leer seguidores ni historias
 // ajenas sin una app aprobada por Meta, así que eso se carga desde el admin:
 // pegando los @ que aparecen en las notificaciones / DMs ("te mencionó en su
 // historia") o en la lista de seguidores. Seguir la cuenta se verifica sobre
@@ -44,7 +44,7 @@ await db.executeMultiple(`
 `);
 
 const CAMPOS_MARCABLES = ['sigue', 'historia', 'posteo', 'descalificado'];
-export const chances = (p) => 1 + (p.historia ? 1 : 0) + (p.posteo ? 1 : 0);
+export const chances = (p) => (p.historia ? 2 : 1); // historia arrobando la cuenta = x2
 
 // Todos los @ que aparezcan en un texto pegado (notificaciones, DMs, lista de
 // seguidores copiada de la web). Con o sin @, uno por línea o mezclados.
@@ -108,8 +108,9 @@ export function crearSorteoRouter() {
 
     const instagram = normalizarInstagram(body.instagram);
     if (!instagram) return res.status(400).json({ error: 'Revisá tu usuario de Instagram.' });
+    // El form pide solo mail (normalizarContacto también acepta WhatsApp, por si vuelve).
     const contacto = normalizarContacto(body.contacto);
-    if (!contacto) return res.status(400).json({ error: 'Dejanos un WhatsApp o un mail válido para avisarte si ganás.' });
+    if (!contacto || contacto.tipo !== 'email') return res.status(400).json({ error: 'Dejanos un mail válido para avisarte si ganás.' });
     if (body.aceptaBases !== true) return res.status(400).json({ error: 'Tenés que aceptar las bases del sorteo.' });
 
     const cliente = datosDelCliente(req);
@@ -185,7 +186,7 @@ export function crearSorteoAdminRouter() {
   // Devuelve también los @ que no están anotados (mencionaron pero no se anotaron).
   router.post('/sorteo/marcar', async (req, res) => {
     const campo = req.body?.campo;
-    if (!['sigue', 'historia', 'posteo'].includes(campo)) return res.status(400).json({ error: 'Campo inválido.' });
+    if (!['sigue', 'historia'].includes(campo)) return res.status(400).json({ error: 'Campo inválido.' });
     const handles = extraerHandles(req.body?.texto);
     if (!handles.length) return res.status(400).json({ error: 'No encontré ningún @ en el texto.' });
     const { rows } = await db.execute({

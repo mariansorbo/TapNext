@@ -6,13 +6,14 @@
 export const SORTEO = {
   slug: 'disfraz-2026-10',
   instagram: 'nexttap.tech',
-  premio: '2 llaveros NextTap personalizados: uno que abre su Instagram y otro que abre su WhatsApp',
-  premioCorto: '2 llaveros NextTap para cada uno de los 2 ganadores (uno de Instagram y uno de WhatsApp)',
+  premio: 'un combo de 2 llaveros NextTap personalizados: uno que abre su Instagram y otro que abre su WhatsApp',
+  premioCorto: '2 combos de llaveros NextTap Instagram + WhatsApp',
   ganadores: 2,
-  // Domingo 11/10 23:59:59 hora argentina (UTC-3).
-  cierre: '2026-10-12T02:59:59Z',
-  cierreTexto: 'domingo 11 de octubre de 2026 a las 23:59 (hora argentina)',
-  fechaSorteoTexto: 'lunes 12 de octubre de 2026',
+  // Se puede participar hasta el momento del sorteo: lunes 12/10 18:00 hora argentina (UTC-3).
+  cierre: '2026-10-12T21:00:00Z',
+  cierreTexto: 'lunes 12 de octubre de 2026 a las 18:00 (hora argentina)',
+  fechaSorteoTexto: 'lunes 12 de octubre de 2026 a las 18:00 (hora argentina)',
+  fechaCorta: 'lunes 12/10 a las 18 hs',
   // Visitas con este utm_source abren el modal del sorteo solas.
   utmSource: 'disfraz',
 };

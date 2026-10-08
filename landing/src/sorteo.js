@@ -42,19 +42,18 @@ function montar() {
       <button type="button" class="modal-close" aria-label="Cerrar">✕</button>
 
       <div class="sorteo-paso" data-vista="form">
-        <div class="sorteo-badge">🎁 Sorteo gratis</div>
-        <h3 id="sorteo-titulo">Ganate 2 llaveros NextTap</h3>
-        <p class="modal-sub"><b>${SORTEO.ganadores} ganadores</b>, 2 llaveros cada uno: uno que lleva a tu Instagram y otro a tu WhatsApp. Sorteamos el ${SORTEO.fechaSorteoTexto.replace(/ de 2026$/, '')}.</p>
+        <div class="sorteo-badge">🎁 Sorteo gratis · Paso 1 de 2</div>
+        <h3 id="sorteo-titulo">Ganate un combo de llaveros IG + WhatsApp</h3>
+        <p class="modal-sub">Sorteamos <b>${SORTEO.ganadores} combos</b> el ${SORTEO.fechaCorta}. Cada combo: un llavero NextTap que lleva a tu Instagram y otro a tu WhatsApp.</p>
 
         <ol class="sorteo-pasos">
-          <li>
+          <li class="is-actual">
             <span class="sorteo-num">1</span>
-            <div><b>Seguinos</b> en Instagram</div>
-            <a class="sorteo-seguir" href="${IG_URL}" target="_blank" rel="noopener">Seguir @${SORTEO.instagram}</a>
+            <div><b>Anotate</b> acá abajo</div>
           </li>
           <li>
             <span class="sorteo-num">2</span>
-            <div><b>Anotate</b> acá abajo</div>
+            <div><b>Seguinos</b> en Instagram</div>
           </li>
         </ol>
 
@@ -64,8 +63,8 @@ function montar() {
             <div class="sorteo-arroba"><span>@</span><input name="instagram" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="tu.usuario" required></div>
           </label>
           <label>
-            <span>WhatsApp o mail <small>(solo para avisarte si ganás)</small></span>
-            <input name="contacto" type="text" inputmode="email" autocomplete="email" placeholder="11 2345 6789 o vos@mail.com" required>
+            <span>Tu mail <small>(solo para avisarte si ganás)</small></span>
+            <input name="contacto" type="email" inputmode="email" autocomplete="email" autocapitalize="none" placeholder="vos@mail.com" required>
           </label>
           <input name="web" type="text" class="sorteo-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
           <label class="modal-check">
@@ -75,20 +74,20 @@ function montar() {
           <button type="submit" class="btn-primary modal-submit">Participar</button>
           <p class="modal-status" role="status"></p>
         </form>
+        <p class="sorteo-x2-mini">📸 Subí una historia arrobando <b>@${SORTEO.instagram}</b> y tus chances se duplican <b>(x2)</b>.</p>
       </div>
 
       <div class="sorteo-paso" data-vista="listo" hidden>
-        <div class="sorteo-badge">✅ Ya estás participando</div>
-        <h3>¡Adentro, <span data-handle></span>!</h3>
-        <p class="modal-sub">Te avisamos por Instagram y por tu contacto si ganás. Sorteo en vivo el ${SORTEO.fechaSorteoTexto.replace(/ de 2026$/, '')} en @${SORTEO.instagram}.</p>
-        <div class="sorteo-extra">
-          <b>¿Querés más chances?</b>
-          <ul>
-            <li><b>+1</b> subí una historia con el cubo y etiquetá <b>@${SORTEO.instagram}</b></li>
-            <li><b>+1</b> hacé un posteo etiquetando <b>@${SORTEO.instagram}</b></li>
-          </ul>
+        <div class="sorteo-badge">Paso 2 de 2</div>
+        <h3>¡Casi listo, <span data-handle></span>!</h3>
+        <div class="sorteo-aviso">
+          <b>Recordá:</b> solo vas a estar anotado en el sorteo si nos seguís en Instagram.
         </div>
-        <a class="sorteo-seguir sorteo-seguir--full" href="${IG_URL}" target="_blank" rel="noopener">Ir a @${SORTEO.instagram}</a>
+        <a class="sorteo-seguir sorteo-seguir--full" href="${IG_URL}" target="_blank" rel="noopener">Seguir @${SORTEO.instagram}</a>
+        <div class="sorteo-extra">
+          <b>📸 Duplicá tus chances (x2)</b>
+          <p>Subí una historia arrobando <b>@${SORTEO.instagram}</b> (si es con el cubo, mejor). Sorteo en vivo el ${SORTEO.fechaCorta} en @${SORTEO.instagram}.</p>
+        </div>
         <button type="button" class="btn-ghost modal-submit" data-cerrar>Ver cómo funciona el llavero</button>
       </div>
     </div>`;
@@ -110,7 +109,7 @@ function montar() {
     overlay.querySelector('[data-handle]').textContent = `@${handle}`;
     vistaForm.hidden = true;
     vistaListo.hidden = false;
-    pastilla.textContent = '✅ Participando · Sumá chances';
+    pastilla.textContent = '📸 Seguinos + historia = x2 chances';
   }
 
   function abrir() {
@@ -138,7 +137,7 @@ function montar() {
   );
 
   const yaAnotado = leer('localStorage', ANOTADO_KEY);
-  pastilla.textContent = '🎁 Sorteo: ganate 2 llaveros';
+  pastilla.textContent = '🎁 Sorteo: combo de llaveros IG + WhatsApp';
   if (yaAnotado) {
     mostrarListo(yaAnotado);
     cerrar();
@@ -153,7 +152,7 @@ function montar() {
     const datos = Object.fromEntries(new FormData(form));
     status.className = 'modal-status';
     if (!datos.instagram.trim()) return error('Poné tu usuario de Instagram.');
-    if (!datos.contacto.trim()) return error('Dejanos un WhatsApp o mail para avisarte si ganás.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(datos.contacto.trim())) return error('Dejanos un mail válido para avisarte si ganás.');
     if (!form.bases.checked) return error('Tenés que aceptar las bases.');
 
     submit.disabled = true;
