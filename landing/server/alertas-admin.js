@@ -35,7 +35,7 @@ export const pesos = (n) => `$${Number(n || 0).toLocaleString('es-AR', { maximum
 export async function avisarAdmin({ asunto, lineas }) {
   try {
     const cuerpo = lineas.filter((l) => l !== null && l !== undefined && l !== false);
-    const subject = `[NextTap] ${asunto}`;
+    const subject = `[AlToque Tap] ${asunto}`;
     const text = cuerpo.join('\n');
     if (!alertasAdminDisponibles) {
       console.log(`[alerta admin — sin ADMIN_EMAIL_AVISOS] ${subject}\n${text}`);

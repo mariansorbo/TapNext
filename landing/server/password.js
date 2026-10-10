@@ -17,7 +17,7 @@ const BCRYPT_MAX_BYTES = 72;
 const COMUNES = new Set([
   '12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña',
   'contrasena', 'qwertyui', 'qwerty123', 'asdfghjk', '11111111', '00000000',
-  '87654321', 'abcd1234', '1q2w3e4r', 'iloveyou', 'nexttap123', 'nexttap1',
+  '87654321', 'abcd1234', '1q2w3e4r', 'iloveyou', 'nexttap123', 'nexttap1', 'altoquetap', 'altoque123',
 ]);
 
 async function filtradaEnHibp(password) {

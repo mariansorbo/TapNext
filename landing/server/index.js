@@ -530,7 +530,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     // Solo confiamos en el mail de Google si Google dice que está verificado:
     // si no, cualquiera podría crear una cuenta de Google con un mail ajeno y
-    // quedar enganchado a la cuenta NextTap de ese mail.
+    // quedar enganchado a la cuenta AlToque Tap de ese mail.
     const email = profile.email_verified === true && profile.email ? String(profile.email).trim().toLowerCase() : null;
     if (!email) {
       return res.redirect(`${FRONTEND_URL}/mi-panel.html?google_error=email_no_verificado`);
@@ -660,9 +660,9 @@ app.post('/api/me/password', requireAuth, async (req, res) => {
   const habiaPassword = Boolean(comprador.password_hash);
   enviarCorreo({
     to: comprador.email,
-    subject: habiaPassword ? 'Cambiaste tu contraseña de NextTap' : 'Creaste una contraseña en NextTap',
+    subject: habiaPassword ? 'Cambiaste tu contraseña de AlToque Tap' : 'Creaste una contraseña en AlToque Tap',
     text:
-      `${habiaPassword ? 'Se cambió' : 'Se creó'} la contraseña de tu cuenta de NextTap (${comprador.email}).\n\n` +
+      `${habiaPassword ? 'Se cambió' : 'Se creó'} la contraseña de tu cuenta de AlToque Tap (${comprador.email}).\n\n` +
       'Si fuiste vos, no tenés que hacer nada. Si no fuiste vos, entrá a Mi panel con un código por mail ' +
       'y cambiala desde ahí: eso cierra cualquier otra sesión abierta.',
   });
@@ -1142,7 +1142,7 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
 
   try {
     const mpItems = conPromo.map(({ item, precio }) => ({
-      title: `NextTap — ${item.modelo.charAt(0).toUpperCase() + item.modelo.slice(1)}`,
+      title: `AlToque Tap — ${item.modelo.charAt(0).toUpperCase() + item.modelo.slice(1)}`,
       quantity: 1,
       unit_price: precio,
       currency_id: 'ARS',
@@ -1327,7 +1327,7 @@ function estadoCorreo(ok) {
 }
 
 // Aviso de ACTIVACIÓN GRATIS al comprador (no pagó nada). Texto distinto según
-// si es su primer NextTap o ya tenía otros en la cuenta.
+// si es su primer AlToque Tap o ya tenía otros en la cuenta.
 async function notificarActivacionGratis(ventaId) {
   try {
     const venta = await get('SELECT * FROM ventas WHERE id = ?', [ventaId]);
@@ -3207,7 +3207,7 @@ function routerThrottle(req, res, next) {
 }
 
 // Pantalla de marca que se muestra un instante al tapear un sticker activado,
-// antes de mandar al destino. Es la única superficie publicitaria de NextTap que
+// antes de mandar al destino. Es la única superficie publicitaria de AlToque Tap que
 // ve quien tapea el sticker de otra persona (casi siempre un cliente potencial),
 // así que vale ese ~1 s. HTML autónomo servido desde el backend: un request, sin
 // bundle ni llamadas extra. Para quien repite el mismo sticker en <12 h se
@@ -3228,7 +3228,7 @@ function pantallaRedireccion(destino) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap</title>
+<title>AlToque Tap</title>
 <noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1400ms}
@@ -3239,7 +3239,7 @@ function pantallaRedireccion(destino) {
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;
     min-height:100svh;overflow:hidden;-webkit-font-smoothing:antialiased}
   .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;
-    font-size:clamp(2.9rem,17vw,5.5rem);letter-spacing:-.03em;
+    font-size:clamp(2.2rem,11vw,4.5rem);letter-spacing:-.03em;
     opacity:0;transform:translateY(8px) scale(.97);
     animation:rise .22s cubic-bezier(.2,.7,.2,1) forwards}
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;
@@ -3263,7 +3263,7 @@ function pantallaRedireccion(destino) {
 </style>
 </head>
 <body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="mark">AlToque<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
   <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
@@ -3314,7 +3314,7 @@ function pantallaApp({ web, intent }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap</title>
+<title>AlToque Tap</title>
 <noscript><meta http-equiv="refresh" content="0;url=${webHtml}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1200ms}
@@ -3325,7 +3325,7 @@ function pantallaApp({ web, intent }) {
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;
     min-height:100svh;overflow:hidden;-webkit-font-smoothing:antialiased}
   .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;
-    font-size:clamp(2.9rem,17vw,5.5rem);letter-spacing:-.03em;
+    font-size:clamp(2.2rem,11vw,4.5rem);letter-spacing:-.03em;
     opacity:0;transform:translateY(10px) scale(.95);
     animation:rise .45s cubic-bezier(.2,.7,.2,1) forwards}
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;
@@ -3352,7 +3352,7 @@ function pantallaApp({ web, intent }) {
 </style>
 </head>
 <body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="mark">AlToque<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
   <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
   <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
@@ -3402,7 +3402,7 @@ function pantallaNoActivado(codigo, cola = null) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap — producto sin activar</title>
+<title>AlToque Tap — producto sin activar</title>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -3411,7 +3411,7 @@ function pantallaNoActivado(codigo, cola = null) {
     font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:22px;min-height:100svh;padding:32px 24px;text-align:center;-webkit-font-smoothing:antialiased}
-  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.2rem,12vw,3.4rem);letter-spacing:-.03em;margin-bottom:6px}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(1.9rem,9vw,3rem);letter-spacing:-.03em;margin-bottom:6px}
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
   h1{font-size:clamp(1.3rem,6vw,1.8rem);font-weight:600;letter-spacing:-.02em;max-width:16ch}
   p{color:rgba(237,239,233,.62);max-width:32ch;line-height:1.5}
@@ -3426,7 +3426,7 @@ function pantallaNoActivado(codigo, cola = null) {
 </style>
 </head>
 <body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="mark">AlToque<span class="tap">Tap</span></div>
   <h1>Este producto todav&iacute;a no est&aacute; activado.</h1>
   <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
   ${colaBloque}
@@ -3436,7 +3436,7 @@ function pantallaNoActivado(codigo, cola = null) {
 </html>`;
 }
 
-// Función 'alias': pantalla propia de NextTap con los datos de transferencia que
+// Función 'alias': pantalla propia de AlToque Tap con los datos de transferencia que
 // cargó el dueño y un botón que copia el alias al portapapeles. No redirige a
 // ningún lado. `datos` viene del resolver del plugin: { alias, titular, banco,
 // cbu?, cuit? }. HTML autónomo (un request, sin bundle), mismo criterio que
@@ -3466,7 +3466,7 @@ function pantallaAlias(datos = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>NextTap — datos de transferencia</title>
+<title>AlToque Tap — datos de transferencia</title>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -3475,7 +3475,7 @@ function pantallaAlias(datos = {}) {
     font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:14px;min-height:100svh;padding:34px 22px;text-align:center;-webkit-font-smoothing:antialiased}
-  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(1.9rem,10vw,2.8rem);letter-spacing:-.03em;margin-bottom:10px}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(1.6rem,8vw,2.4rem);letter-spacing:-.03em;margin-bottom:10px}
   .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
   .k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(237,239,233,.45)}
   h1{font-size:clamp(1.3rem,6vw,1.7rem);font-weight:600;letter-spacing:-.02em;max-width:20ch}
@@ -3502,7 +3502,7 @@ function pantallaAlias(datos = {}) {
 </style>
 </head>
 <body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+  <div class="mark">AlToque<span class="tap">Tap</span></div>
   <p class="k">Datos de transferencia</p>
   ${titular ? `<h1>${esc(titular)}</h1>` : ''}
   ${banco ? `<p class="banco">${esc(banco)}</p>` : ''}
@@ -3846,7 +3846,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
     const preference = await new Preference(mpClient).create({
       body: {
         items: [
-          { title: `Activación llavero NextTap`, quantity: 1, unit_price: precio, currency_id: 'ARS' },
+          { title: `Activación llavero AlToque Tap`, quantity: 1, unit_price: precio, currency_id: 'ARS' },
         ],
         external_reference: String(venta.id),
         back_urls: {

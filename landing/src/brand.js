@@ -1,7 +1,7 @@
 // Single source of truth for the brand name — change these and it updates everywhere.
-export const BRAND_PREFIX = 'Next';
+export const BRAND_PREFIX = 'AlToque';
 export const BRAND_EMPHASIS = 'Tap';
-export const BRAND_NAME = BRAND_PREFIX + BRAND_EMPHASIS;
+export const BRAND_NAME = `${BRAND_PREFIX} ${BRAND_EMPHASIS}`;
 
 export function applyBrand(titleSuffix) {
   document.querySelectorAll('[data-brand]').forEach((el) => {

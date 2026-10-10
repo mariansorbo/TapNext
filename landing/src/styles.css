@@ -42,7 +42,7 @@ nav{
 .logo .brand-emphasis{
   background:var(--violet); color:var(--ink);
   padding:2px 9px 3px; border-radius:7px; line-height:1.35;
-  margin-left:2px;
+  margin-left:5px;
 }
 .nav-actions{display:flex; align-items:center; gap:20px;}
 .nav-link{font-family:var(--mono); font-size:0.82rem; color:var(--paper-dim); transition:color .2s ease;}

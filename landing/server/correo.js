@@ -73,9 +73,9 @@ export function mailCompraComprador({ items, panelUrl }) {
     .join('');
   const plural = items.length > 1;
   const subject = plural
-    ? `Tu compra en NextTap — IDs ${items.map((i) => i.codigoPublico).join(', ')}`
-    : `Tu compra en NextTap — ID ${items[0].codigoPublico}`;
-  const text = `¡Gracias por tu compra en NextTap!
+    ? `Tu compra en AlToque Tap — IDs ${items.map((i) => i.codigoPublico).join(', ')}`
+    : `Tu compra en AlToque Tap — ID ${items[0].codigoPublico}`;
+  const text = `¡Gracias por tu compra en AlToque Tap!
 
 Tu pago fue confirmado. ${plural ? 'Los productos que vas a recibir son' : 'El producto que vas a recibir es'}:
 
@@ -83,13 +83,13 @@ ${lineasText}
 
 Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID que va impreso en tu'} producto — verificá que coincida con el que te entrega quien te lo vende.
 
-Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu NextTap'} desde tu panel:
+Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu AlToque Tap'} desde tu panel:
 ${panelUrl}`;
-  const html = `<p>¡Gracias por tu compra en <strong>NextTap</strong>!</p>
+  const html = `<p>¡Gracias por tu compra en <strong>AlToque Tap</strong>!</p>
 <p>Tu pago fue confirmado. ${plural ? 'Los productos que vas a recibir son' : 'El producto que vas a recibir es'}:</p>
 <ul>${lineasHtml}</ul>
 <p>Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID que va impreso en tu'} producto — verificá que coincida con el que te entrega quien te lo vende.</p>
-<p>Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu NextTap'} desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
+<p>Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu AlToque Tap'} desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
   return { subject, text, html };
 }
 
@@ -111,8 +111,8 @@ export function mailVentaVendedor({ items, comprador, monto, panelUrl }) {
       : 'sin datos de contacto cargados';
   const plural = items.length > 1;
   const subject = plural
-    ? `Vendiste ${items.length} NextTap — entregá los IDs ${items.map((i) => i.codigoPublico).join(', ')}`
-    : `Vendiste un NextTap — entregá el ID ${items[0].codigoPublico}`;
+    ? `Vendiste ${items.length} AlToque Tap — entregá los IDs ${items.map((i) => i.codigoPublico).join(', ')}`
+    : `Vendiste un AlToque Tap — entregá el ID ${items[0].codigoPublico}`;
   const text = `Se confirmó un pago de una venta tuya.
 
 ${plural ? 'Entregá al comprador las unidades con estos IDs' : 'Entregá al comprador la unidad con este ID'}:
@@ -141,8 +141,8 @@ Ver tus ventas: ${panelUrl}`;
  * @param {{ codigoRetiro: string, panelUrl: string }} data
  */
 export function mailRetiroComprador({ codigoRetiro, panelUrl }) {
-  const subject = `Tu compra en NextTap — código de retiro ${codigoRetiro}`;
-  const text = `¡Gracias por tu compra en NextTap!
+  const subject = `Tu compra en AlToque Tap — código de retiro ${codigoRetiro}`;
+  const text = `¡Gracias por tu compra en AlToque Tap!
 
 Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vendedor:
 
@@ -150,7 +150,7 @@ Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vended
 
 Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde tu panel:
 ${panelUrl}`;
-  const html = `<p>¡Gracias por tu compra en <strong>NextTap</strong>!</p>
+  const html = `<p>¡Gracias por tu compra en <strong>AlToque Tap</strong>!</p>
 <p>Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vendedor:</p>
 <p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${esc(codigoRetiro)}</p>
 <p>Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
@@ -200,20 +200,20 @@ export function mailActivacionGratis({ items, panelUrl, cuentaNueva }) {
     .join('');
   const plural = items.length > 1;
   const subject = plural
-    ? `Tus NextTap ya están activos — IDs ${items.map((i) => i.codigoPublico).join(', ')}`
-    : `Tu NextTap ya está activo — ID ${items[0].codigoPublico}`;
+    ? `Tus AlToque Tap ya están activos — IDs ${items.map((i) => i.codigoPublico).join(', ')}`
+    : `Tu AlToque Tap ya está activo — ID ${items[0].codigoPublico}`;
 
   const cuentaText = cuentaNueva
     ? 'Te creamos una cuenta con este mail. La primera vez que entres a tu panel te pedimos un código de verificación que te llega por mail.'
-    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá con el mismo mail de siempre.`;
+    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos AlToque Tap' : 'este AlToque Tap'} ahí. Entrá con el mismo mail de siempre.`;
   const cuentaHtml = cuentaNueva
     ? `Te creamos una cuenta con este mail. La primera vez que entres a <a href="${esc(panelUrl)}">tu panel</a> te pedimos un código de verificación que te llega por mail.`
-    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá a <a href="${esc(panelUrl)}">tu panel</a> con el mismo mail de siempre.`;
+    : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos AlToque Tap' : 'este AlToque Tap'} ahí. Entrá a <a href="${esc(panelUrl)}">tu panel</a> con el mismo mail de siempre.`;
   const ojoText = cuentaNueva
-    ? 'Si no activaste ningún NextTap, ignorá este mensaje.'
-    : 'Si no fuiste vos, entrá a tu panel a revisar — alguien activó un NextTap con tu mail.';
+    ? 'Si no activaste ningún AlToque Tap, ignorá este mensaje.'
+    : 'Si no fuiste vos, entrá a tu panel a revisar — alguien activó un AlToque Tap con tu mail.';
 
-  const text = `${plural ? 'Tus NextTap ya están activos' : 'Tu NextTap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.
+  const text = `${plural ? 'Tus AlToque Tap ya están activos' : 'Tu AlToque Tap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.
 
 ${plural ? 'Tus productos' : 'Tu producto'}:
 
@@ -228,7 +228,7 @@ ${cuentaText}
 
 ${ojoText}`;
 
-  const html = `<p>${plural ? 'Tus NextTap ya están activos' : 'Tu NextTap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.</p>
+  const html = `<p>${plural ? 'Tus AlToque Tap ya están activos' : 'Tu AlToque Tap ya está activo'} — sin costo, ${plural ? 'son tuyos' : 'es tuyo'}.</p>
 <p>${plural ? 'Tus productos' : 'Tu producto'}:</p>
 <ul>${lineasHtml}</ul>
 <p>Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID impreso en tu'} producto.</p>

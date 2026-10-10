@@ -6,8 +6,8 @@
 export const SORTEO = {
   slug: 'disfraz-2026-10',
   instagram: 'nexttap.tech',
-  premio: 'un combo de 2 llaveros NextTap personalizados: uno que abre su Instagram y otro que abre su WhatsApp',
-  premioCorto: '2 combos de llaveros NextTap Instagram + WhatsApp',
+  premio: 'un combo de 2 llaveros AlToque Tap personalizados: uno que abre su Instagram y otro que abre su WhatsApp',
+  premioCorto: '2 combos de llaveros AlToque Tap Instagram + WhatsApp',
   ganadores: 2,
   // Se puede participar hasta el momento del sorteo: lunes 12/10 18:00 hora argentina (UTC-3).
   cierre: '2026-10-12T21:00:00Z',

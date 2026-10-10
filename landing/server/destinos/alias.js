@@ -66,7 +66,7 @@ const meta = {
   label: 'Datos de transferencia',
   campo: 'Datos de transferencia',
   placeholder: 'tu.alias.mp',
-  ayuda: 'Se muestran en una página de NextTap con un botón para copiar el alias.',
+  ayuda: 'Se muestran en una página de AlToque Tap con un botón para copiar el alias.',
   // El front dibuja un input por cada campo (en vez del único `campo`).
   campos: [
     { key: 'alias', label: 'Alias', placeholder: 'tu.alias.mp', ayuda: 'El alias de tu CBU o CVU.', requerido: true },

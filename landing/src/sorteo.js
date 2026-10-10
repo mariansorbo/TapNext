@@ -44,7 +44,7 @@ function montar() {
       <div class="sorteo-paso" data-vista="form">
         <div class="sorteo-badge">🎁 Sorteo gratis · Paso 1 de 2</div>
         <h3 id="sorteo-titulo">Ganate un combo de llaveros IG + WhatsApp</h3>
-        <p class="modal-sub">Sorteamos <b>${SORTEO.ganadores} combos</b> el ${SORTEO.fechaCorta}. Cada combo: un llavero NextTap que lleva a tu Instagram y otro a tu WhatsApp.</p>
+        <p class="modal-sub">Sorteamos <b>${SORTEO.ganadores} combos</b> el ${SORTEO.fechaCorta}. Cada combo: un llavero AlToque Tap que lleva a tu Instagram y otro a tu WhatsApp.</p>
 
         <ol class="sorteo-pasos">
           <li class="is-actual">
