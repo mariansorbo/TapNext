@@ -112,7 +112,10 @@
     destType.value = s.destType || 'instagram';
     destValue.value = s.destValue || '';
     delayInput.value = (s.delay != null) ? s.delay : 1.5;
-    if (s.bgImage) preview.style.backgroundImage = 'url(' + s.bgImage + ')';
+    if (s.bgImage) {
+      currentBg = s.bgImage;
+      preview.style.backgroundImage = 'url("' + s.bgImage + '")';
+    }
     updateLabel();
   }
 
@@ -135,18 +138,46 @@
   destValue.addEventListener('input', function () { saveState(); });
   delayInput.addEventListener('input', function () { saveState(); });
 
+  // El fondo vive en memoria: en iPhone la foto original pesa varios MB y no
+  // entra en localStorage de Safari, así que no dependemos de que se guarde.
+  var currentBg = null;
+
+  // Achica la foto al tamaño de pantalla y la pasa a JPEG liviano.
+  function shrinkImage(file, done) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var max = 1600;
+      var scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      done(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      // Formato que el navegador no sabe decodificar: probamos con la foto tal cual.
+      var reader = new FileReader();
+      reader.onload = function () { done(reader.result); };
+      reader.readAsDataURL(file);
+    };
+    img.src = url;
+  }
+
   bgImage.addEventListener('change', function () {
     var file = bgImage.files && bgImage.files[0];
     if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      preview.style.backgroundImage = 'url(' + reader.result + ')';
-      saveState({ bgImage: reader.result });
-    };
-    reader.readAsDataURL(file);
+    shrinkImage(file, function (dataUrl) {
+      currentBg = dataUrl;
+      preview.style.backgroundImage = 'url("' + dataUrl + '")';
+      saveState({ bgImage: dataUrl });
+    });
   });
 
   clearBg.addEventListener('click', function () {
+    currentBg = null;
     preview.style.backgroundImage = '';
     bgImage.value = '';
     saveState({ bgImage: null });
@@ -205,8 +236,8 @@
     var targets = buildTargets();
     if (!targets) { alert('Falta completar el destino.'); return; }
 
-    if (s.bgImage) stage.style.backgroundImage = 'url(' + s.bgImage + ')';
-    else stage.style.backgroundImage = '';
+    var bg = currentBg || s.bgImage;
+    stage.style.backgroundImage = bg ? 'url("' + bg + '")' : '';
 
     config.style.display = 'none';
     stage.classList.add('active');
