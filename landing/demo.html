@@ -198,7 +198,7 @@
           '#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=' +
           encodeURIComponent(fallback) + ';end' };
       }
-      if (isIOS) return { primary: 'instagram://user?username=' + encodeURIComponent(value), fallback: fallback };
+      if (isIOS) return { primary: 'instagram://user?username=' + encodeURIComponent(value) };
       return { primary: fallback };
     }
 
@@ -210,7 +210,7 @@
           '#Intent;package=com.whatsapp;scheme=whatsapp;S.browser_fallback_url=' +
           encodeURIComponent(wfallback) + ';end' };
       }
-      if (isIOS) return { primary: 'whatsapp://send?phone=' + value, fallback: wfallback };
+      if (isIOS) return { primary: 'whatsapp://send?phone=' + value };
       return { primary: wfallback };
     }
 
@@ -246,13 +246,11 @@
       safe(function () { document.documentElement.requestFullscreen(); });
     }
 
+    // Sin salto automático a la web: en iPhone Safari muestra "¿Abrir en
+    // Instagram/WhatsApp?" y mientras ese cartel está arriba la página sigue
+    // visible, así que cualquier fallback por tiempo le ganaba a la app.
     setTimeout(function () {
       window.location.href = targets.primary;
-      if (targets.fallback) {
-        setTimeout(function () {
-          if (!document.hidden) window.location.href = targets.fallback;
-        }, 1200);
-      }
     }, Math.max(0, (parseFloat(delayInput.value) || 0) * 1000));
   });
 
