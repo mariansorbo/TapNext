@@ -92,7 +92,6 @@ const FUNCTIONS = [
   { id: 'review', icon: BRAND_ICONS.googleMaps, label: 'Reseña', desc: 'Sumá reseñas en Google' },
   { id: 'web', icon: BRAND_ICONS.web, label: 'Web propia', desc: 'Tu sitio' },
   { id: 'agenda', icon: BRAND_ICONS.googleCalendar, label: 'Agenda', desc: 'Reservas y turnos' },
-  { id: 'linktree', icon: BRAND_ICONS.linktree, label: 'LinkTree', desc: 'Todos tus links' },
   { id: 'alias', icon: BRAND_ICONS.alias, label: 'Datos de Transferencia', desc: 'Mostrá tus datos para transferir' },
 ];
 
@@ -682,7 +681,7 @@ function renderSummary() {
         const fn = FUNCTIONS.find((f) => f.id === item.functionId);
         const model = MODELS.find((m) => m.id === item.modelId);
         const precio = getPrecio(item.modelId);
-        return `<div><span class="inline-icon">${fn.icon}</span> <b>${model.label} · ${fn.label}</b>${item.qty > 1 ? ` ×${item.qty}` : ''} — $${(precio * item.qty).toLocaleString('es-AR')}</div>`;
+        return `<div><span class="inline-icon">${fn ? fn.icon : ''}</span> <b>${model.label} · ${fn ? fn.label : item.functionId}</b>${item.qty > 1 ? ` ×${item.qty}` : ''} — $${(precio * item.qty).toLocaleString('es-AR')}</div>`;
       })
       .join('')}
     ${costoEnvio ? `<div><span class="inline-icon">📦</span> <b>Envío a domicilio</b> — $${costoEnvio.toLocaleString('es-AR')}</div>` : ''}
