@@ -827,7 +827,7 @@ details[open] .add-icon{transform:rotate(45deg);}
   .nav-link{font-size:0.7rem;}
   .nav-cta{display:none;}
   section{padding:60px 0;}
-  .hero{padding:24px 20px 60px; gap:36px;}
+  .hero{padding:24px 20px calc(60px + 25vh); gap:36px;}
   .tag-stage{max-width:220px; margin:0 auto;}
   .cta-row{flex-direction:column; align-items:flex-start; gap:18px;}
   .btn-primary{width:100%; text-align:center;}
