@@ -276,8 +276,17 @@ function renderPromoNote() {
   }
 }
 
+let cambioSeleccion = null;
+
 function setQty(item, n) {
   const q = Math.max(0, Math.min(n, item.max));
+  // Las tarjetas se re-renderizan en cada clic, así que el pulso de selección
+  // (CSS .is-entrando / .is-saliendo) se dispara solo cuando cambia de 0 a >0
+  // o al revés, no en cada + de una que ya estaba elegida.
+  const antes = state.quantities[item.id] || 0;
+  cambioSeleccion = antes === 0 && q > 0 ? { id: item.id, clase: 'is-entrando' }
+    : antes > 0 && q === 0 ? { id: item.id, clase: 'is-saliendo' }
+      : null;
   if (q === 0) delete state.quantities[item.id];
   else state.quantities[item.id] = q;
   renderCombos();
@@ -338,6 +347,7 @@ function renderCombos() {
     comboOptions.appendChild(card);
   });
   renderPromoNote();
+  cambioSeleccion = null;
 }
 
 // Tarjeta del modelo (pedido.html / pedidoFullCatalogo.html): la imagen va en
@@ -349,7 +359,8 @@ function renderModeloCard(item) {
   const card = document.createElement('div');
   card.className = 'option-card combo-card modelo-card'
     + (qty > 0 ? ' is-selected' : '')
-    + (disponible ? '' : ' is-disabled');
+    + (disponible ? '' : ' is-disabled')
+    + (cambioSeleccion?.id === item.id ? ` ${cambioSeleccion.clase}` : '');
   card.dataset.id = item.id;
   card.innerHTML = `
     <div class="modelo-stage">${item.icon || ''}</div>
