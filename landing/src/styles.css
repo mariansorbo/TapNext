@@ -392,7 +392,7 @@ body.modal-open{overflow:hidden;}
 .lead{font-size:1.05rem; color:var(--paper-dim); max-width:48ch;}
 .buy-hero .btn-primary{margin-top:28px;}
 .wizard-modal{max-width:640px; max-height:88vh; overflow-y:auto;}
-.wizard-topbar{display:flex; align-items:center; gap:14px; margin-bottom:26px; padding-right:40px;}
+.wizard-topbar{display:flex; align-items:center; gap:14px; margin-bottom:12px; padding-right:40px;}
 .wizard-back-btn{
   flex-shrink:0; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   border:1px solid var(--line); color:var(--paper-dim); font-size:1rem; transition:border-color .2s ease, color .2s ease;
@@ -405,7 +405,11 @@ body.modal-open{overflow:hidden;}
 .wizard-dot.is-active, .wizard-dot.is-done{background:var(--violet);}
 .wizard-step{display:none;}
 .wizard-step.is-active{display:block;}
-.wizard-step h3{font-family:var(--display); font-weight:600; font-size:1.25rem; margin-bottom:18px;}
+.wizard-step h3{font-family:var(--display); font-weight:600; font-size:1.25rem; margin-bottom:12px;}
+/* Kicker + título pegados arriba: así el botón Siguiente entra sin scrollear */
+.wizard-step .step-kicker{margin-bottom:6px;}
+.wizard-modal{padding-top:22px;}
+.wizard-modal .modal-close{top:14px;}
 .cart-more-question{font-family:var(--display); font-weight:600; font-size:1.05rem; margin-top:4px;}
 .option-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
 .option-grid.option-grid-3{grid-template-columns:repeat(3,1fr);}
@@ -562,7 +566,7 @@ body.modal-open{overflow:hidden;}
 .wizard-pay-note{
   font-size:0.82rem; color:var(--paper-dim); margin-top:6px; padding-top:12px; border-top:1px solid var(--line);
 }
-.wizard-nav{display:flex; justify-content:space-between; gap:12px; margin-top:26px;}
+.wizard-nav{display:flex; justify-content:space-between; gap:12px; margin-top:18px;}
 .wizard-nav .btn-primary{flex:1; text-align:center;}
 .wizard-nav .btn-primary:disabled{opacity:0.4; pointer-events:none;}
 .wizard-nav .btn-ghost{flex-shrink:0;}
@@ -910,8 +914,16 @@ details[open] .add-icon{transform:rotate(45deg);}
   .video-card{flex:0 0 190px;}
   footer{flex-direction:column; gap:8px; text-align:left;}
   .modal{padding:28px 22px;}
+  .wizard-modal{padding-top:16px;}
+  .wizard-modal .modal-close{top:10px;}
   .option-grid, .option-grid.option-grid-3, .option-grid.option-grid-4{grid-template-columns:1fr;}
   .wizard-nav{flex-direction:column-reverse;}
+  /* Siguiente siempre visible: queda pegado abajo del modal mientras se scrollean las opciones */
+  .wizard-nav{
+    position:sticky; bottom:-28px; z-index:2;
+    margin:12px -22px -28px; padding:12px 22px 16px;
+    background:var(--surface); border-top:1px solid var(--line);
+  }
   .tyc-modal{padding:24px 20px 20px; max-height:88vh;}
 }
 
