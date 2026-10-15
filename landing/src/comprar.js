@@ -957,3 +957,15 @@ async function checkReturnFromMercadoPago() {
   successSummary.textContent = 'Tu pago está en revisión. Te avisamos por mail apenas se confirme.';
 }
 checkReturnFromMercadoPago();
+
+// Viniendo de un "Comprar" de la landing (/pedido.html?iniciar=1) el wizard se
+// abre directo, sin pasar por el botón "Iniciar". Sacamos el parámetro de la
+// URL para que recargar o volver atrás no lo reabra.
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('iniciar') || params.has('venta')) return;
+  params.delete('iniciar');
+  const qs = params.toString();
+  history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+  openWizard();
+})();
