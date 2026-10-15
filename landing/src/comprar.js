@@ -95,10 +95,24 @@ const FUNCTIONS = [
   { id: 'alias', icon: BRAND_ICONS.alias, label: 'Datos de Transferencia', desc: 'Mostrá tus datos para transferir' },
 ];
 
+// Imagen del modelo según la función elegida en el paso anterior: con
+// WhatsApp se ven todos los modelos con el logo de WhatsApp, con Instagram
+// todos de Instagram, y así con cualquier función nueva. Para sumar una basta
+// con dejar el archivo en /images/modelos/<función>-<modelo>.png (ej.
+// menu-placa.png), sin tocar código. Si no existe, el onerror cae a la
+// imagen genérica del modelo (MODELS[].img).
+function modeloIcon(model, funcId) {
+  if (!model) return '';
+  const generica = model.img;
+  if (!funcId) return `<img src="${generica}" alt="${model.label}" loading="lazy">`;
+  return `<img src="/images/modelos/${funcId}-${model.id}.png" alt="${model.label}" loading="lazy"`
+    + ` onerror="this.onerror=null; this.src='${generica}'">`;
+}
+
 const MODELS = [
-  { id: 'llavero', label: 'Llavero', desc: 'Para llevar con vos', price: 8500, icon: `<img src="/images/modelo-llavero.png" alt="Llavero" loading="lazy">` },
-  { id: 'tarjeta', label: 'Stand', desc: 'Para dejar en el mostrador', price: 7500, icon: `<img src="/images/modelo-tarjeta.png" alt="Stand de mostrador" loading="lazy">` },
-  { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000, icon: `<img src="/images/modelo-placa.png" alt="Placa" loading="lazy">` },
+  { id: 'llavero', label: 'Llavero', desc: 'Para llevar con vos', price: 8500, img: '/images/modelo-llavero.png' },
+  { id: 'tarjeta', label: 'Stand', desc: 'Para dejar en el mostrador', price: 7500, img: '/images/modelo-tarjeta.png' },
+  { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000, img: '/images/modelo-placa.png' },
 ];
 
 // Precio real por modelo (mismo para cualquier función), cargado desde el
@@ -150,7 +164,7 @@ function comboItem(funcId, modelId, max = MAX_POR_COMBO, displayAs = 'function')
     modelId,
     label: byModel ? (model ? model.label : modelId) : (fn ? fn.label : funcId),
     desc: byModel ? `$${getPrecio(modelId).toLocaleString('es-AR')}` : `${model ? model.label : modelId} NFC`,
-    icon: byModel ? model?.icon || '' : fn ? fn.icon : '',
+    icon: byModel ? modeloIcon(model, funcId) : fn ? fn.icon : '',
     // Tarjeta vertical con la imagen del modelo en grande (ver renderCombos).
     byModel,
     tagline: byModel ? model?.desc || '' : '',
