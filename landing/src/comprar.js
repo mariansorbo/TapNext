@@ -442,11 +442,6 @@ if (!isPresencial && promoToken) {
 
 const modal = document.getElementById('wizard-modal');
 const startButton = document.getElementById('start-wizard');
-// CTAs secundarios (ej. al final de "Cómo funciona" en pedido.html): abren el
-// mismo wizard que el botón principal.
-document.querySelectorAll('[data-start-wizard]').forEach((btn) => {
-  btn.addEventListener('click', () => startButton?.click());
-});
 const closeButton = document.getElementById('wizard-close');
 const backButton = document.getElementById('wizard-back');
 const nextButton = document.getElementById('wizard-next');
