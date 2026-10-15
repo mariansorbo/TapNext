@@ -2,6 +2,7 @@ import './styles.css';
 import './pixel.js';
 import { evento, obtenerVisitanteId } from './visita.js';
 import { trackEvent } from './pixel.js';
+import { obtenerPapVisitorId } from './pap.js';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
 import { BRAND_ICONS } from './brand-icons.js';
@@ -762,6 +763,8 @@ payButton.addEventListener('click', async () => {
       promoToken: promoToken || '',
       fbp: leerCookie('_fbp'),
       fbc: leerCookie('_fbc'),
+      // Clic de afiliado de Post Affiliate Pro (cookie de src/pap.js).
+      papVisitorId: obtenerPapVisitorId(),
       // El server guarda la aceptación con versión, IP y user-agent.
       aceptaTyc: tycCheckbox.checked,
       // Une la venta con el recorrido anónimo (UTM, páginas, pasos).

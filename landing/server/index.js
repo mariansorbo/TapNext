@@ -28,6 +28,7 @@ import {
   etiquetaPdf,
 } from './enviopack.js';
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
+import { enviarVentaPap, papDisponible, esPapVisitorId } from './pap.js';
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
@@ -1087,11 +1088,13 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   // une esta venta con su recorrido y sus UTM. Lo manda el front porque esta
   // llamada va directo a Render y no ve la cookie de next-tap.tech.
   const visitanteId = esVisitanteId(req.body?.visitanteId) ? req.body.visitanteId : null;
+  // Clic de afiliado de Post Affiliate Pro (cookie PAPVisitorId, ver src/pap.js).
+  const papVisitorId = esPapVisitorId(req.body?.papVisitorId) ? req.body.papVisitorId : null;
 
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua, visitante_id)
-     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?)`,
-    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa, visitanteId]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua, visitante_id, pap_visitor_id)
+     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa, visitanteId, papVisitorId]
   );
   const ventaId = ventaResult.lastInsertRowid;
 
@@ -1430,6 +1433,39 @@ async function enviarCapiPurchaseDeVenta(venta, ventaId) {
   }
 }
 
+// Manda la venta a Post Affiliate Pro si vino de un clic de afiliado. La
+// comisión se calcula sobre los productos: se descuenta el envío. OrderID =
+// id de la venta (el webhook ya es idempotente, solo llega acá una vez).
+async function enviarVentaPapDeVenta(venta, ventaId, items) {
+  if (!papDisponible) return { estado: 'no_configurado' };
+  if (!venta.pap_visitor_id) return { estado: 'no_aplica' };
+  try {
+    const envio = await get('SELECT costo FROM venta_envios WHERE venta_id = ?', [ventaId]);
+    const totalCost = Math.max(0, Number(venta.monto) - Number(envio?.costo || 0));
+    const modelos = (
+      await all(
+        'SELECT DISTINCT s.modelo FROM venta_items vi JOIN stickers_actual s ON s.id = vi.sticker_id WHERE vi.venta_id = ?',
+        [ventaId]
+      )
+    )
+      .map((r) => r.modelo)
+      .filter(Boolean);
+    await enviarVentaPap({
+      orderId: ventaId,
+      totalCost,
+      visitorId: venta.pap_visitor_id,
+      productId: modelos.join(',') || undefined,
+      ip: venta.client_ip || null,
+      userAgent: venta.client_ua || null,
+      data1: `${items.length} unidad(es)`,
+    });
+    return { estado: 'enviado' };
+  } catch (err) {
+    console.error(`[PAP] no se pudo mandar la venta ${ventaId}:`, err.message);
+    return { estado: 'fallo', error: err.message };
+  }
+}
+
 // --- Alertas al admin (ver server/alertas-admin.js) ---
 
 const horaAR = () => new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -1497,7 +1533,7 @@ const TXT_MAIL = {
 
 // Venta confirmada: resumen + qué pasó con cada paso posterior al pago. El
 // asunto marca ⚠️ si algo falló, para verlo sin abrir el mail.
-function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDeEntrega }) {
+function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enColaDeEntrega }) {
   const problemas = [];
   if (avisos.comprador !== 'enviado') problemas.push('mail al comprador');
   if (avisos.vendedor === 'fallo' || avisos.vendedor === 'sin_mail') problemas.push('mail al vendedor');
@@ -1521,6 +1557,7 @@ function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDe
     txtEnvio = 'ya estaba creado';
   }
   if (capi.estado === 'fallo') problemas.push('Meta CAPI');
+  if (pap?.estado === 'fallo') problemas.push('Post Affiliate Pro');
 
   const asunto = problemas.length
     ? `⚠️ Venta #${ventaId} cobrada con problemas: ${problemas.join(', ')}`
@@ -1536,6 +1573,8 @@ function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDe
       avisos.error && `  • Error armando los mails: ${avisos.error}`,
       `  • Envío: ${txtEnvio}`,
       `  • Meta CAPI: ${capi.estado === 'fallo' ? `FALLÓ: ${capi.error}` : capi.estado === 'enviado' ? 'enviado' : 'no configurado'}`,
+      pap && pap.estado !== 'no_configurado' &&
+        `  • Afiliados (PAP): ${pap.estado === 'fallo' ? `FALLÓ: ${pap.error}` : pap.estado === 'enviado' ? 'venta registrada' : 'sin afiliado'}`,
     ],
   });
 }
@@ -1691,8 +1730,10 @@ app.post('/api/pagos/webhook', async (req, res) => {
       // Meta CAPI: mismo event_id que el Purchase del pixel (src/comprar.js)
       // para que Meta dedupe. Best-effort — nunca puede frenar la venta.
       const capi = await enviarCapiPurchaseDeVenta(venta, ventaId);
+      // Post Affiliate Pro: comisión al afiliado del clic. Best-effort.
+      const pap = await enviarVentaPapDeVenta(venta, ventaId, items);
       // Alerta al admin con el resultado de cada paso de arriba.
-      alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, enColaDeEntrega });
+      alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enColaDeEntrega });
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       // MP notifica el mismo pago más de una vez: avisamos solo la primera.
       if (venta.estado_pago !== 'rechazado' || venta.payment_id !== String(payment.id)) {
