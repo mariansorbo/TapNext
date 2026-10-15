@@ -10,6 +10,17 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
+// Videos: sin menú de clic derecho ("Guardar video como…"), sin botón de
+// descarga ni picture-in-picture. No es blindaje, pero saca la descarga fácil.
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest?.('video')) e.preventDefault();
+});
+document.querySelectorAll('video').forEach((v) => {
+  v.setAttribute('controlslist', 'nodownload noplaybackrate noremoteplayback');
+  v.disablePictureInPicture = true;
+  v.disableRemotePlayback = true;
+});
+
 // Fondo de video: sticky detrás del hero + "por qué NFC" (ver CSS). El
 // scroll normal del navegador lo va tapando progresivamente al final de esa
 // zona — nada de fade ni de corte por JS. Acá solo sumamos un parallax sutil.

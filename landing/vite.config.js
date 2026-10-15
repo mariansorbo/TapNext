@@ -4,7 +4,18 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 
+// Saca los <!-- comentarios --> del HTML publicado: notas internas que no
+// tienen por qué verse con "Ver código fuente". Solo en el build.
+const stripHtmlComments = {
+  name: 'strip-html-comments',
+  apply: 'build',
+  transformIndexHtml: (html) => html.replace(/<!--[\s\S]*?-->/g, ''),
+};
+
 export default defineConfig({
+  plugins: [stripHtmlComments],
+  // Sin comentarios de licencia ni /*! ... */ en el JS minificado.
+  esbuild: { legalComments: 'none' },
   server: {
     proxy: {
       '/api': 'http://localhost:3001',
@@ -18,6 +29,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Explícito: nunca publicar source maps (dejarían ver el código original).
+    sourcemap: false,
     rollupOptions: {
       input: {
         main: resolve(root, 'index.html'),
