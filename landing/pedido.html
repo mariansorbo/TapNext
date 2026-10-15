@@ -15,12 +15,79 @@
   <a href="/" class="nav-cta">Volver al inicio</a>
 </nav>
 
+<!-- WIREFRAME — las cajas .img-slot son lugares para imágenes: cuando tengas la
+     foto, poné un <img src="/images/..." alt="..."> adentro y el recuadro
+     punteado + la etiqueta desaparecen solos. Los textos marcados con
+     class="ph" son para completar/revisar. -->
 <section class="buy-hero">
+  <div class="wrap buy-hero-grid">
+    <div class="buy-hero-copy">
+      <div class="kicker" id="buy-ref-kicker">Compra online</div>
+      <h2 class="buy-hero-title">Pedí tu llavero <span data-brand>tap</span>.</h2>
+      <p class="lead">Un llavero con chip NFC que comparte tu Instagram o tu WhatsApp con solo acercarlo a un celular. Sin apps, sin QR, sin dictar tu número: un toque y la otra persona ya te tiene.</p>
+      <ul class="buy-hero-points">
+        <li><b>Instagram para lifestyle.</b> Que te sigan en la salida, el gimnasio o el evento, sin deletrear tu usuario.</li>
+        <li><b>WhatsApp para negocios.</b> Tus clientes te escriben al toque, desde el mostrador o la calle.</li>
+        <li><b>Lo cambiás cuando quieras.</b> El destino se configura desde tu panel, después de comprar.</li>
+      </ul>
+      <div class="buy-hero-cta">
+        <button type="button" class="btn-primary" id="start-wizard">Iniciar</button>
+        <span class="buy-hero-micro">Envío a todo el país · Pagás con Mercado Pago</span>
+      </div>
+    </div>
+    <figure class="img-slot img-slot--hero" data-label="Imagen principal · llavero en mano acercándose a un celular · vertical 4:5"></figure>
+  </div>
+</section>
+
+<section class="buy-usos">
   <div class="wrap">
-    <div class="kicker" id="buy-ref-kicker">Compra online</div>
-    <h2>Pedí tu llavero <span data-brand>tap</span>.</h2>
-    <p class="lead">Instagram para lifestyle, WhatsApp para negocios. Empezá a conectar al toque con las personas.</p>
-    <button type="button" class="btn-primary" id="start-wizard">Iniciar</button>
+    <div class="kicker">Dos formas de usarlo</div>
+    <h2>Elegí para qué lo querés.</h2>
+    <div class="buy-usos-grid">
+      <article class="buy-uso">
+        <figure class="img-slot img-slot--uso" data-label="Imagen Instagram · gente en una salida / evento, alguien acerca el llavero · 4:3"></figure>
+        <h3>Instagram para lifestyle</h3>
+        <p class="ph">[COMPLETAR] Para quien conoce gente todo el tiempo: salidas, eventos, gimnasio, facultad. Un toque y te siguen.</p>
+        <ul>
+          <li class="ph">[COMPLETAR] Beneficio 1</li>
+          <li class="ph">[COMPLETAR] Beneficio 2</li>
+        </ul>
+      </article>
+      <article class="buy-uso">
+        <figure class="img-slot img-slot--uso" data-label="Imagen WhatsApp · oficio o comercio, llavero en mano frente al cliente · 4:3"></figure>
+        <h3>WhatsApp para negocios</h3>
+        <p class="ph">[COMPLETAR] Para emprendedores, oficios y comercios: el cliente te guarda y te escribe sin anotar tu número.</p>
+        <ul>
+          <li class="ph">[COMPLETAR] Beneficio 1</li>
+          <li class="ph">[COMPLETAR] Beneficio 2</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="buy-pasos">
+  <div class="wrap">
+    <div class="kicker">Cómo funciona</div>
+    <h2>De tu compra a tu primer toque.</h2>
+    <ol class="buy-pasos-grid">
+      <li>
+        <figure class="img-slot img-slot--paso" data-label="Ilustración paso 1 · 1:1"></figure>
+        <h3>Lo pedís</h3>
+        <p class="ph">[COMPLETAR] Elegís la función y el modelo, y pagás con Mercado Pago.</p>
+      </li>
+      <li>
+        <figure class="img-slot img-slot--paso" data-label="Ilustración paso 2 · 1:1"></figure>
+        <h3>Te llega a casa</h3>
+        <p class="ph">[COMPLETAR] Lo despachamos por Correo Argentino a todo el país.</p>
+      </li>
+      <li>
+        <figure class="img-slot img-slot--paso" data-label="Ilustración paso 3 · 1:1"></figure>
+        <h3>Lo activás</h3>
+        <p class="ph">[COMPLETAR] Desde tu panel cargás tu Instagram o tu WhatsApp, y listo.</p>
+      </li>
+    </ol>
+    <button type="button" class="btn-primary buy-pasos-cta" data-start-wizard>Pedir mi llavero</button>
   </div>
 </section>
 
