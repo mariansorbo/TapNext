@@ -827,7 +827,12 @@ details[open] .add-icon{transform:rotate(45deg);}
   .nav-link{font-size:0.7rem;}
   .nav-cta{display:none;}
   section{padding:60px 0;}
-  .hero{padding:24px 20px calc(60px + 25vh); gap:36px;}
+  /* El hero ocupa justo la primera pantalla: texto arriba, botón abajo */
+  .hero{padding:32px 20px 40px; gap:36px; min-height:calc(100svh - var(--nav-h, 59px)); align-items:stretch;}
+  .hero > div{display:flex; flex-direction:column;}
+  .hero h1{font-size:clamp(2.6rem, 12vw, 3.3rem); margin-bottom:24px;}
+  .hero p.lead{font-size:1.15rem; line-height:1.55; margin-bottom:32px;}
+  .hero .cta-row{margin-top:auto;}
   .tag-stage{max-width:220px; margin:0 auto;}
   .cta-row{flex-direction:column; align-items:flex-start; gap:18px;}
   .btn-primary{width:100%; text-align:center;}
