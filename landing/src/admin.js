@@ -831,7 +831,7 @@ document.getElementById('create-individual-button').addEventListener('click', as
   }
 });
 
-const MODELO_LABELS = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', suelto: 'Suelto' };
+const MODELO_LABELS = { llavero: 'Llavero', tarjeta: 'Stand', placa: 'Placa', suelto: 'Suelto' };
 const MODELO_ORDEN = ['llavero', 'tarjeta', 'placa', 'suelto'];
 
 async function loadPrecios() {

@@ -98,7 +98,7 @@ const FUNCTIONS = [
 
 const MODELS = [
   { id: 'llavero', label: 'Llavero', desc: 'Para llevar encima', price: 8500, icon: `<img src="/images/modelo-llavero.png" alt="Llavero" loading="lazy">` },
-  { id: 'tarjeta', label: 'Tarjeta', desc: 'Para dejar en el mostrador', price: 7500, icon: `<img src="/images/modelo-tarjeta.png" alt="Tarjeta" loading="lazy">` },
+  { id: 'tarjeta', label: 'Stand', desc: 'Para dejar en el mostrador', price: 7500, icon: `<img src="/images/modelo-tarjeta.png" alt="Stand de mostrador" loading="lazy">` },
   { id: 'placa', label: 'Placa', desc: 'Para pegar en la pared', price: 11000, icon: `<img src="/images/modelo-placa.png" alt="Placa" loading="lazy">` },
 ];
 
@@ -152,6 +152,9 @@ function comboItem(funcId, modelId, max = MAX_POR_COMBO, displayAs = 'function')
     label: byModel ? (model ? model.label : modelId) : (fn ? fn.label : funcId),
     desc: byModel ? `$${getPrecio(modelId).toLocaleString('es-AR')}` : `${model ? model.label : modelId} NFC`,
     icon: byModel ? model?.icon || '' : fn ? fn.icon : '',
+    // Tarjeta vertical con la imagen del modelo en grande (ver renderCombos).
+    byModel,
+    tagline: byModel ? model?.desc || '' : '',
     max: Math.max(1, Math.min(Number(max) || MAX_POR_COMBO, MAX_POR_COMBO)),
   };
 }
@@ -277,6 +280,10 @@ function renderCombos() {
     return;
   }
   comboItems.forEach((item) => {
+    if (item.byModel) {
+      renderModeloCard(item);
+      return;
+    }
     // Modelo sin stock hoy (ver MODELOS_DISPONIBLES): se muestra para que se
     // vea el catálogo completo, pero sin stepper — no se puede elegir.
     if (item.disponible === false) {
@@ -318,6 +325,42 @@ function renderCombos() {
     comboOptions.appendChild(card);
   });
   renderPromoNote();
+}
+
+// Tarjeta del modelo (pedido.html / pedidoFullCatalogo.html): la imagen va en
+// grande sobre un "escenario" oscuro hecho en CSS, así el PNG con fondo
+// transparente se adapta solo al negro de la página.
+function renderModeloCard(item) {
+  const disponible = item.disponible !== false;
+  const qty = state.quantities[item.id] || 0;
+  const card = document.createElement('div');
+  card.className = 'option-card combo-card modelo-card'
+    + (qty > 0 ? ' is-selected' : '')
+    + (disponible ? '' : ' is-disabled');
+  card.dataset.id = item.id;
+  card.innerHTML = `
+    <div class="modelo-stage">${item.icon || ''}</div>
+    <div class="modelo-body">
+      <div class="option-text">
+        <div class="option-label">${item.label}</div>
+        ${item.tagline ? `<div class="modelo-tagline">${item.tagline}</div>` : ''}
+      </div>
+      <div class="modelo-foot">
+      <div class="option-desc">${disponible ? item.desc : 'Por ahora no disponible'}</div>
+      ${disponible ? `
+      <div class="combo-stepper">
+        <button type="button" class="combo-minus" aria-label="Restar"${qty === 0 ? ' disabled' : ''}>−</button>
+        <span class="combo-qty">${qty}</span>
+        <button type="button" class="combo-plus" aria-label="Sumar"${qty >= item.max ? ' disabled' : ''}>+</button>
+      </div>` : ''}
+      </div>
+    </div>
+  `;
+  if (disponible) {
+    card.querySelector('.combo-minus').addEventListener('click', () => setQty(item, qty - 1));
+    card.querySelector('.combo-plus').addEventListener('click', () => setQty(item, qty + 1));
+  }
+  comboOptions.appendChild(card);
 }
 renderCombos();
 

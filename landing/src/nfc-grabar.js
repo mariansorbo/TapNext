@@ -13,7 +13,7 @@ const FUNCION_OPTS = {
   review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
   alias: 'Datos de transferencia',
 };
-const MODELO_OPTS = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa' };
+const MODELO_OPTS = { llavero: 'Llavero', tarjeta: 'Stand', placa: 'Placa' };
 
 // Cuánto esperamos a que ndef.write() termine antes de darlo por fallido. Si el
 // chip se despega del teléfono, la promesa de write() nunca resuelve sola —

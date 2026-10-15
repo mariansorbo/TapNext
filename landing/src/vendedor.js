@@ -241,7 +241,7 @@ const FUNC_LABEL = {
   whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
   review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
 };
-const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Tarjeta', placa: 'Placa', suelto: 'Suelto' };
+const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Stand', placa: 'Placa', suelto: 'Suelto' };
 const comboNombre = (modelo, funcion) =>
   `${MODELO_LABEL[modelo] || modelo}${funcion ? ` · ${FUNC_LABEL[funcion] || funcion}` : ' · sin función'}`;
 
