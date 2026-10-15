@@ -87,7 +87,6 @@ async function api(path, options = {}) {
 const FUNCTIONS = [
   { id: 'whatsapp', icon: BRAND_ICONS.whatsapp, label: 'WhatsApp', desc: 'Abre un chat directo' },
   { id: 'instagram', icon: BRAND_ICONS.instagram, label: 'Instagram', desc: 'Lleva a tu perfil' },
-  { id: 'pago', icon: BRAND_ICONS.mercadopago, label: 'Pago', desc: 'Cobrá al instante' },
   { id: 'menu', icon: BRAND_ICONS.menu, label: 'Menú', desc: 'Tu carta digital' },
   { id: 'review', icon: BRAND_ICONS.googleMaps, label: 'Reseña', desc: 'Sumá reseñas en Google' },
   { id: 'web', icon: BRAND_ICONS.web, label: 'Web propia', desc: 'Tu sitio' },
