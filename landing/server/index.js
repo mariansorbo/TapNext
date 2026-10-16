@@ -3253,7 +3253,16 @@ function routerThrottle(req, res, next) {
 // así que vale ese ~1 s. HTML autónomo servido desde el backend: un request, sin
 // bundle ni llamadas extra. Para quien repite el mismo sticker en <12 h se
 // acorta a ~350 ms (el dueño no se come la intro cada vez). Sin JS, redirige ya.
-function pantallaRedireccion(destino) {
+// Link "Comprá el tuyo" de las pantallas del tap, con UTM para medir cuánta gente
+// llega a la web desde un llavero ajeno. utm_content = función del llavero
+// tocado (whatsapp, instagram…), para ver cuál convierte mejor.
+function linkMarca(tipo) {
+  const q = new URLSearchParams({ utm_source: 'llavero', utm_medium: 'tap' });
+  if (tipo) q.set('utm_content', String(tipo).toLowerCase());
+  return `https://next-tap.tech/?${q.toString().replace(/&/g, '&amp;')}`;
+}
+
+function pantallaRedireccion(destino, tipo) {
   const jsUrl = JSON.stringify(String(destino))
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -3306,7 +3315,7 @@ function pantallaRedireccion(destino) {
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
-  <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
+  <a class="cta" href="${linkMarca(tipo)}">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
   (function(){
     // Tiempos en pantalla, contados desde que la pantalla ya se pintó (no desde
@@ -3346,7 +3355,7 @@ function pantallaRedireccion(destino) {
 // la página de descarga. En iOS / desktop va a la URL web. El intent se dispara
 // apenas carga (así el arranque en frío corre en paralelo con la animación); si a
 // los ~2.5 s seguimos visibles (Android bloqueó el salto), aparece un botón.
-function pantallaApp({ web, intent }) {
+function pantallaApp({ web, intent }, tipo) {
   const webJs = JSON.stringify(String(web)).replace(/</g, '\\u003c');
   const intentJs = JSON.stringify(String(intent)).replace(/</g, '\\u003c');
   const webHtml = String(web).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -3396,7 +3405,7 @@ function pantallaApp({ web, intent }) {
   <div class="mark">Next<span class="tap">Tap</span></div>
   <div class="bar"><i></i></div>
   <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
-  <a class="cta" href="https://next-tap.tech">Comprá el tuyo en <b>next-tap.tech</b></a>
+  <a class="cta" href="${linkMarca(tipo)}">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
   (function(){
     var web=${webJs}, intent=${intentJs};
@@ -3625,14 +3634,14 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       if (r.modo === 'app') {
         // WhatsApp: pantalla mínima que abre la app con un intent:// de Android.
         registrarTap(req, res, { ...tap, resultado: 'app' });
-        return res.type('html').send(pantallaApp(r));
+        return res.type('html').send(pantallaApp(r, destino.tipo));
       }
       if (r.modo === 'redirect') {
         registrarTap(req, res, { ...tap, resultado: 'destino' });
         // Pantalla de marca solo si es una URL http(s) normal y el plugin no
         // pidió redirect directo (interstitial: false).
         if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
-          return res.type('html').send(pantallaRedireccion(r.url));
+          return res.type('html').send(pantallaRedireccion(r.url, destino.tipo));
         }
         return res.redirect(302, r.url);
       }
