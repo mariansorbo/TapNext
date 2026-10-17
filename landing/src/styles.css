@@ -54,6 +54,8 @@ nav{
   transition:border-color .2s ease, background .2s ease;
 }
 .nav-cta:hover{border-color:var(--violet); background:rgba(123,92,255,0.08);}
+.nav-ig{display:flex; align-items:center; color:var(--paper-dim); transition:color .2s ease;}
+.nav-ig:hover{color:var(--paper);}
 
 /* HERO */
 .hero{
@@ -293,6 +295,7 @@ footer a{color:var(--paper-dim);}
 footer a:hover{color:var(--paper); text-decoration:underline;}
 .footer-main{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
 .footer-links{display:flex; gap:20px; flex-wrap:wrap;}
+.footer-ig{display:inline-flex; align-items:center; gap:6px;}
 .footer-bottom{
   display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
   padding-top:14px; border-top:1px solid var(--line); opacity:0.75;
