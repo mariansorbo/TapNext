@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
-import { randomBytes, createHmac } from 'node:crypto';
+import { randomBytes, createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { db, asegurarTramosComision, TRAMOS_COMISION_DEFAULT } from './db.js';
 import {
@@ -127,7 +127,29 @@ function deriveChipPack(uidNfc) {
 }
 
 const app = express();
-app.use(cors());
+app.disable('x-powered-by');
+
+// CORS: solo el front propio puede llamar a la API desde un navegador. Pedidos
+// sin Origin (webhook de MP, taps del chip, curl) pasan igual — CORS no los
+// frena. CORS_ORIGINS (coma) suma orígenes extra, ej. un preview de Vercel.
+const ORIGENES_PERMITIDOS = new Set(
+  [
+    FRONTEND_URL,
+    PUBLIC_ROUTER_BASE,
+    'https://next-tap.tech',
+    'https://www.next-tap.tech',
+    ...(process.env.CORS_ORIGINS || '').split(','),
+  ]
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+);
+const ES_LOCALHOST = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+app.use(
+  cors({
+    origin: (origin, cb) =>
+      cb(null, !origin || ORIGENES_PERMITIDOS.has(origin) || (process.env.NODE_ENV !== 'production' && ES_LOCALHOST.test(origin))),
+  })
+);
 app.use(express.json());
 
 // Páginas vistas de la landing (beacon anónimo, ver server/tracking.js).
@@ -356,6 +378,7 @@ async function crearSesionComprador(compradorId, metodo) {
 // tope por código: frena a quien prueba contra muchos mails distintos.
 const loginFallosPorIp = crearLimitador({ max: 30, ventanaMs: 15 * 60_000 });
 const passwordFallosPorEmail = crearLimitador({ max: 5, ventanaMs: 15 * 60_000 });
+const vendedorFallosPorCuenta = crearLimitador({ max: 5, ventanaMs: 15 * 60_000 });
 const DEMASIADOS_INTENTOS = 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
 
 app.post('/api/auth/otp/verify', async (req, res) => {
@@ -1780,10 +1803,36 @@ app.post('/api/pagos/webhook', async (req, res) => {
 // RF-22: separación de permisos — el admin NO tiene, por diseño, ningún
 // endpoint para leer o editar el destino configurado por un comprador.
 
+// Fuerza bruta contra la contraseña del admin: 5 fallos por IP y, como la IP
+// se puede disfrazar, además un tope global de 20 fallos cada 15 minutos.
+// Si alguien ataca, el admin también queda bloqueado un rato: preferible a
+// que adivinen la clave.
+const adminFallosPorIp = crearLimitador({ max: 5, ventanaMs: 15 * 60_000 });
+const adminFallosGlobal = crearLimitador({ max: 20, ventanaMs: 15 * 60_000 });
+
+// Comparación en tiempo constante (sobre los hashes, así el largo no importa):
+// con `!==` el tiempo de respuesta delata cuántos caracteres van bien.
+function passwordAdminCorrecta(password) {
+  return timingSafeEqual(
+    createHash('sha256').update(password).digest(),
+    createHash('sha256').update(ADMIN_PASSWORD).digest()
+  );
+}
+
 app.post('/api/admin/login', async (req, res) => {
   if (!ADMIN_PASSWORD) return res.status(503).json({ error: 'El panel de admin todavía no está configurado.' });
   const password = String(req.body?.password || '');
-  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Contraseña incorrecta.' });
+
+  const ip = req.ip || 'unknown';
+  if (!adminFallosPorIp.permitido(ip) || !adminFallosGlobal.permitido('admin')) {
+    return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+  }
+  if (!passwordAdminCorrecta(password)) {
+    adminFallosPorIp.registrarFallo(ip);
+    adminFallosGlobal.registrarFallo('admin');
+    return res.status(401).json({ error: 'Contraseña incorrecta.' });
+  }
+  adminFallosPorIp.limpiar(ip);
 
   const token = generateToken();
   await run('INSERT INTO admin_sesiones (token_hash, expira) VALUES (?, ?)', [
@@ -1825,6 +1874,13 @@ app.post('/api/vendedor/login', async (req, res) => {
   const password = String(req.body?.password || '');
   if (!identificador || !password) return res.status(400).json({ error: 'Faltan datos.' });
 
+  // Mismos topes que el login con contraseña del comprador: por IP y por cuenta.
+  const ip = req.ip || 'unknown';
+  const claveCuenta = identificador.toLowerCase();
+  if (!loginFallosPorIp.permitido(ip) || !vendedorFallosPorCuenta.permitido(claveCuenta)) {
+    return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+  }
+
   const porEmail = identificador.includes('@');
   const vendedor = await get(
     porEmail
@@ -1832,11 +1888,15 @@ app.post('/api/vendedor/login', async (req, res) => {
       : 'SELECT * FROM vendedores WHERE whatsapp = ?',
     [identificador]
   );
-  if (!vendedor || !vendedor.password_hash) {
+  // Compara siempre (con el hash de relleno si no hay cuenta), para que el
+  // tiempo de respuesta no delate qué usuarios existen.
+  const ok = await bcrypt.compare(password, vendedor?.password_hash || HASH_RELLENO);
+  if (!vendedor || !vendedor.password_hash || !ok) {
+    loginFallosPorIp.registrarFallo(ip);
+    vendedorFallosPorCuenta.registrarFallo(claveCuenta);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
-  const ok = await bcrypt.compare(password, vendedor.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  vendedorFallosPorCuenta.limpiar(claveCuenta);
 
   const token = generateToken();
   await run('INSERT INTO vendedor_sesiones (vendedor_id, token_hash, expira) VALUES (?, ?, ?)', [
