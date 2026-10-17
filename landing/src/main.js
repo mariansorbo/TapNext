@@ -61,15 +61,16 @@ if (bgVideo) {
   applyParallax();
 }
 
-// "Un toque, y ya está": playlist de 3 clips con crossfade suave entre uno y
+// "Un toque, y ya está": playlist de 4 clips con crossfade suave entre uno y
 // el siguiente (dos <video> superpuestos, el que entra se precarga mientras
 // el actual todavía está en pantalla).
 const photoVideos = document.querySelectorAll('.photo-video');
 if (photoVideos.length === 2) {
   const PLAYLIST = [
     '/videos/vida-real-1.mp4',
-    '/videos/vida-real-2.mp4',
-    '/videos/vida-real-4.mp4',
+    '/videos/vida-real-11.mp4',
+    '/videos/vida-real-13a.mp4',
+    '/videos/vida-real-9a.mp4',
   ];
   const CROSSFADE_MS = 900;
   let clipIndex = 0;
