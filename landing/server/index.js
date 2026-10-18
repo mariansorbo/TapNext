@@ -3341,7 +3341,7 @@ function pantallaRedireccion(destino, tipo) {
 <title>NextTap</title>
 <noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
 <style>
-  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1400ms}
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:500ms}
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%}
   body{background:var(--ink);color:var(--paper);
@@ -3380,7 +3380,7 @@ function pantallaRedireccion(destino, tipo) {
   (function(){
     // Tiempos en pantalla, contados desde que la pantalla ya se pintó (no desde
     // que llegó el HTML): 1ª vez / mismo sticker de nuevo en <12 h (el dueño).
-    var DUR_PRIMERA=1400, DUR_MINIMA=700;
+    var DUR_PRIMERA=500, DUR_MINIMA=350;
     var to=${jsUrl}, dur=DUR_PRIMERA;
     try{
       var k='nt:'+location.pathname, last=+localStorage.getItem(k)||0;
@@ -3681,10 +3681,17 @@ function pantallaAlias(datos = {}) {
 }
 
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
-  const sticker = await get('SELECT * FROM stickers_actual WHERE codigo_publico = ?', [req.params.codigo]);
+  // Sticker y destino en una sola consulta: cada ida y vuelta a la base es
+  // latencia que el tap paga antes de redirigir.
+  const sticker = await get(
+    `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor
+       FROM stickers_actual s LEFT JOIN destinos d ON d.sticker_id = s.id
+      WHERE s.codigo_publico = ?`,
+    [req.params.codigo]
+  );
 
   if (sticker && sticker.estado === 'activo') {
-    const destino = await get('SELECT * FROM destinos WHERE sticker_id = ?', [sticker.id]);
+    const destino = sticker.destino_tipo != null ? { tipo: sticker.destino_tipo, valor: sticker.destino_valor } : null;
     if (destino) {
       // El plugin del tipo resuelve el valor guardado a la acción del tap. Hoy
       // siempre es un redirect a una URL; filas viejas sin https:// las fuerza a

@@ -1,0 +1,113 @@
+{
+  "etiqueta": "00-neon-bloqueada",
+  "fecha": "2026-10-18T23:06:40.355Z",
+  "codigo": "bench-inexistente",
+  "base": "https://next-tap.tech",
+  "api": "https://tapnext.onrender.com",
+  "resumen": {
+    "tap espaciado": {
+      "n": 3,
+      "errores": 3,
+      "min": 989,
+      "p50": 1003,
+      "p90": 1028,
+      "max": 1028
+    },
+    "tap rafaga": {
+      "n": 3,
+      "errores": 3,
+      "min": 990,
+      "p50": 997,
+      "p90": 1279,
+      "max": 1279
+    },
+    "backend sin base": {
+      "n": 3,
+      "errores": 0,
+      "min": 253,
+      "p50": 254,
+      "p90": 265,
+      "max": 265
+    }
+  },
+  "crudo": {
+    "tap espaciado": [
+      {
+        "code": 500,
+        "dns": 0.007737,
+        "conn": 0.016825,
+        "tls": 0.089423,
+        "ttfb": 1.002661,
+        "total": 1.00276
+      },
+      {
+        "code": 500,
+        "dns": 0.009096,
+        "conn": 0.017515,
+        "tls": 0.091535,
+        "ttfb": 1.028205,
+        "total": 1.028303
+      },
+      {
+        "code": 500,
+        "dns": 0.011404,
+        "conn": 0.020036,
+        "tls": 0.096545,
+        "ttfb": 0.989025,
+        "total": 0.989121
+      }
+    ],
+    "tap rafaga": [
+      {
+        "code": 500,
+        "dns": 0.020394,
+        "conn": 0.032752,
+        "tls": 0.107859,
+        "ttfb": 0.99018,
+        "total": 0.990348
+      },
+      {
+        "code": 500,
+        "dns": 0.019041,
+        "conn": 0.02952,
+        "tls": 0.112853,
+        "ttfb": 0.996844,
+        "total": 0.996995
+      },
+      {
+        "code": 500,
+        "dns": 0.012033,
+        "conn": 0.02044,
+        "tls": 0.104493,
+        "ttfb": 1.279055,
+        "total": 1.279236
+      }
+    ],
+    "backend sin base": [
+      {
+        "code": 200,
+        "dns": 0.018518,
+        "conn": 0.052271,
+        "tls": 0.076574,
+        "ttfb": 0.265037,
+        "total": 0.265111
+      },
+      {
+        "code": 200,
+        "dns": 0.029806,
+        "conn": 0.045853,
+        "tls": 0.07443,
+        "ttfb": 0.254417,
+        "total": 0.254595
+      },
+      {
+        "code": 200,
+        "dns": 0.020361,
+        "conn": 0.030838,
+        "tls": 0.067623,
+        "ttfb": 0.253431,
+        "total": 0.253563
+      }
+    ]
+  }
+}

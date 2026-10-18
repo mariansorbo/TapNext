@@ -16,7 +16,18 @@ if (!connectionString) {
 // piden SSL y usan certificados que node no valida por default. localhost no
 // lo necesita.
 const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
-const pool = new Pool({ connectionString, ssl: isLocal ? false : { rejectUnauthorized: false } });
+// Conexiones abiertas hasta 5 min sin uso (el default de pg es 10 s): con taps
+// espaciados, cada uno abría una conexión TLS nueva, varias idas y vueltas a la
+// base antes de la primera consulta.
+const pool = new Pool({
+  connectionString,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
+  idleTimeoutMillis: 5 * 60_000,
+  keepAlive: true,
+});
+// Si la base corta una conexión ociosa, el pool la descarta; sin este handler
+// el error tumba el proceso.
+pool.on('error', (err) => console.error('[db] conexión ociosa cerrada:', err.message));
 
 // Traduce placeholders estilo SQLite (`?`) a los de Postgres (`$1, $2...`) —
 // así el resto del backend no tiene que cambiar la forma de escribir SQL.
