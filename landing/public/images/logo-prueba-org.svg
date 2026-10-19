@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo inventado para probar la pantalla del tap de una organización.
+       Cuadrado como lo exporta el editor de Mi panel ("Que entre entera"). -->
+  <rect width="1080" height="1080" fill="#ffffff"/>
+  <g transform="translate(540 450)">
+    <circle cx="0" cy="0" r="210" fill="#F4EDE1"/>
+    <circle cx="95" cy="-85" r="46" fill="#F2A541"/>
+    <path d="M-200 95 L-75 -95 L-10 0 L45 -65 L200 95 Z" fill="#1F4E5F"/>
+    <path d="M-75 -95 L-38 -38 L-60 -48 L-88 -30 L-107 -46 Z" fill="#ffffff"/>
+    <path d="M45 -65 L72 -30 L52 -36 L34 -26 L24 -40 Z" fill="#ffffff"/>
+    <path d="M-210 95 Q0 150 210 95" fill="none" stroke="#1F4E5F" stroke-width="14" stroke-linecap="round"/>
+  </g>
+  <text x="540" y="820" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="96" font-weight="700" fill="#1F4E5F" letter-spacing="2">Los Andes</text>
+  <text x="540" y="890" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="40" font-weight="600" fill="#C9772B" letter-spacing="14">FERRETERÍA</text>
+</svg>
