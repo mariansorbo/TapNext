@@ -60,8 +60,8 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
 
   // La vista previa toma los mismos colores que la pantalla del tap (fondo =
   // color del logo, texto claro u oscuro según contraste).
-  function pintarPreview(color) {
-    const p = paletaPantalla(color);
+  function pintarPreview(color, borde) {
+    const p = paletaPantalla(color, borde);
     preview.style.background = p.fondo;
     preview.style.color = p.texto;
     previewMarkTap.style.background = p.acento;
@@ -80,7 +80,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     } else {
       previewImg.textContent = 'Tu imagen';
     }
-    pintarPreview(org.colorFondo);
+    pintarPreview(org.colorFondo, org.colorBorde);
     colorRow.hidden = !org.imagenUrl;
     colorInput.value = paletaPantalla(org.colorFondo).fondo;
     subirLabel.firstChild.textContent = org.imagenUrl ? 'Cambiar imagen' : 'Subir imagen';
@@ -100,7 +100,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   });
 
   // El color se puede cambiar a mano; se guarda al soltar el selector.
-  colorInput.addEventListener('input', () => pintarPreview(colorInput.value));
+  colorInput.addEventListener('input', () => pintarPreview(colorInput.value, org?.colorBorde));
   colorInput.addEventListener('change', async () => {
     try {
       const r = await api('/me/organizacion', { method: 'PATCH', body: JSON.stringify({ colorFondo: colorInput.value }) });
@@ -278,7 +278,9 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     pintar(previewCanvas.getContext('2d'), previewCanvas.width, e.trabajo);
     zoom.value = String(aSlider(e.escala));
     e.color = colorDelCuadro();
-    pintarPreview(e.color);
+    // Borde de la imagen ya encuadrada: si coincide con el fondo, sin sombra.
+    e.borde = colorDeBordes(muestra);
+    pintarPreview(e.color, e.borde);
 
     const w = e.iw * e.escala;
     const h = e.ih * e.escala;
@@ -392,7 +394,8 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     try {
       const blob = await exportar();
       const color = edicion.color || '';
-      const res = await fetch(`${apiBase}/api/me/organizacion/imagen?color=${encodeURIComponent(color)}`, {
+      const qs = `color=${encodeURIComponent(color)}&borde=${encodeURIComponent(edicion.borde || '')}`;
+      const res = await fetch(`${apiBase}/api/me/organizacion/imagen?${qs}`, {
         method: 'PUT',
         headers: { 'Content-Type': blob.type, Authorization: `Bearer ${getToken()}` },
         body: blob,

@@ -54,9 +54,18 @@ export function luminancia(hex) {
 const SOMBRA_CLARO = '0 2px 6px rgba(0,0,0,.10), 0 14px 40px rgba(0,0,0,.22)';
 const SOMBRA_OSCURO = '0 0 0 1px rgba(255,255,255,.10), 0 2px 6px rgba(0,0,0,.35), 0 16px 44px rgba(0,0,0,.6)';
 
+// Dos colores '#rrggbb' que a la vista son el mismo.
+export function mismoColor(a, b) {
+  if (!/^#[0-9a-f]{6}$/i.test(String(a)) || !/^#[0-9a-f]{6}$/i.test(String(b))) return false;
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+  return Math.hypot(((x >> 16) & 255) - ((y >> 16) & 255), ((x >> 8) & 255) - ((y >> 8) & 255), (x & 255) - (y & 255)) < 24;
+}
+
 // Colores de la pantalla para un fondo dado: texto oscuro sobre fondos claros,
-// claro sobre oscuros (gana el de más contraste).
-export function paletaPantalla(fondo) {
+// claro sobre oscuros (gana el de más contraste). `borde` = color del borde
+// de la imagen ya encuadrada: si es el mismo que el fondo, la imagen se funde
+// con la pantalla y el cuadro va sin sombra.
+export function paletaPantalla(fondo, borde = null) {
   const f = /^#[0-9a-f]{6}$/i.test(String(fondo)) ? String(fondo).toLowerCase() : FONDO_MARCA;
   const L = luminancia(f);
   const contrasteConOscuro = (L + 0.05) / (luminancia('#14171A') + 0.05);
@@ -69,6 +78,7 @@ export function paletaPantalla(fondo) {
   // perdería — ahí el recuadro pasa a ser del color del texto.
   const n = parseInt(f.slice(1), 16);
   const dist = Math.hypot(((n >> 16) & 255) - 0x7b, ((n >> 8) & 255) - 0x5c, (n & 255) - 0xff);
+  if (mismoColor(f, borde)) base.sombra = 'none';
   return dist < 110
     ? { ...base, acento: base.texto, acentoTexto: f }
     : { ...base, acento: '#7B5CFF', acentoTexto: '#14171A' };

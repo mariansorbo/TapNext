@@ -3386,7 +3386,7 @@ function orgBloque(org) {
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   // Fondo = color mayoritario del logo (lo calcula el editor de Mi panel), con
   // texto claro u oscuro según contraste. Sin color, el negro de siempre.
-  const p = paletaPantalla(org.color);
+  const p = paletaPantalla(org.color, org.borde);
   return {
     titulo: `${esc(org.nombre)} · NextTap`,
     color: p.fondo,
@@ -3810,7 +3810,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // La organización dueña (si es cuenta de empresa) viene en la misma consulta.
   const sticker = await get(
     `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor,
-            o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver, o.color_fondo AS org_color
+            o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver, o.color_fondo AS org_color, o.color_borde AS org_borde
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        LEFT JOIN organizaciones o ON o.comprador_id = s.comprador_id
@@ -3824,6 +3824,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
           nombre: sticker.org_nombre,
           imagen: sticker.org_imagen_ver ? `?logo=${sticker.org_imagen_ver}` : null,
           color: sticker.org_color,
+          borde: sticker.org_borde,
         }
       : null;
     const destino = sticker.destino_tipo != null ? { tipo: sticker.destino_tipo, valor: sticker.destino_valor } : null;

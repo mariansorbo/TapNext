@@ -68,7 +68,7 @@
 
   <script type="module">
     import { colorMayoritario, paletaPantalla } from '/src/color-logo.js';
-    import { encuadreAutomatico } from '/src/encuadre.js';
+    import { encuadreAutomatico, colorDeBordes } from '/src/encuadre.js';
 
     // Logos inventados, de distintas formas. Ni el encuadre ni el fondo están
     // escritos acá: se calculan de cada imagen, igual que en el editor de Mi
@@ -126,7 +126,8 @@
         const cuadro = encuadreAutomatico(img);
         s.querySelector('.org-img img').src = cuadro.canvas.toDataURL('image/png');
         o.color = colorDe(cuadro.canvas);
-        const pal = paletaPantalla(o.color);
+        // Borde de la imagen encuadrada = fondo → se funde, sin sombra.
+        const pal = paletaPantalla(o.color, colorDeBordes(cuadro.canvas));
         s.style.setProperty('--fondo', pal.fondo);
         s.style.setProperty('--texto', pal.texto);
         s.style.setProperty('--texto2', pal.texto2);

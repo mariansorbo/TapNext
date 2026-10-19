@@ -9,6 +9,8 @@
 //   PUT    /api/me/organizacion/imagen   cuerpo = la imagen (image/webp|jpeg|png);
 //                                        ?color=#rrggbb = fondo de la pantalla
 //                                        (el color mayoritario del logo, lo calcula el editor)
+//                                        ?borde=#rrggbb = color del borde de la imagen ya
+//                                        encuadrada (si es igual al fondo, el cuadro va sin sombra)
 //   DELETE /api/me/organizacion/imagen
 // Público:
 //   GET    /api/org/imagen/:ver          la imagen, cacheable para siempre
@@ -41,6 +43,9 @@ await db.executeMultiple(`
     ON organizaciones(imagen_ver) WHERE imagen_ver IS NOT NULL;
   -- Fondo de la pantalla del tap (#rrggbb). NULL = el negro de NextTap.
   ALTER TABLE organizaciones ADD COLUMN IF NOT EXISTS color_fondo TEXT;
+  -- Color del borde de la imagen ya encuadrada: si coincide con el fondo, la
+  -- imagen se funde con la pantalla y el cuadro va sin sombra.
+  ALTER TABLE organizaciones ADD COLUMN IF NOT EXISTS color_borde TEXT;
 `);
 
 export const ORG_NOMBRE_MAX = 40;
@@ -75,10 +80,13 @@ function tipoDeImagen(buf) {
 const urlImagen = (ver) => (ver ? `/api/org/imagen/${ver}` : null);
 
 export async function organizacionDe(compradorId) {
-  const [o] = await q('SELECT nombre, imagen_ver, color_fondo FROM organizaciones WHERE comprador_id = ?', [
-    compradorId,
-  ]);
-  return o ? { nombre: o.nombre, imagenUrl: urlImagen(o.imagen_ver), colorFondo: o.color_fondo } : null;
+  const [o] = await q(
+    'SELECT nombre, imagen_ver, color_fondo, color_borde FROM organizaciones WHERE comprador_id = ?',
+    [compradorId]
+  );
+  return o
+    ? { nombre: o.nombre, imagenUrl: urlImagen(o.imagen_ver), colorFondo: o.color_fondo, colorBorde: o.color_borde }
+    : null;
 }
 
 // Manda la imagen por su versión. Inmutable: si la organización sube otra,
@@ -143,9 +151,10 @@ export function crearOrganizacionesRouter({ requireAuth }) {
       const conColor = req.query.color !== undefined;
       await q(
         `UPDATE organizaciones SET imagen = ?, imagen_tipo = ?, imagen_ver = ?,
-                color_fondo = CASE WHEN ? THEN ? ELSE color_fondo END, actualizada_en = NOW()
+                color_fondo = CASE WHEN ? THEN ? ELSE color_fondo END,
+                color_borde = ?, actualizada_en = NOW()
           WHERE comprador_id = ?`,
-        [req.body, tipo, ver, conColor, colorValido(req.query.color), req.comprador.id]
+        [req.body, tipo, ver, conColor, colorValido(req.query.color), colorValido(req.query.borde), req.comprador.id]
       );
       res.json({ organizacion: await organizacionDe(req.comprador.id) });
     }
@@ -154,7 +163,7 @@ export function crearOrganizacionesRouter({ requireAuth }) {
   r.delete('/me/organizacion/imagen', requireAuth, requireOrg, async (req, res) => {
     await q(
       `UPDATE organizaciones SET imagen = NULL, imagen_tipo = NULL, imagen_ver = NULL, color_fondo = NULL,
-                actualizada_en = NOW()
+                color_borde = NULL, actualizada_en = NOW()
         WHERE comprador_id = ?`,
       [req.comprador.id]
     );
