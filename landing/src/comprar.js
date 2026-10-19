@@ -748,7 +748,6 @@ function openWizard() {
   }
   payButton.disabled = false;
   payButton.textContent = 'Pagar';
-  closeTyc();
   evento('wizard_abierto', { flujo: document.body.dataset.flow || null });
   // Click en "comprar online" — distinto de InitiateCheckout (que recién se
   // dispara al confirmar el pago), sirve como métrica líder de intención.
@@ -775,29 +774,11 @@ modal.addEventListener('click', (e) => {
   if (e.target === modal) closeWizard();
 });
 
-// Full Términos y Condiciones — opens on top of the wizard, closes back to it.
-const tycModal = document.getElementById('tyc-modal');
-const openTycButton = document.getElementById('open-tyc');
-const closeTycButton = document.getElementById('tyc-close');
-
-function openTyc() {
-  tycModal.classList.add('is-open');
-  tycModal.setAttribute('aria-hidden', 'false');
-}
-function closeTyc() {
-  tycModal.classList.remove('is-open');
-  tycModal.setAttribute('aria-hidden', 'true');
-}
-openTycButton.addEventListener('click', openTyc);
-closeTycButton.addEventListener('click', closeTyc);
-tycModal.addEventListener('click', (e) => {
-  if (e.target === tycModal) closeTyc();
-});
-
+// Los Términos y Condiciones completos se abren en /terminos.html, en otra
+// pestaña (una sola fuente; el wizard queda abierto donde estaba).
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (tycModal.classList.contains('is-open')) closeTyc();
-  else if (modal.classList.contains('is-open')) closeWizard();
+  if (modal.classList.contains('is-open')) closeWizard();
 });
 
 nextButton.addEventListener('click', () => {
