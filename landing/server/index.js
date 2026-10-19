@@ -3397,10 +3397,10 @@ function orgBloque(org) {
   body.org .mark .tap{background:${p.acento};color:${p.acentoTexto}}
   body.org .cta{color:${p.texto2};font-size:clamp(1rem,4.4vw,1.15rem);bottom:calc(env(safe-area-inset-bottom) + 72px)}
   body.org .cta b{color:${p.texto}}
-  body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
+  body.org .mark{font-size:clamp(2.3rem,12.5vw,3.7rem)}
   .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
   .org-img{width:min(72vw,320px,40svh);aspect-ratio:1;border-radius:clamp(16px,6vw,26px);overflow:hidden;
-    background:${p.pista};box-shadow:0 12px 40px rgba(0,0,0,.18);opacity:0;transform:scale(.96);
+    background:${p.pista};box-shadow:${p.sombra};opacity:0;transform:scale(.96);
     transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
   .org-img.ok{opacity:1;transform:none}
   .org-img img{display:block;width:100%;height:100%;object-fit:cover}`,

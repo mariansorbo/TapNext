@@ -66,6 +66,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     preview.style.color = p.texto;
     previewMarkTap.style.background = p.acento;
     previewMarkTap.style.color = p.acentoTexto;
+    previewImg.style.boxShadow = p.sombra;
   }
 
   function mostrarImagenGuardada() {

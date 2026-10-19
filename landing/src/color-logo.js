@@ -47,6 +47,13 @@ export function luminancia(hex) {
   return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
 }
 
+// Sombra del cuadro de la imagen: que se vea siempre. Sobre fondo claro
+// alcanza una sombra suave; sobre fondo oscuro una sombra negra apenas se nota
+// (y sobre negro, nada), así que va más marcada y con un filete claro de 1 px
+// que dibuja el borde aunque la imagen sea del mismo color que el fondo.
+const SOMBRA_CLARO = '0 2px 6px rgba(0,0,0,.10), 0 14px 40px rgba(0,0,0,.22)';
+const SOMBRA_OSCURO = '0 0 0 1px rgba(255,255,255,.10), 0 2px 6px rgba(0,0,0,.35), 0 16px 44px rgba(0,0,0,.6)';
+
 // Colores de la pantalla para un fondo dado: texto oscuro sobre fondos claros,
 // claro sobre oscuros (gana el de más contraste).
 export function paletaPantalla(fondo) {
@@ -56,8 +63,8 @@ export function paletaPantalla(fondo) {
   const contrasteConClaro = (luminancia('#EDEFE9') + 0.05) / (L + 0.05);
   const base =
     contrasteConOscuro > contrasteConClaro
-      ? { fondo: f, texto: '#14171A', texto2: 'rgba(20,23,26,.72)', pista: 'rgba(20,23,26,.16)' }
-      : { fondo: f, texto: '#EDEFE9', texto2: 'rgba(237,239,233,.72)', pista: 'rgba(237,239,233,.18)' };
+      ? { fondo: f, texto: '#14171A', texto2: 'rgba(20,23,26,.72)', pista: 'rgba(20,23,26,.16)', sombra: SOMBRA_CLARO }
+      : { fondo: f, texto: '#EDEFE9', texto2: 'rgba(237,239,233,.72)', pista: 'rgba(237,239,233,.18)', sombra: SOMBRA_OSCURO };
   // El "Tap" violeta de la marca: si el fondo ya es parecido al violeta, se
   // perdería — ahí el recuadro pasa a ser del color del texto.
   const n = parseInt(f.slice(1), 16);
