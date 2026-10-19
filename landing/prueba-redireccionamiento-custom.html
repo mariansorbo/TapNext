@@ -38,7 +38,7 @@
   .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:var(--pista);overflow:hidden}
   .bar i{display:block;height:100%;background:var(--acento);transform:translateX(-100%)}
   .cta{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;
-    bottom:calc(env(safe-area-inset-bottom) + 44px);padding:10px 16px;font-size:clamp(1rem,4.4vw,1.15rem);
+    bottom:calc(env(safe-area-inset-bottom) + 72px);padding:10px 16px;font-size:clamp(1rem,4.4vw,1.15rem);
     color:var(--texto2);text-decoration:none;opacity:0}
   .cta b{color:var(--texto);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -55,15 +55,6 @@
   @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
 
   /* Controles de la prueba (no existen en la pantalla real) */
-  .info{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;z-index:2;
-    display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;
-    font:500 .72rem ui-monospace,SFMono-Regular,Menlo,monospace;color:rgba(237,239,233,.9)}
-  .info span{background:rgba(0,0,0,.45);padding:5px 10px;border-radius:999px;backdrop-filter:blur(6px)}
-  .puntos{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 108px);left:0;right:0;z-index:2;
-    display:flex;justify-content:center;gap:8px}
-  .puntos button{width:8px;height:8px;border-radius:999px;border:0;background:rgba(0,0,0,.35);
-    box-shadow:0 0 0 1px rgba(255,255,255,.5);cursor:pointer;padding:0;transition:width .2s ease}
-  .puntos button.on{background:#fff;width:22px}
   .flecha{position:fixed;top:50%;transform:translateY(-50%);z-index:2;width:44px;height:44px;border-radius:50%;
     border:0;background:rgba(0,0,0,.4);color:#fff;font-size:1.3rem;cursor:pointer;display:none}
   .flecha.izq{left:16px}.flecha.der{right:16px}
@@ -71,12 +62,7 @@
 </style>
 </head>
 <body>
-  <div class="info">
-    <span>Vista de prueba · no redirige · deslizá →</span>
-    <span id="detalle"></span>
-  </div>
   <div class="carrusel" id="carrusel"></div>
-  <div class="puntos" id="puntos"></div>
   <button type="button" class="flecha izq" id="ant" aria-label="Anterior">‹</button>
   <button type="button" class="flecha der" id="sig" aria-label="Siguiente">›</button>
 
@@ -101,8 +87,6 @@
     ];
 
     const carrusel = document.getElementById('carrusel');
-    const puntos = document.getElementById('puntos');
-    const detalle = document.getElementById('detalle');
     const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
     function cargar(src) {
@@ -123,11 +107,6 @@
     }
 
     let actual = 0;
-    function mostrarDetalle(i) {
-      const o = ORGS[i];
-      const forma = o.forma ? `${o.forma} · ` : '';
-      detalle.textContent = `${i + 1}/${ORGS.length} · ${forma}fondo ${o.color || 'negro de marca (logo sin color)'}`;
-    }
 
     const slides = ORGS.map((o, i) => {
       const s = document.createElement('section');
@@ -142,18 +121,10 @@
         <a class="cta" href="/">Comprá el tuyo en <b>next-tap.tech</b></a>`;
       carrusel.appendChild(s);
 
-      const p = document.createElement('button');
-      p.type = 'button';
-      p.setAttribute('aria-label', o.nombre);
-      p.addEventListener('click', () => s.scrollIntoView({ behavior: 'smooth', inline: 'center' }));
-      puntos.appendChild(p);
-
       cargar(`/images/prueba-logos/${o.logo}`).then((img) => {
         // Lo que sube el editor: el cuadrado de 1080 ya encuadrado.
         const cuadro = encuadreAutomatico(img);
         s.querySelector('.org-img img').src = cuadro.canvas.toDataURL('image/png');
-        const tipo = cuadro.iw === cuadro.ih ? 'cuadrado' : cuadro.iw > cuadro.ih ? 'apaisado' : 'vertical';
-        o.forma = `${tipo} ${cuadro.iw}×${cuadro.ih}${cuadro.modo === 'entera' ? ' → entra entera' : ''}`;
         o.color = colorDe(cuadro.canvas);
         const pal = paletaPantalla(o.color);
         s.style.setProperty('--fondo', pal.fondo);
@@ -162,7 +133,6 @@
         s.style.setProperty('--pista', pal.pista);
         s.style.setProperty('--acento', pal.acento);
         s.style.setProperty('--acento-texto', pal.acentoTexto);
-        if (actual === i) mostrarDetalle(i);
       });
       return s;
     });
@@ -176,8 +146,6 @@
         void s.offsetWidth;
         s.classList.add('run');
       });
-      [...puntos.children].forEach((p, j) => p.classList.toggle('on', j === i));
-      mostrarDetalle(i);
     }
     let espera;
     carrusel.addEventListener('scroll', () => {

@@ -3395,7 +3395,7 @@ function orgBloque(org) {
   body.org .bar{background:${p.pista}}
   body.org .bar i{background:${p.acento}}
   body.org .mark .tap{background:${p.acento};color:${p.acentoTexto}}
-  body.org .cta{color:${p.texto2};font-size:clamp(1rem,4.4vw,1.15rem);bottom:calc(env(safe-area-inset-bottom) + 44px)}
+  body.org .cta{color:${p.texto2};font-size:clamp(1rem,4.4vw,1.15rem);bottom:calc(env(safe-area-inset-bottom) + 72px)}
   body.org .cta b{color:${p.texto}}
   body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
   .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
