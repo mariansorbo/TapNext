@@ -1,3 +1,7 @@
 
 # Dumps de la base (datos de clientes): nunca al repo
 backups/
+
+# Logs y config del servidor local
+scripts/servidor-local/*.log
+scripts/servidor-local/tunel.yml
