@@ -1,5 +1,5 @@
 // Mi panel → "Tu organización" (solo cuentas de empresa, ver
-// server/organizaciones.js): el nombre que sale en "NextTap by <nombre>" y la
+// server/organizaciones.js): el nombre que sale debajo de NextTap y la
 // imagen de la pantalla del tap, con un editor para encuadrarla.
 //
 // El editor resuelve en el navegador que "quede bien sin importar el tamaño":
@@ -122,7 +122,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   });
 
   quitarBtn.addEventListener('click', async () => {
-    if (!confirm('¿Quitar la imagen? La pantalla del tap queda solo con "NextTap by" y el nombre.')) return;
+    if (!confirm('¿Quitar la imagen? La pantalla del tap queda solo con NextTap y el nombre.')) return;
     try {
       const r = await api('/me/organizacion/imagen', { method: 'DELETE' });
       render(r.organizacion);

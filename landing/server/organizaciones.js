@@ -1,7 +1,7 @@
 // Organizaciones: cuenta de empresa. Es una cuenta de comprador común (entra a
 // Mi panel con su mail, tiene sus productos) que el admin marca como
 // organización. Lo que cambia: la pantalla del tap de TODOS sus productos dice
-// "NextTap by <nombre>" y muestra la imagen que la organización carga desde
+// NextTap + el nombre de la organización y muestra la imagen que la organización carga desde
 // Mi panel (ver orgBloque en index.js).
 //
 // Comprador (Mi panel):

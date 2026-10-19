@@ -3371,7 +3371,7 @@ function linkMarca(tipo) {
 }
 
 // Productos de una organización (cuenta de empresa, ver server/organizaciones.js):
-// la pantalla del tap pasa a ser "NextTap by <nombre>" con la imagen que cargó
+// la pantalla del tap muestra NextTap + el nombre de la organización, con la imagen que cargó
 // la organización arriba. `org` = { nombre, imagen } (imagen = URL relativa
 // a la propia pantalla, `?logo=<ver>`: mismo origen, sin conexión nueva) o null.
 // Devuelve las piezas que cada pantalla intercala: CSS, HTML y JS. La imagen ya
@@ -3388,14 +3388,14 @@ function orgBloque(org) {
   // texto claro u oscuro según contraste. Sin color, el negro de siempre.
   const p = paletaPantalla(org.color);
   return {
-    titulo: `NextTap by ${esc(org.nombre)}`,
+    titulo: `${esc(org.nombre)} · NextTap`,
     color: p.fondo,
     css: `
   body.org{gap:22px;padding:24px;background:${p.fondo};color:${p.texto}}
   body.org .bar{background:${p.pista}}
   body.org .bar i{background:${p.acento}}
   body.org .mark .tap{background:${p.acento};color:${p.acentoTexto}}
-  body.org .cta{color:${p.texto2}}
+  body.org .cta{color:${p.texto2};font-size:clamp(1rem,4.4vw,1.15rem);bottom:calc(env(safe-area-inset-bottom) + 44px)}
   body.org .cta b{color:${p.texto}}
   body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
   .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
@@ -3407,7 +3407,7 @@ function orgBloque(org) {
     transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
   .org-img.ok{opacity:1;transform:none}
   .org-img img{display:block;width:100%;height:100%;object-fit:cover}`,
-    marca: `<div class="by">by <b>${esc(org.nombre)}</b></div>`,
+    marca: `<div class="by"><b>${esc(org.nombre)}</b></div>`,
     imagen: org.imagen ? `<div class="org-img" id="org-img"><img src="${esc(org.imagen)}" alt="${esc(org.nombre)}" fetchpriority="high"></div>` : '',
     js: `function listo(cb){
       var box=document.getElementById('org-img'), img=box&&box.querySelector('img'), hecho=false;

@@ -1,5 +1,5 @@
 // Sección "Organizaciones" del panel admin: qué cuentas son de empresa (sus
-// productos muestran "NextTap by <nombre>" + su imagen al tapear). Se convierte
+// productos muestran NextTap + su nombre + su imagen al tapear). Se convierte
 // una cuenta por mail — si no existe todavía, se crea y la empresa entra a Mi
 // panel con un código. La imagen la carga la organización desde Mi panel.
 // Backend en server/organizaciones.js.
@@ -49,7 +49,7 @@ export function initOrganizacionesAdmin({ api, apiBase }) {
 
       tabla.querySelectorAll('.org-renombrar').forEach((btn) =>
         btn.addEventListener('click', async () => {
-          const nombre = prompt('Nombre que se muestra ("NextTap by …"):', btn.dataset.nombre);
+          const nombre = prompt('Nombre que se muestra debajo de NextTap:', btn.dataset.nombre);
           if (nombre == null) return;
           try {
             await api(`/organizaciones/${btn.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ nombre }) });
