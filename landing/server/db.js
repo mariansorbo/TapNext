@@ -534,6 +534,10 @@ await db.executeMultiple(`
   -- Post Affiliate Pro (ver server/pap.js): visitorId del clic de afiliado,
   -- capturado al crear la venta y mandado a sale.php cuando se confirma el pago.
   ALTER TABLE ventas ADD COLUMN IF NOT EXISTS pap_visitor_id TEXT;
+  -- Google Analytics (gtag) del comprador, para atribuir el purchase que
+  -- manda el webhook por Measurement Protocol (ver server/ga4.js).
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS ga_client_id TEXT;
+  ALTER TABLE ventas ADD COLUMN IF NOT EXISTS ga_session_id TEXT;
 
   -- Alerta al admin "no llegó el pago" (ver avisarPagosQueNoLlegaron en
   -- index.js): cuándo se mandó, para avisar una sola vez por venta.

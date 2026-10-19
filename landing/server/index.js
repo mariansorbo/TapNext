@@ -29,6 +29,7 @@ import {
 } from './enviopack.js';
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
 import { enviarVentaPap, papDisponible, esPapVisitorId } from './pap.js';
+import { enviarGaPurchase, ga4Disponible, esGaClientId, esGaSessionId } from './ga4.js';
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
@@ -1126,11 +1127,14 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   const visitanteId = esVisitanteId(req.body?.visitanteId) ? req.body.visitanteId : null;
   // Clic de afiliado de Post Affiliate Pro (cookie PAPVisitorId, ver src/pap.js).
   const papVisitorId = esPapVisitorId(req.body?.papVisitorId) ? req.body.papVisitorId : null;
+  // Google Analytics del navegador (gtag), para el purchase server-side (ver server/ga4.js).
+  const gaClientId = esGaClientId(req.body?.gaClientId) ? req.body.gaClientId : null;
+  const gaSessionId = esGaSessionId(req.body?.gaSessionId) ? req.body.gaSessionId : null;
 
   const ventaResult = await run(
-    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua, visitante_id, pap_visitor_id)
-     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?)`,
-    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa, visitanteId, papVisitorId]
+    `INSERT INTO ventas (vendedor_id, comprador_id, monto, estado_pago, promocion_id, fbp, fbc, client_ip, client_ua, visitante_id, pap_visitor_id, ga_client_id, ga_session_id)
+     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [vendedorIdVenta, req.comprador.id, monto, promo ? promo.id : null, fbp, fbc, clientIp, clientUa, visitanteId, papVisitorId, gaClientId, gaSessionId]
   );
   const ventaId = ventaResult.lastInsertRowid;
 
@@ -1469,6 +1473,32 @@ async function enviarCapiPurchaseDeVenta(venta, ventaId) {
   }
 }
 
+// Manda el purchase a GA4 (Measurement Protocol). Es la única fuente del
+// purchase en GA: el navegador no lo manda. transaction_id = id de la venta.
+async function enviarGaPurchaseDeVenta(venta, ventaId) {
+  if (!ga4Disponible) return { estado: 'no_configurado' };
+  try {
+    const envio = await get('SELECT costo FROM venta_envios WHERE venta_id = ?', [ventaId]);
+    const items = await all(
+      `SELECT vi.monto, vi.destino_tipo, s.modelo FROM venta_items vi
+         JOIN stickers_actual s ON s.id = vi.sticker_id WHERE vi.venta_id = ?`,
+      [ventaId]
+    );
+    await enviarGaPurchase({
+      transactionId: ventaId,
+      value: Number(venta.monto),
+      shipping: Number(envio?.costo || 0),
+      items: items.map((it) => ({ modelo: it.modelo || 'suelto', destinoTipo: it.destino_tipo || 'sin_funcion', precio: Number(it.monto) })),
+      clientId: venta.ga_client_id || null,
+      sessionId: venta.ga_session_id || null,
+    });
+    return { estado: 'enviado' };
+  } catch (err) {
+    console.error(`[GA4] no se pudo mandar el purchase de la venta ${ventaId}:`, err.message);
+    return { estado: 'fallo', error: err.message };
+  }
+}
+
 // Manda la venta a Post Affiliate Pro si vino de un clic de afiliado. La
 // comisión se calcula sobre los productos: se descuenta el envío. OrderID =
 // id de la venta (el webhook ya es idempotente, solo llega acá una vez).
@@ -1569,7 +1599,7 @@ const TXT_MAIL = {
 
 // Venta confirmada: resumen + qué pasó con cada paso posterior al pago. El
 // asunto marca ⚠️ si algo falló, para verlo sin abrir el mail.
-function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enColaDeEntrega }) {
+function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, ga, enColaDeEntrega }) {
   const problemas = [];
   if (avisos.comprador !== 'enviado') problemas.push('mail al comprador');
   if (avisos.vendedor === 'fallo' || avisos.vendedor === 'sin_mail') problemas.push('mail al vendedor');
@@ -1594,6 +1624,7 @@ function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enC
   }
   if (capi.estado === 'fallo') problemas.push('Meta CAPI');
   if (pap?.estado === 'fallo') problemas.push('Post Affiliate Pro');
+  if (ga?.estado === 'fallo') problemas.push('Google Analytics');
 
   const asunto = problemas.length
     ? `⚠️ Venta #${ventaId} cobrada con problemas: ${problemas.join(', ')}`
@@ -1611,6 +1642,7 @@ function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enC
       `  • Meta CAPI: ${capi.estado === 'fallo' ? `FALLÓ: ${capi.error}` : capi.estado === 'enviado' ? 'enviado' : 'no configurado'}`,
       pap && pap.estado !== 'no_configurado' &&
         `  • Afiliados (PAP): ${pap.estado === 'fallo' ? `FALLÓ: ${pap.error}` : pap.estado === 'enviado' ? 'venta registrada' : 'sin afiliado'}`,
+      ga && `  • Google Analytics: ${ga.estado === 'fallo' ? `FALLÓ: ${ga.error}` : ga.estado === 'enviado' ? 'enviado' : 'no configurado'}`,
     ],
   });
 }
@@ -1768,8 +1800,10 @@ app.post('/api/pagos/webhook', async (req, res) => {
       const capi = await enviarCapiPurchaseDeVenta(venta, ventaId);
       // Post Affiliate Pro: comisión al afiliado del clic. Best-effort.
       const pap = await enviarVentaPapDeVenta(venta, ventaId, items);
+      // Google Analytics: purchase server-side. Best-effort.
+      const ga = await enviarGaPurchaseDeVenta(venta, ventaId);
       // Alerta al admin con el resultado de cada paso de arriba.
-      alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, enColaDeEntrega });
+      alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, ga, enColaDeEntrega });
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       // MP notifica el mismo pago más de una vez: avisamos solo la primera.
       if (venta.estado_pago !== 'rechazado' || venta.payment_id !== String(payment.id)) {

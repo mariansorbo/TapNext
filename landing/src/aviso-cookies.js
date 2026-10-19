@@ -1,6 +1,6 @@
 // Aviso informativo de cookies — se carga junto con el Pixel (ver pixel.js), o
 // sea en las mismas páginas públicas. NO es un banner de consentimiento: las
-// cookies (nt_vid, Pixel, PAP) se cargan igual, esto solo avisa y linkea a
+// cookies (nt_vid, Pixel, GA, PAP) se cargan igual, esto solo avisa y linkea a
 // /privacidad.html. Las condiciones de Meta piden ese aviso visible.
 // "Entendido" se recuerda en localStorage; si el navegador no deja guardar,
 // el aviso vuelve a aparecer en la próxima página (nunca rompe nada).

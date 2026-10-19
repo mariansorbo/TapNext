@@ -2,6 +2,7 @@ import './styles.css';
 import './pixel.js';
 import { evento, obtenerVisitanteId } from './visita.js';
 import { trackEvent } from './pixel.js';
+import { gaEvent, obtenerGaIds } from './analytics.js';
 import { obtenerPapVisitorId } from './pap.js';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
@@ -684,6 +685,34 @@ function envioListo() {
   return Boolean(f.provincia && /^\d{4}$/.test(f.cp) && f.localidad && f.calle && f.numero && f.destNombre && f.destTelefono);
 }
 
+// GA4 (ecommerce): el carrito agrupado como `items`, con el precio que ve el
+// comprador. El value de cada evento es items + envío cotizado. El purchase
+// no sale de acá: lo manda el webhook (server/ga4.js), que ve todas las ventas.
+function gaCarrito() {
+  const items = [];
+  state.cart.forEach((c) => {
+    const id = `${c.modelId}__${c.functionId}`;
+    const it = items.find((x) => x.item_id === id);
+    if (it) {
+      it.quantity += 1;
+      return;
+    }
+    // Mismo item_name que el purchase del server (server/ga4.js), así GA no
+    // ve dos productos distintos.
+    items.push({
+      item_id: id,
+      item_name: `${c.modelId} · ${c.functionId}`,
+      item_category: c.modelId,
+      item_variant: c.functionId,
+      price: getPrecio(c.modelId),
+      quantity: 1,
+    });
+  });
+  const shipping = state.envio.habilitado && state.envio.costo ? state.envio.costo : 0;
+  const value = items.reduce((sum, it) => sum + it.price * it.quantity, 0) + shipping;
+  return { currency: 'ARS', value, items, ...(shipping && { shipping }) };
+}
+
 function renderSummary() {
   state.contacto = whatsappInput.value.trim();
 
@@ -752,11 +781,16 @@ function openWizard() {
   // Click en "comprar online" — distinto de InitiateCheckout (que recién se
   // dispara al confirmar el pago), sirve como métrica líder de intención.
   trackEvent('AddToCart', { content_type: 'product', currency: 'ARS' });
+  gaCheckoutIniciado = false;
   showStep(STEP_SEQUENCE[0]);
   modal.classList.add('is-open');
   modal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
 }
+
+// begin_checkout sale una vez por apertura del wizard, al salir del paso 1
+// (recién ahí hay carrito para mandar items y value).
+let gaCheckoutIniciado = false;
 
 function closeWizard() {
   // Cerrar sin haber pagado = abandono, con el paso en que quedó.
@@ -782,7 +816,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 nextButton.addEventListener('click', () => {
-  if (currentStep === 1) syncCartFromStep1();
+  if (currentStep === 1) {
+    syncCartFromStep1();
+    if (!gaCheckoutIniciado && state.cart.length) {
+      gaCheckoutIniciado = true;
+      gaEvent('begin_checkout', gaCarrito());
+    }
+  }
+  if (currentStep === 5) gaEvent('add_shipping_info', { ...gaCarrito(), shipping_tier: state.envio.servicio || 'domicilio' });
   const i = STEP_SEQUENCE.indexOf(currentStep);
   if (i < STEP_SEQUENCE.length - 1) showStep(STEP_SEQUENCE[i + 1]);
 });
@@ -816,6 +857,8 @@ payButton.addEventListener('click', async () => {
       aceptaTyc: tycCheckbox.checked,
       // Une la venta con el recorrido anónimo (UTM, páginas, pasos).
       visitanteId: await obtenerVisitanteId(),
+      // El purchase de GA lo manda el server (server/ga4.js) con estos ids.
+      ...(await obtenerGaIds()),
     };
     if (state.envio.habilitado) body.envio = getEnvioFields();
     const data = await api('/ventas', {
@@ -829,6 +872,7 @@ payButton.addEventListener('click', async () => {
       num_items: state.cart.length,
       currency: 'ARS',
     });
+    gaEvent('add_payment_info', { ...gaCarrito(), payment_type: 'Mercado Pago' });
     // Mercado Pago se encarga del cobro real — al volver, back_urls trae ?venta=&pago=.
     window.location.href = data.initPoint;
   } catch (err) {

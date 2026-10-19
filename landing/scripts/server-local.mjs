@@ -24,7 +24,7 @@ process.env.PORT ||= prod ? '3001' : '3002';
 
 if (!prod) {
   for (const k of ['RESEND_API_KEY', 'MP_ACCESS_TOKEN', 'ENVIOPACK_API_KEY', 'ENVIOPACK_SECRET_KEY',
-    'META_CAPI_ACCESS_TOKEN', 'WHATSAPP_BUSINESS_TOKEN', 'PAP_URL']) delete process.env[k];
+    'META_CAPI_ACCESS_TOKEN', 'WHATSAPP_BUSINESS_TOKEN', 'PAP_URL', 'GA_API_SECRET']) delete process.env[k];
 }
 
 process.chdir(LANDING);
