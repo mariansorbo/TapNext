@@ -306,6 +306,21 @@ footer a:hover{color:var(--paper); text-decoration:underline;}
   .footer-bottom{flex-direction:column; gap:6px;}
 }
 
+/* AVISO DE COOKIES (src/aviso-cookies.js) — informativo, debajo de los modales */
+.aviso-cookies{
+  position:fixed; left:16px; right:16px; bottom:16px; z-index:95;
+  max-width:560px; margin:0 auto; display:flex; align-items:center; gap:16px;
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:14px 16px; box-shadow:0 10px 30px rgba(0,0,0,0.35);
+}
+.aviso-cookies p{flex:1; font-size:0.84rem; color:var(--paper-dim); line-height:1.45;}
+.aviso-cookies a{color:var(--paper); text-decoration:underline;}
+.aviso-cookies-ok{
+  flex-shrink:0; border:none; border-radius:100px; padding:9px 16px; cursor:pointer;
+  background:var(--violet); color:var(--paper); font:600 0.82rem var(--body);
+}
+.aviso-cookies-ok:hover{background:var(--violet-dim);}
+
 /* LEAD MODAL */
 .modal-overlay{
   position:fixed; inset:0; background:rgba(20,23,26,0.72);

@@ -45,6 +45,8 @@ export default defineConfig({
         vendedor: resolve(root, 'vendedor.html'),
         demo: resolve(root, 'demo.html'),
         sorteo: resolve(root, 'sorteo.html'),
+        terminos: resolve(root, 'terminos.html'),
+        privacidad: resolve(root, 'privacidad.html'),
       },
     },
   },

@@ -1,5 +1,7 @@
 // Meta Pixel — se carga en todas las páginas públicas (no en admin/vendedor/mi-panel).
 // event_id opcional: se usa para dedupear con el mismo evento mandado por CAPI del lado servidor.
+import './aviso-cookies.js';
+
 const PIXEL_ID = '2192903191273005';
 
 /* eslint-disable */
