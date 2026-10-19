@@ -9,6 +9,8 @@
 // imagen, editable) y se exporta siempre igual: cuadrada de SALIDA px. Además
 // avisa en vivo si la imagen se va a ver borrosa con ese zoom.
 
+import { colorMayoritario, paletaPantalla } from './color-logo.js';
+
 const SALIDA = 1080; // px del cuadrado que se sube
 // En el celu el cuadro mide hasta ~320 px de CSS × 3 de densidad ≈ 960 px reales.
 const PX_REALES_EN_PANTALLA = 960;
@@ -36,6 +38,12 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   const guardarBtn = $('org-guardar');
   const cancelarBtn = $('org-cancelar');
   const modoBtns = editor.querySelectorAll('[data-modo]');
+  const preview = box.querySelector('.org-preview');
+  const previewMarkTap = box.querySelector('.org-preview-mark span');
+  const previewBy = box.querySelector('.org-preview-by');
+  const colorRow = $('org-color-row');
+  const colorInput = $('org-color');
+  const colorOrigen = $('org-color-origen');
 
   let org = null;
 
@@ -53,6 +61,18 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     if (!edicion) mostrarImagenGuardada();
   }
 
+  // La vista previa toma los mismos colores que la pantalla del tap (fondo =
+  // color del logo, texto claro u oscuro según contraste).
+  function pintarPreview(color) {
+    const p = paletaPantalla(color);
+    preview.style.background = p.fondo;
+    preview.style.color = p.texto;
+    previewMarkTap.style.background = p.acento;
+    previewMarkTap.style.color = p.acentoTexto;
+    previewBy.style.color = p.texto2;
+    previewNombre.style.color = p.texto;
+  }
+
   function mostrarImagenGuardada() {
     previewImg.innerHTML = '';
     previewImg.classList.toggle('is-vacia', !org.imagenUrl);
@@ -64,6 +84,9 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     } else {
       previewImg.textContent = 'Tu imagen';
     }
+    pintarPreview(org.colorFondo);
+    colorRow.hidden = !org.imagenUrl;
+    colorInput.value = paletaPantalla(org.colorFondo).fondo;
     subirLabel.firstChild.textContent = org.imagenUrl ? 'Cambiar imagen' : 'Subir imagen';
     quitarBtn.hidden = !org.imagenUrl;
   }
@@ -78,6 +101,20 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
       const r = await api('/me/organizacion', { method: 'PATCH', body: JSON.stringify({ nombre: nombreInput.value }) });
       render(r.organizacion);
       setStatus('is-success', 'Nombre guardado.');
+    } catch (err) {
+      if (err.status === 401) return onSesionVencida();
+      setStatus('is-error', err.message);
+    }
+  });
+
+  // El color se puede cambiar a mano; se guarda al soltar el selector.
+  colorInput.addEventListener('input', () => pintarPreview(colorInput.value));
+  colorInput.addEventListener('change', async () => {
+    try {
+      const r = await api('/me/organizacion', { method: 'PATCH', body: JSON.stringify({ colorFondo: colorInput.value }) });
+      colorOrigen.textContent = '(elegido por vos)';
+      render(r.organizacion);
+      setStatus('is-success', 'Color guardado.');
     } catch (err) {
       if (err.status === 401) return onSesionVencida();
       setStatus('is-error', err.message);
@@ -166,6 +203,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     nombreForm.hidden = true;
     subirLabel.hidden = true;
     quitarBtn.hidden = true;
+    colorRow.hidden = true;
     previewImg.innerHTML = '';
     previewImg.classList.remove('is-vacia');
     previewImg.appendChild(previewCanvas);
@@ -286,6 +324,8 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     pintar(canvas.getContext('2d'), canvas.width, e.trabajo);
     pintar(previewCanvas.getContext('2d'), previewCanvas.width, e.trabajo);
     zoom.value = String(aSlider(e.escala));
+    e.color = colorDelCuadro();
+    pintarPreview(e.color);
 
     const w = e.iw * e.escala;
     const h = e.ih * e.escala;
@@ -311,6 +351,18 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     calidad.textContent = texto;
   }
   fondoInput.addEventListener('input', dibujar);
+
+  // Color mayoritario de lo que queda dentro del cuadro (tal cual se va a
+  // ver), sobre una copia de 128×128: barato aunque se recalcule al arrastrar,
+  // y con resolución suficiente para que las líneas finas no se vuelvan gris.
+  const MUESTRA = 128;
+  const muestra = document.createElement('canvas');
+  muestra.width = muestra.height = MUESTRA;
+  const muestraCtx = muestra.getContext('2d', { willReadFrequently: true });
+  function colorDelCuadro() {
+    pintar(muestraCtx, MUESTRA, edicion.trabajo);
+    return colorMayoritario(muestraCtx.getImageData(0, 0, MUESTRA, MUESTRA).data);
+  }
 
   // Arrastrar con un dedo / mouse; pellizcar con dos; rueda en compu.
   const punteros = new Map();
@@ -386,7 +438,8 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     setStatus('', 'Guardando...');
     try {
       const blob = await exportar();
-      const res = await fetch(`${apiBase}/api/me/organizacion/imagen`, {
+      const color = edicion.color || '';
+      const res = await fetch(`${apiBase}/api/me/organizacion/imagen?color=${encodeURIComponent(color)}`, {
         method: 'PUT',
         headers: { 'Content-Type': blob.type, Authorization: `Bearer ${getToken()}` },
         body: blob,
@@ -398,6 +451,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
       editor.hidden = true;
       nombreForm.hidden = false;
       subirLabel.hidden = false;
+      colorOrigen.textContent = '(sale de tu logo)';
       render(data.organizacion);
       mostrarImagenGuardada();
       setStatus('is-success', 'Listo: así se ve cuando tocan uno de tus productos.');

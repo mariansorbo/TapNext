@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo inventado (prueba): violeta parecido al de NextTap, para ver el caso. -->
+  <rect width="1080" height="1080" fill="#ffffff"/>
+  <g fill="#7A5AF8">
+    <rect x="390" y="230" width="90" height="90" rx="10"/><rect x="495" y="230" width="90" height="90" rx="10"/><rect x="600" y="230" width="90" height="90" rx="10"/>
+    <rect x="390" y="335" width="90" height="90" rx="10"/><rect x="600" y="335" width="90" height="90" rx="10"/>
+    <rect x="390" y="440" width="90" height="90" rx="10"/><rect x="495" y="440" width="90" height="90" rx="10"/><rect x="600" y="440" width="90" height="90" rx="10"/>
+    <rect x="390" y="545" width="90" height="90" rx="10"/>
+  </g>
+  <text x="540" y="810" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="104" font-weight="800" fill="#2B2350">pixel norte</text>
+</svg>

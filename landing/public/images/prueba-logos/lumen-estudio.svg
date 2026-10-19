@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo inventado (prueba): llena el cuadro, fondo amarillo. -->
+  <rect width="1080" height="1080" fill="#FFD23F"/>
+  <circle cx="540" cy="420" r="150" fill="none" stroke="#1B1B1B" stroke-width="34"/>
+  <g stroke="#1B1B1B" stroke-width="30" stroke-linecap="round">
+    <line x1="540" y1="180" x2="540" y2="220"/><line x1="540" y1="620" x2="540" y2="660"/>
+    <line x1="300" y1="420" x2="340" y2="420"/><line x1="740" y1="420" x2="780" y2="420"/>
+    <line x1="370" y1="250" x2="398" y2="278"/><line x1="682" y1="562" x2="710" y2="590"/>
+    <line x1="710" y1="250" x2="682" y2="278"/><line x1="398" y1="562" x2="370" y2="590"/>
+  </g>
+  <text x="540" y="840" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="120" font-weight="800" fill="#1B1B1B" letter-spacing="-3">lumen</text>
+  <text x="540" y="905" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="38" font-weight="500" fill="#1B1B1B" letter-spacing="16">ESTUDIO DE FOTO</text>
+</svg>

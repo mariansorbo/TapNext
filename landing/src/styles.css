@@ -736,6 +736,12 @@ body.modal-open{overflow:hidden;}
 .org-calidad.is-medio{color:var(--amber);}
 .org-calidad.is-mal{color:#FF7A7A;}
 .org-editor .account-actions{justify-content:center; margin-top:12px;}
+.org-color{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:20px; font-size:0.88rem; color:var(--paper-dim);}
+.org-color[hidden]{display:none;}
+.org-color small{display:block; font-size:0.75rem; opacity:0.75;}
+.org-color input{width:44px; height:30px; border:1px solid var(--line); border-radius:6px; background:none; padding:2px; cursor:pointer;}
+.org-preview{transition:background-color .2s ease;}
+.org-preview-mark span{transition:background-color .2s ease, color .2s ease;}
 .sticker-list-title{font-family:var(--display); font-weight:600; font-size:1.1rem; margin-top:40px;}
 .sticker-list{margin-top:20px; display:flex; flex-direction:column; gap:16px; max-width:560px;}
 .sticker-card{

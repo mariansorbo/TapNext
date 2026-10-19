@@ -5,8 +5,10 @@
 // Mi panel (ver orgBloque en index.js).
 //
 // Comprador (Mi panel):
-//   PATCH  /api/me/organizacion          { nombre }
-//   PUT    /api/me/organizacion/imagen   cuerpo = la imagen (image/webp|jpeg|png)
+//   PATCH  /api/me/organizacion          { nombre?, colorFondo? }
+//   PUT    /api/me/organizacion/imagen   cuerpo = la imagen (image/webp|jpeg|png);
+//                                        ?color=#rrggbb = fondo de la pantalla
+//                                        (el color mayoritario del logo, lo calcula el editor)
 //   DELETE /api/me/organizacion/imagen
 // Público:
 //   GET    /api/org/imagen/:ver          la imagen, cacheable para siempre
@@ -37,6 +39,8 @@ await db.executeMultiple(`
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_organizaciones_imagen_ver
     ON organizaciones(imagen_ver) WHERE imagen_ver IS NOT NULL;
+  -- Fondo de la pantalla del tap (#rrggbb). NULL = el negro de NextTap.
+  ALTER TABLE organizaciones ADD COLUMN IF NOT EXISTS color_fondo TEXT;
 `);
 
 export const ORG_NOMBRE_MAX = 40;
@@ -49,6 +53,12 @@ function limpiarNombre(crudo) {
   if (!nombre) return { error: 'Poné el nombre de la organización.' };
   if (nombre.length > ORG_NOMBRE_MAX) return { error: `El nombre puede tener hasta ${ORG_NOMBRE_MAX} letras.` };
   return { nombre };
+}
+
+// '#AbC123' → '#abc123'; cualquier otra cosa → null (sin color = fondo de marca).
+export function colorValido(crudo) {
+  const c = String(crudo ?? '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(c) ? c : null;
 }
 
 // El tipo sale de los primeros bytes, no del Content-Type que manda el
@@ -65,8 +75,10 @@ function tipoDeImagen(buf) {
 const urlImagen = (ver) => (ver ? `/api/org/imagen/${ver}` : null);
 
 export async function organizacionDe(compradorId) {
-  const [o] = await q('SELECT nombre, imagen_ver FROM organizaciones WHERE comprador_id = ?', [compradorId]);
-  return o ? { nombre: o.nombre, imagenUrl: urlImagen(o.imagen_ver) } : null;
+  const [o] = await q('SELECT nombre, imagen_ver, color_fondo FROM organizaciones WHERE comprador_id = ?', [
+    compradorId,
+  ]);
+  return o ? { nombre: o.nombre, imagenUrl: urlImagen(o.imagen_ver), colorFondo: o.color_fondo } : null;
 }
 
 // Manda la imagen por su versión. Inmutable: si la organización sube otra,
@@ -95,13 +107,25 @@ export function crearOrganizacionesRouter({ requireAuth }) {
     next();
   }
 
+  // Cambia lo que venga: el nombre y/o el color de fondo.
   r.patch('/me/organizacion', requireAuth, requireOrg, async (req, res) => {
-    const { nombre, error } = limpiarNombre(req.body?.nombre);
-    if (error) return res.status(400).json({ error });
-    await q('UPDATE organizaciones SET nombre = ?, actualizada_en = NOW() WHERE comprador_id = ?', [
-      nombre,
-      req.comprador.id,
-    ]);
+    const body = req.body || {};
+    if ('nombre' in body) {
+      const { nombre, error } = limpiarNombre(body.nombre);
+      if (error) return res.status(400).json({ error });
+      await q('UPDATE organizaciones SET nombre = ?, actualizada_en = NOW() WHERE comprador_id = ?', [
+        nombre,
+        req.comprador.id,
+      ]);
+    }
+    if ('colorFondo' in body) {
+      const color = colorValido(body.colorFondo);
+      if (body.colorFondo && !color) return res.status(400).json({ error: 'Color inválido.' });
+      await q('UPDATE organizaciones SET color_fondo = ?, actualizada_en = NOW() WHERE comprador_id = ?', [
+        color,
+        req.comprador.id,
+      ]);
+    }
     res.json({ organizacion: await organizacionDe(req.comprador.id) });
   });
 
@@ -114,10 +138,14 @@ export function crearOrganizacionesRouter({ requireAuth }) {
       const tipo = tipoDeImagen(req.body);
       if (!tipo) return res.status(400).json({ error: 'El archivo no es una imagen JPG, PNG o WebP.' });
       const ver = createHash('sha256').update(req.body).digest('hex').slice(0, 16);
+      // Imagen nueva → fondo nuevo, el que calculó el editor (?color= vacío =
+      // logo sin color dominante → negro de marca). Sin ?color, queda el que había.
+      const conColor = req.query.color !== undefined;
       await q(
-        `UPDATE organizaciones SET imagen = ?, imagen_tipo = ?, imagen_ver = ?, actualizada_en = NOW()
+        `UPDATE organizaciones SET imagen = ?, imagen_tipo = ?, imagen_ver = ?,
+                color_fondo = CASE WHEN ? THEN ? ELSE color_fondo END, actualizada_en = NOW()
           WHERE comprador_id = ?`,
-        [req.body, tipo, ver, req.comprador.id]
+        [req.body, tipo, ver, conColor, colorValido(req.query.color), req.comprador.id]
       );
       res.json({ organizacion: await organizacionDe(req.comprador.id) });
     }
@@ -125,7 +153,8 @@ export function crearOrganizacionesRouter({ requireAuth }) {
 
   r.delete('/me/organizacion/imagen', requireAuth, requireOrg, async (req, res) => {
     await q(
-      `UPDATE organizaciones SET imagen = NULL, imagen_tipo = NULL, imagen_ver = NULL, actualizada_en = NOW()
+      `UPDATE organizaciones SET imagen = NULL, imagen_tipo = NULL, imagen_ver = NULL, color_fondo = NULL,
+                actualizada_en = NOW()
         WHERE comprador_id = ?`,
       [req.comprador.id]
     );

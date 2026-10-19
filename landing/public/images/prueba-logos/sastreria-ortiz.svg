@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo inventado (prueba): todo negro sobre blanco. -->
+  <rect width="1080" height="1080" fill="#ffffff"/>
+  <circle cx="540" cy="420" r="190" fill="none" stroke="#111111" stroke-width="16"/>
+  <text x="540" y="480" text-anchor="middle" font-family="Georgia, serif" font-size="190" font-style="italic" fill="#111111">O</text>
+  <g stroke="#111111" stroke-width="10" stroke-linecap="round"><line x1="440" y1="290" x2="640" y2="560"/><line x1="640" y1="290" x2="440" y2="560"/></g>
+  <text x="540" y="770" text-anchor="middle" font-family="Georgia, serif" font-size="80" fill="#111111" letter-spacing="10">SASTRERÍA</text>
+  <text x="540" y="860" text-anchor="middle" font-family="Georgia, serif" font-size="80" fill="#111111" letter-spacing="10">ORTIZ</text>
+</svg>

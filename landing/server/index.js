@@ -38,6 +38,7 @@ import {
   organizacionDe,
   enviarImagenOrg,
 } from './organizaciones.js';
+import { paletaPantalla } from '../src/color-logo.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -3349,17 +3350,26 @@ function orgBloque(org) {
   if (!org) return { titulo: 'NextTap', css: '', marca: '', imagen: '', js: 'function listo(cb){cb()}' };
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Fondo = color mayoritario del logo (lo calcula el editor de Mi panel), con
+  // texto claro u oscuro según contraste. Sin color, el negro de siempre.
+  const p = paletaPantalla(org.color);
   return {
     titulo: `NextTap by ${esc(org.nombre)}`,
+    color: p.fondo,
     css: `
-  body.org{gap:22px;padding:24px}
+  body.org{gap:22px;padding:24px;background:${p.fondo};color:${p.texto}}
+  body.org .bar{background:${p.pista}}
+  body.org .bar i{background:${p.acento}}
+  body.org .mark .tap{background:${p.acento};color:${p.acentoTexto}}
+  body.org .cta{color:${p.texto2}}
+  body.org .cta b{color:${p.texto}}
   body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
   .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
-  .by{font-size:clamp(1rem,4.6vw,1.25rem);color:rgba(237,239,233,.72);max-width:22ch;
+  .by{font-size:clamp(1rem,4.6vw,1.25rem);color:${p.texto2};max-width:22ch;
     overflow-wrap:anywhere;opacity:0;animation:show .25s .12s forwards}
-  .by b{color:var(--paper);font-weight:600}
+  .by b{color:${p.texto};font-weight:600}
   .org-img{width:min(72vw,320px,40svh);aspect-ratio:1;border-radius:clamp(16px,6vw,26px);overflow:hidden;
-    background:rgba(237,239,233,.06);opacity:0;transform:scale(.96);
+    background:${p.pista};box-shadow:0 12px 40px rgba(0,0,0,.18);opacity:0;transform:scale(.96);
     transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
   .org-img.ok{opacity:1;transform:none}
   .org-img img{display:block;width:100%;height:100%;object-fit:cover}`,
@@ -3395,7 +3405,8 @@ function pantallaRedireccion(destino, tipo, org = null) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${o.titulo}</title>
-<noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
+${o.color ? `<meta name="theme-color" content="${o.color}">
+` : ''}<noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:500ms}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -3489,7 +3500,8 @@ function pantallaApp({ web, intent }, tipo, org = null) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${o.titulo}</title>
-<noscript><meta http-equiv="refresh" content="0;url=${webHtml}"></noscript>
+${o.color ? `<meta name="theme-color" content="${o.color}">
+` : ''}<noscript><meta http-equiv="refresh" content="0;url=${webHtml}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1200ms}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -3766,7 +3778,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // La organización dueña (si es cuenta de empresa) viene en la misma consulta.
   const sticker = await get(
     `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor,
-            o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver
+            o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver, o.color_fondo AS org_color
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        LEFT JOIN organizaciones o ON o.comprador_id = s.comprador_id
@@ -3776,7 +3788,11 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
 
   if (sticker && sticker.estado === 'activo') {
     const org = sticker.org_nombre
-      ? { nombre: sticker.org_nombre, imagen: sticker.org_imagen_ver ? `?logo=${sticker.org_imagen_ver}` : null }
+      ? {
+          nombre: sticker.org_nombre,
+          imagen: sticker.org_imagen_ver ? `?logo=${sticker.org_imagen_ver}` : null,
+          color: sticker.org_color,
+        }
       : null;
     const destino = sticker.destino_tipo != null ? { tipo: sticker.destino_tipo, valor: sticker.destino_valor } : null;
     if (destino) {

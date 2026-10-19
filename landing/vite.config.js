@@ -47,6 +47,7 @@ export default defineConfig({
         sorteo: resolve(root, 'sorteo.html'),
         terminos: resolve(root, 'terminos.html'),
         privacidad: resolve(root, 'privacidad.html'),
+        pruebaRedireccionamiento: resolve(root, 'prueba-redireccionamiento-custom.html'),
       },
     },
   },

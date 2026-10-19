@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo inventado (prueba): foto/ilustración que llena el cuadro, rosa. -->
+  <rect width="1080" height="1080" fill="#F7B2C4"/>
+  <circle cx="540" cy="430" r="230" fill="#E94B7B"/>
+  <g fill="#F7B2C4">
+    <circle cx="540" cy="360" r="70"/><circle cx="470" cy="440" r="70"/><circle cx="610" cy="440" r="70"/><circle cx="540" cy="500" r="60"/>
+  </g>
+  <circle cx="540" cy="430" r="45" fill="#B8124E"/>
+  <text x="540" y="830" text-anchor="middle" font-family="Georgia, serif" font-size="110" font-weight="700" fill="#8E0E3C">Doña Rosa</text>
+  <text x="540" y="900" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="36" font-weight="700" fill="#8E0E3C" letter-spacing="14">KIOSCO · ALMACÉN</text>
+</svg>
