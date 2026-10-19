@@ -6,6 +6,7 @@ import { initEdicionForzada } from './edicion-forzada.js';
 import { initDespacho } from './despacho.js';
 import { modoCeldaHtml, wireModoButtons, MODO_INFO } from './modo-activacion-ui.js';
 import { initSorteoAdmin } from './sorteo-admin.js';
+import { initOrganizacionesAdmin } from './organizaciones-admin.js';
 
 applyBrand('Admin');
 
@@ -61,10 +62,11 @@ async function showDashboard() {
 
 async function loadAll() {
   await loadVendedores();
-  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas(), loadEnvios(), loadSorteo()]);
+  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas(), loadEnvios(), loadSorteo(), loadOrganizaciones()]);
 }
 
 const loadSorteo = initSorteoAdmin({ api });
+const loadOrganizaciones = initOrganizacionesAdmin({ api, apiBase: API_BASE });
 
 loginButton.addEventListener('click', async () => {
   const password = passwordInput.value;

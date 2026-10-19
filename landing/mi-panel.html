@@ -89,6 +89,63 @@
     <h3 class="sticker-list-title">Tus productos</h3>
     <div class="sticker-list" id="sticker-list"></div>
 
+    <!-- Cuenta de empresa: nombre + imagen de la pantalla del tap (src/org-panel.js). -->
+    <div class="org-box" id="org-box" hidden>
+      <div class="kicker">Tu organización</div>
+      <p class="section-lead">Cuando alguien toca uno de tus productos, ve esta pantalla un instante antes de ir a destino.</p>
+
+      <div class="org-layout">
+        <div class="org-preview" aria-label="Vista previa de la pantalla del tap">
+          <div class="org-preview-img is-vacia" id="org-preview-img">Tu imagen</div>
+          <div class="org-preview-mark">Next<span>Tap</span></div>
+          <div class="org-preview-by">by <b id="org-preview-nombre"></b></div>
+        </div>
+
+        <div class="org-controls">
+          <form id="org-nombre-form">
+            <div class="modal-form">
+              <label>
+                <span>Nombre que se muestra</span>
+                <input type="text" id="org-nombre" maxlength="40" autocomplete="organization">
+              </label>
+            </div>
+            <button type="submit" class="btn-ghost">Guardar nombre</button>
+          </form>
+
+          <div class="org-img-actions">
+            <label class="btn-primary org-file-btn" id="org-subir-label">Subir imagen<input type="file" id="org-file" accept="image/*" hidden></label>
+            <button type="button" class="btn-ghost" id="org-img-quitar" hidden>Quitar imagen</button>
+          </div>
+          <p class="panel-hint">Sirve cualquier imagen: logo o foto, horizontal o vertical. Después la acomodás en el cuadro.</p>
+        </div>
+      </div>
+
+      <div class="org-editor" id="org-editor" hidden>
+        <p class="org-editor-title">Acomodá la imagen</p>
+        <p class="panel-hint" style="margin-top:4px">Arrastrala para moverla. Acercá con la barra, la ruedita o dos dedos.</p>
+        <div class="org-stage" id="org-stage"><canvas id="org-canvas"></canvas></div>
+        <div class="org-modos">
+          <button type="button" data-modo="entera">Que entre entera</button>
+          <button type="button" data-modo="llenar">Que llene el cuadro</button>
+        </div>
+        <label class="org-zoom" aria-label="Zoom">
+          <span aria-hidden="true">−</span>
+          <input type="range" id="org-zoom" min="0" max="1000" step="1">
+          <span aria-hidden="true">+</span>
+        </label>
+        <label class="org-fondo" id="org-fondo-row" hidden>
+          <span>Color de fondo (donde no llega la imagen)</span>
+          <input type="color" id="org-fondo" value="#ffffff">
+        </label>
+        <p class="org-calidad" id="org-calidad"></p>
+        <div class="account-actions">
+          <button type="button" class="btn-primary" id="org-guardar">Guardar imagen</button>
+          <button type="button" class="btn-ghost" id="org-cancelar">Cancelar</button>
+        </div>
+      </div>
+      <p class="modal-status" id="org-status"></p>
+    </div>
+
     <div class="account-box" id="account-box" hidden>
       <div class="kicker">Tu cuenta</div>
       <p class="account-login-as">Entrás con <b id="account-email"></b><span class="account-verified" id="account-verified" hidden>✓ verificado</span></p>

@@ -1,6 +1,7 @@
 import './styles.css';
 import { applyBrand } from './brand.js';
 import { BRAND_ICONS } from './brand-icons.js';
+import { initOrgPanel } from './org-panel.js';
 
 applyBrand('Mi panel');
 
@@ -253,11 +254,16 @@ async function loadAccount() {
     dashboardTitle.textContent = saludo(cuenta.nombre);
     recordarEmail(cuenta.email);
     renderCuenta();
+    orgPanel.render(cuenta.organizacion);
   } catch {
     // no es crítico para ver los stickers
     accountBox.hidden = true;
+    orgPanel.render(null);
   }
 }
+
+// Cuenta de empresa: nombre + imagen de la pantalla del tap.
+const orgPanel = initOrgPanel({ api, apiBase: API_BASE, getToken, onSesionVencida: () => sesionVencida() });
 
 function renderCuenta() {
   if (!cuenta?.email) {
@@ -563,6 +569,7 @@ async function cerrarSesion() {
   resetLogin();
   cuenta = null;
   accountBox.hidden = true;
+  orgPanel.render(null);
   setStatus(passwordStatus, '', '');
   showLogin();
   window.scrollTo(0, 0);
@@ -573,6 +580,7 @@ logoutButton.addEventListener('click', cerrarSesion);
 function sesionVencida() {
   clearToken();
   cuenta = null;
+  orgPanel.render(null);
   resetLogin();
   showLogin();
   setStatus(loginStatus, 'is-error', 'Tu sesión se cerró por inactividad. Entrá de nuevo.');

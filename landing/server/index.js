@@ -32,6 +32,12 @@ import { enviarVentaPap, papDisponible, esPapVisitorId } from './pap.js';
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
+import {
+  crearOrganizacionesRouter,
+  crearOrganizacionesAdminRouter,
+  organizacionDe,
+  enviarImagenOrg,
+} from './organizaciones.js';
 
 const PORT = process.env.PORT || 3001;
 const OTP_TTL_MINUTES = 5;
@@ -157,6 +163,10 @@ app.use('/api', crearVisitasRouter());
 
 // Sorteo de Instagram (disfraz del cubo QR) — ver server/sorteo.js.
 app.use('/api/sorteo', crearSorteoRouter());
+
+// Organizaciones (cuenta de empresa): nombre + imagen de la pantalla del tap —
+// ver server/organizaciones.js.
+app.use('/api', crearOrganizacionesRouter({ requireAuth }));
 
 function isoInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
@@ -624,7 +634,7 @@ function sesionReciente(sesion) {
 // El mail NO se edita desde el panel: es la identidad con la que se entra y se
 // verifica en cada login (código o Google). Cambiarlo sin verificar el nuevo
 // dejaría perder la cuenta o apropiarse de un mail ajeno.
-app.get('/api/me', requireAuth, (req, res) => {
+app.get('/api/me', requireAuth, async (req, res) => {
   const { id, whatsapp, nombre, email, password_hash, email_verificado_en } = req.comprador;
   res.json({
     id,
@@ -633,6 +643,8 @@ app.get('/api/me', requireAuth, (req, res) => {
     email,
     emailVerificado: Boolean(email_verificado_en),
     tienePassword: Boolean(password_hash),
+    // Cuenta de empresa: { nombre, imagenUrl } — null si es una cuenta común.
+    organizacion: await organizacionDe(id),
   });
 });
 
@@ -2785,6 +2797,7 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
 // Ver server/modo-activacion.js.
 app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
 app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
+app.use('/api/admin', requireAdmin, crearOrganizacionesAdminRouter());
 
 // Cola de entrega y botón de despacho (late binding). Ver server/despacho.js y
 // "Cola de entrega y botón de despacho" en el vault. El router aplica
@@ -3322,7 +3335,49 @@ function linkMarca(tipo) {
   return `https://next-tap.tech/?${q.toString().replace(/&/g, '&amp;')}`;
 }
 
-function pantallaRedireccion(destino, tipo) {
+// Productos de una organización (cuenta de empresa, ver server/organizaciones.js):
+// la pantalla del tap pasa a ser "NextTap by <nombre>" con la imagen que cargó
+// la organización arriba. `org` = { nombre, imagen } (imagen = URL relativa
+// a la propia pantalla, `?logo=<ver>`: mismo origen, sin conexión nueva) o null.
+// Devuelve las piezas que cada pantalla intercala: CSS, HTML y JS. La imagen ya
+// viene cuadrada del editor de Mi panel; acá se muestra en un cuadro con
+// object-fit: cover por las dudas. El JS `listo(cb)` espera a que la imagen
+// esté decodificada (tope ORG_ESPERA_MAX ms) para que el tiempo en pantalla
+// corra con la imagen ya visible.
+const ORG_ESPERA_MAX = 1200;
+function orgBloque(org) {
+  if (!org) return { titulo: 'NextTap', css: '', marca: '', imagen: '', js: 'function listo(cb){cb()}' };
+  const esc = (v) =>
+    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return {
+    titulo: `NextTap by ${esc(org.nombre)}`,
+    css: `
+  body.org{gap:22px;padding:24px}
+  body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
+  .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+  .by{font-size:clamp(1rem,4.6vw,1.25rem);color:rgba(237,239,233,.72);max-width:22ch;
+    overflow-wrap:anywhere;opacity:0;animation:show .25s .12s forwards}
+  .by b{color:var(--paper);font-weight:600}
+  .org-img{width:min(72vw,320px,40svh);aspect-ratio:1;border-radius:clamp(16px,6vw,26px);overflow:hidden;
+    background:rgba(237,239,233,.06);opacity:0;transform:scale(.96);
+    transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
+  .org-img.ok{opacity:1;transform:none}
+  .org-img img{display:block;width:100%;height:100%;object-fit:cover}`,
+    marca: `<div class="by">by <b>${esc(org.nombre)}</b></div>`,
+    imagen: org.imagen ? `<div class="org-img" id="org-img"><img src="${esc(org.imagen)}" alt="${esc(org.nombre)}" fetchpriority="high"></div>` : '',
+    js: `function listo(cb){
+      var box=document.getElementById('org-img'), img=box&&box.querySelector('img'), hecho=false;
+      if(!img) return cb();
+      var fin=function(ok){ if(hecho) return; hecho=true; if(ok===false) box.style.display='none'; else box.className+=' ok'; cb(); };
+      if(img.complete&&img.naturalWidth) return fin();
+      img.onload=function(){ (img.decode?img.decode():Promise.resolve()).then(fin,fin) };
+      img.onerror=function(){ fin(false) };
+      setTimeout(fin,${ORG_ESPERA_MAX});
+    }`,
+  };
+}
+
+function pantallaRedireccion(destino, tipo, org = null) {
   const jsUrl = JSON.stringify(String(destino))
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -3333,12 +3388,13 @@ function pantallaRedireccion(destino, tipo) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+  const o = orgBloque(org);
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap</title>
+<title>${o.titulo}</title>
 <noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:500ms}
@@ -3369,18 +3425,24 @@ function pantallaRedireccion(destino, tipo) {
   @keyframes rise{to{opacity:1;transform:none}}
   @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
   @keyframes fill{to{transform:translateX(0)}}
-  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}${o.css}
 </style>
 </head>
-<body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+<body${org ? ' class="org"' : ''}>
+  ${o.imagen}
+  <div class="firma">
+    <div class="mark">Next<span class="tap">Tap</span></div>
+    ${o.marca}
+  </div>
   <div class="bar"><i></i></div>
   <a class="cta" href="${linkMarca(tipo)}">Comprá el tuyo en <b>next-tap.tech</b></a>
   <script>
   (function(){
+    ${o.js}
     // Tiempos en pantalla, contados desde que la pantalla ya se pintó (no desde
     // que llegó el HTML): 1ª vez / mismo sticker de nuevo en <12 h (el dueño).
-    var DUR_PRIMERA=500, DUR_MINIMA=350;
+    // Con organización, más largo: la pantalla es su marca y la imagen se tiene que ver.
+    var DUR_PRIMERA=${org ? 1200 : 500}, DUR_MINIMA=${org ? 600 : 350};
     var to=${jsUrl}, dur=DUR_PRIMERA;
     try{
       var k='nt:'+location.pathname, last=+localStorage.getItem(k)||0;
@@ -3392,10 +3454,11 @@ function pantallaRedireccion(destino, tipo) {
     var t=null;
     // Doble rAF = recién después del primer frame pintado arranca la cuenta, así
     // una carga lenta o un navegador que tarda en pintar no se come el tiempo.
-    requestAnimationFrame(function(){requestAnimationFrame(function(){
+    // Con imagen de organización, además espera a que la imagen esté lista.
+    listo(function(){ requestAnimationFrame(function(){requestAnimationFrame(function(){
       document.documentElement.className='run';
       if(t!==false) t=setTimeout(go,dur);
-    })});
+    })}) });
     // Un toque en cualquier lado acelera la redirección, salvo en el link a la
     // marca: ahí solo frena el timer y deja que el link lleve a next-tap.tech.
     addEventListener('pointerdown',function(e){
@@ -3415,16 +3478,17 @@ function pantallaRedireccion(destino, tipo) {
 // la página de descarga. En iOS / desktop va a la URL web. El intent se dispara
 // apenas carga (así el arranque en frío corre en paralelo con la animación); si a
 // los ~2.5 s seguimos visibles (Android bloqueó el salto), aparece un botón.
-function pantallaApp({ web, intent }, tipo) {
+function pantallaApp({ web, intent }, tipo, org = null) {
   const webJs = JSON.stringify(String(web)).replace(/</g, '\\u003c');
   const intentJs = JSON.stringify(String(intent)).replace(/</g, '\\u003c');
   const webHtml = String(web).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const o = orgBloque(org);
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NextTap</title>
+<title>${o.titulo}</title>
 <noscript><meta http-equiv="refresh" content="0;url=${webHtml}"></noscript>
 <style>
   :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:1200ms}
@@ -3458,11 +3522,15 @@ function pantallaApp({ web, intent }, tipo) {
   @keyframes rise{to{opacity:1;transform:none}}
   @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
   @keyframes fill{to{transform:translateX(0)}}
-  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}${o.css}
 </style>
 </head>
-<body>
-  <div class="mark">Next<span class="tap">Tap</span></div>
+<body${org ? ' class="org"' : ''}>
+  ${o.imagen}
+  <div class="firma">
+    <div class="mark">Next<span class="tap">Tap</span></div>
+    ${o.marca}
+  </div>
   <div class="bar"><i></i></div>
   <a class="btn" id="go" href="${webHtml}">Abrir WhatsApp</a>
   <a class="cta" href="${linkMarca(tipo)}">Comprá el tuyo en <b>next-tap.tech</b></a>
@@ -3472,13 +3540,20 @@ function pantallaApp({ web, intent }, tipo) {
     var target=/Android/i.test(navigator.userAgent)?intent:web;
     document.getElementById('go').setAttribute('href', target);
     var go=function(){ try{ location.href=target; }catch(e){} };
-    setTimeout(go,120);
+    ${o.js}
+    // Sin organización el salto sale enseguida (el arranque en frío de la app
+    // corre en paralelo con la animación). Con organización, primero se ve su
+    // imagen un momento: la app tapa la pantalla apenas abre.
+    var espera=${org ? 900 : 120};
+    listo(function(){
+      setTimeout(go,espera);
+      setTimeout(function(){
+        if(document.visibilityState==='visible') document.body.classList.add('stuck');
+      },espera+2480);
+    });
     addEventListener('pointerdown',function(e){
       if(!(e.target.closest&&e.target.closest('.cta'))) go();
     });
-    setTimeout(function(){
-      if(document.visibilityState==='visible') document.body.classList.add('stuck');
-    },2600);
   })();
   </script>
 </body>
@@ -3683,14 +3758,26 @@ function pantallaAlias(datos = {}) {
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // Sticker y destino en una sola consulta: cada ida y vuelta a la base es
   // latencia que el tap paga antes de redirigir.
+  // Imagen de la organización, pedida desde su propia pantalla del tap
+  // (?logo=<ver>): mismo origen que la página, así anda detrás de cualquier
+  // rewrite de /v/ sin configurar otra ruta.
+  if (req.query.logo) return enviarImagenOrg(res, req.query.logo);
+
+  // La organización dueña (si es cuenta de empresa) viene en la misma consulta.
   const sticker = await get(
-    `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor
-       FROM stickers_actual s LEFT JOIN destinos d ON d.sticker_id = s.id
+    `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor,
+            o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver
+       FROM stickers_actual s
+       LEFT JOIN destinos d ON d.sticker_id = s.id
+       LEFT JOIN organizaciones o ON o.comprador_id = s.comprador_id
       WHERE s.codigo_publico = ?`,
     [req.params.codigo]
   );
 
   if (sticker && sticker.estado === 'activo') {
+    const org = sticker.org_nombre
+      ? { nombre: sticker.org_nombre, imagen: sticker.org_imagen_ver ? `?logo=${sticker.org_imagen_ver}` : null }
+      : null;
     const destino = sticker.destino_tipo != null ? { tipo: sticker.destino_tipo, valor: sticker.destino_valor } : null;
     if (destino) {
       // El plugin del tipo resuelve el valor guardado a la acción del tap. Hoy
@@ -3701,14 +3788,14 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       if (r.modo === 'app') {
         // WhatsApp: pantalla mínima que abre la app con un intent:// de Android.
         registrarTap(req, res, { ...tap, resultado: 'app' });
-        return res.type('html').send(pantallaApp(r, destino.tipo));
+        return res.type('html').send(pantallaApp(r, destino.tipo, org));
       }
       if (r.modo === 'redirect') {
         registrarTap(req, res, { ...tap, resultado: 'destino' });
         // Pantalla de marca solo si es una URL http(s) normal y el plugin no
         // pidió redirect directo (interstitial: false).
         if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
-          return res.type('html').send(pantallaRedireccion(r.url, destino.tipo));
+          return res.type('html').send(pantallaRedireccion(r.url, destino.tipo, org));
         }
         return res.redirect(302, r.url);
       }
