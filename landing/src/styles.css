@@ -705,8 +705,6 @@ body.modal-open{overflow:hidden;}
 .org-preview-img img, .org-preview-img canvas{display:block; width:100%; height:100%; object-fit:cover;}
 .org-preview-mark{font-family:var(--display); font-weight:700; font-size:1.35rem; letter-spacing:-0.03em; margin-top:6px;}
 .org-preview-mark span{background:var(--violet); color:#14171A; padding:0.06em 0.26em 0.12em; border-radius:0.16em; margin-left:0.1em;}
-.org-preview-by{font-size:0.8rem; color:var(--paper-dim); text-align:center; overflow-wrap:anywhere;}
-.org-preview-by b{color:var(--paper); font-weight:600;}
 .org-controls{flex:1; min-width:220px;}
 .org-controls .btn-ghost{margin-top:12px;}
 .org-img-actions{display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin-top:26px;}

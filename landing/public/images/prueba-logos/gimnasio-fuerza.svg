@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520">
+  <!-- Logo inventado (prueba): apaisado (2,3:1) con fondo oscuro propio. -->
+  <rect width="1200" height="520" fill="#1E1E24"/>
+  <g transform="translate(110 260)" fill="#E63946">
+    <rect x="-90" y="-80" width="36" height="160" rx="8"/><rect x="-50" y="-55" width="26" height="110" rx="6"/>
+    <rect x="-24" y="-12" width="168" height="24"/>
+    <rect x="144" y="-55" width="26" height="110" rx="6"/><rect x="174" y="-80" width="36" height="160" rx="8"/>
+  </g>
+  <text x="420" y="280" font-family="Helvetica, Arial, sans-serif" font-size="170" font-weight="900" font-style="italic" fill="#E63946" textLength="720" lengthAdjust="spacingAndGlyphs">FUERZA</text>
+  <text x="426" y="370" font-family="Helvetica, Arial, sans-serif" font-size="56" font-weight="600" fill="#F1FAEE" textLength="700" lengthAdjust="spacing">GIMNASIO</text>
+</svg>

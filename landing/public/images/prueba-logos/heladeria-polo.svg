@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 1100" width="500" height="1100">
+  <!-- Logo inventado (prueba): vertical (1:2,2) sobre fondo celeste propio. -->
+  <rect width="500" height="1100" fill="#BFE6F2"/>
+  <circle cx="250" cy="300" r="130" fill="#F28AB2"/>
+  <circle cx="175" cy="400" r="110" fill="#FFF3D6"/>
+  <circle cx="325" cy="400" r="110" fill="#8C5A3C"/>
+  <path d="M110 470 L250 860 L390 470 Z" fill="#E0A458"/>
+  <path d="M150 520 L340 520 M175 590 L320 590 M200 660 L300 660" stroke="#C4853C" stroke-width="12"/>
+  <text x="250" y="960" text-anchor="middle" font-family="Georgia, serif" font-size="96" font-weight="700" fill="#1D5F7A">Polo</text>
+  <text x="250" y="1025" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#1D5F7A" letter-spacing="10">HELADERÍA</text>
+</svg>

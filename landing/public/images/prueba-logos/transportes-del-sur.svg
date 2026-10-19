@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" width="1600" height="400">
+  <!-- Logo inventado (prueba): MUY apaisado (4:1), fondo transparente como un PNG de logo. -->
+  <g transform="translate(40 60)">
+    <rect x="0" y="40" width="300" height="170" rx="18" fill="#0B5FA5"/>
+    <path d="M300 90 h90 l70 70 v50 h-160 Z" fill="#0B5FA5"/>
+    <rect x="320" y="105" width="60" height="45" rx="6" fill="#ffffff"/>
+    <circle cx="80" cy="240" r="42" fill="#13263A"/><circle cx="380" cy="240" r="42" fill="#13263A"/>
+    <circle cx="80" cy="240" r="16" fill="#ffffff"/><circle cx="380" cy="240" r="16" fill="#ffffff"/>
+    <path d="M30 120 h120 M30 160 h80" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  </g>
+  <text x="560" y="210" font-family="Helvetica, Arial, sans-serif" font-size="150" font-weight="800" fill="#0B5FA5" textLength="990" lengthAdjust="spacingAndGlyphs">TRANSPORTES</text>
+  <text x="566" y="320" font-family="Helvetica, Arial, sans-serif" font-size="88" font-weight="400" fill="#13263A" textLength="600" lengthAdjust="spacing">DEL SUR</text>
+</svg>

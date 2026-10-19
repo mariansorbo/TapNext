@@ -3371,7 +3371,7 @@ function linkMarca(tipo) {
 }
 
 // Productos de una organización (cuenta de empresa, ver server/organizaciones.js):
-// la pantalla del tap muestra NextTap + el nombre de la organización, con la imagen que cargó
+// la pantalla del tap muestra NextTap con la imagen que cargó
 // la organización arriba. `org` = { nombre, imagen } (imagen = URL relativa
 // a la propia pantalla, `?logo=<ver>`: mismo origen, sin conexión nueva) o null.
 // Devuelve las piezas que cada pantalla intercala: CSS, HTML y JS. La imagen ya
@@ -3399,15 +3399,13 @@ function orgBloque(org) {
   body.org .cta b{color:${p.texto}}
   body.org .mark{font-size:clamp(2rem,11vw,3.3rem)}
   .firma{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
-  .by{font-size:clamp(1rem,4.6vw,1.25rem);color:${p.texto2};max-width:22ch;
-    overflow-wrap:anywhere;opacity:0;animation:show .25s .12s forwards}
-  .by b{color:${p.texto};font-weight:600}
   .org-img{width:min(72vw,320px,40svh);aspect-ratio:1;border-radius:clamp(16px,6vw,26px);overflow:hidden;
     background:${p.pista};box-shadow:0 12px 40px rgba(0,0,0,.18);opacity:0;transform:scale(.96);
     transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
   .org-img.ok{opacity:1;transform:none}
   .org-img img{display:block;width:100%;height:100%;object-fit:cover}`,
-    marca: `<div class="by"><b>${esc(org.nombre)}</b></div>`,
+    // En pantalla va solo la imagen + NextTap; el nombre queda en el título y el alt.
+    marca: '',
     imagen: org.imagen ? `<div class="org-img" id="org-img"><img src="${esc(org.imagen)}" alt="${esc(org.nombre)}" fetchpriority="high"></div>` : '',
     js: `function listo(cb){
       var box=document.getElementById('org-img'), img=box&&box.querySelector('img'), hecho=false;

@@ -1,5 +1,5 @@
 // Mi panel → "Tu organización" (solo cuentas de empresa, ver
-// server/organizaciones.js): el nombre que sale debajo de NextTap y la
+// server/organizaciones.js): el nombre de la organización y la
 // imagen de la pantalla del tap, con un editor para encuadrarla.
 //
 // El editor resuelve en el navegador que "quede bien sin importar el tamaño":
@@ -10,8 +10,8 @@
 // avisa en vivo si la imagen se va a ver borrosa con ese zoom.
 
 import { colorMayoritario, paletaPantalla } from './color-logo.js';
+import { SALIDA, escalasPara, modoInicial, escalaDeModo, colorDeBordes, pintarCuadro } from './encuadre.js';
 
-const SALIDA = 1080; // px del cuadrado que se sube
 // En el celu el cuadro mide hasta ~320 px de CSS × 3 de densidad ≈ 960 px reales.
 const PX_REALES_EN_PANTALLA = 960;
 const TRABAJO_MAX = 1600; // copia achicada para dibujar fluido mientras se edita
@@ -27,7 +27,6 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   const quitarBtn = $('org-img-quitar');
   const status = $('org-status');
   const previewImg = $('org-preview-img');
-  const previewNombre = $('org-preview-nombre');
   const editor = $('org-editor');
   const stage = $('org-stage');
   const canvas = $('org-canvas');
@@ -40,7 +39,6 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   const modoBtns = editor.querySelectorAll('[data-modo]');
   const preview = box.querySelector('.org-preview');
   const previewMarkTap = box.querySelector('.org-preview-mark span');
-  const previewBy = box.querySelector('.org-preview-by');
   const colorRow = $('org-color-row');
   const colorInput = $('org-color');
   const colorOrigen = $('org-color-origen');
@@ -57,7 +55,6 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     box.hidden = !org;
     if (!org) return;
     nombreInput.value = org.nombre;
-    previewNombre.textContent = org.nombre;
     if (!edicion) mostrarImagenGuardada();
   }
 
@@ -69,8 +66,6 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     preview.style.color = p.texto;
     previewMarkTap.style.background = p.acento;
     previewMarkTap.style.color = p.acentoTexto;
-    previewBy.style.color = p.texto2;
-    previewNombre.style.color = p.texto;
   }
 
   function mostrarImagenGuardada() {
@@ -90,10 +85,6 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     subirLabel.firstChild.textContent = org.imagenUrl ? 'Cambiar imagen' : 'Subir imagen';
     quitarBtn.hidden = !org.imagenUrl;
   }
-
-  nombreInput.addEventListener('input', () => {
-    previewNombre.textContent = nombreInput.value.trim() || org?.nombre || '';
-  });
 
   nombreForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -122,7 +113,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   });
 
   quitarBtn.addEventListener('click', async () => {
-    if (!confirm('¿Quitar la imagen? La pantalla del tap queda solo con NextTap y el nombre.')) return;
+    if (!confirm('¿Quitar la imagen? La pantalla del tap queda solo con NextTap.')) return;
     try {
       const r = await api('/me/organizacion/imagen', { method: 'DELETE' });
       render(r.organizacion);
@@ -177,8 +168,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
       trabajo.getContext('2d').drawImage(original, 0, 0, trabajo.width, trabajo.height);
     }
 
-    const contener = SALIDA / Math.max(iw, ih);
-    const cubrir = SALIDA / Math.min(iw, ih);
+    const { contener, cubrir } = escalasPara(iw, ih);
     edicion = {
       original,
       trabajo,
@@ -196,8 +186,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
 
     // Punto de partida: una foto casi cuadrada llena el cuadro; un logo
     // apaisado o vertical entra entero con un poco de aire alrededor.
-    const ratio = iw / ih;
-    aplicarModo(ratio > 0.8 && ratio < 1.25 ? 'llenar' : 'entera');
+    aplicarModo(modoInicial(iw, ih));
 
     editor.hidden = false;
     nombreForm.hidden = true;
@@ -221,37 +210,9 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   }
   cancelarBtn.addEventListener('click', cerrarEditor);
 
-  // Color de fondo inicial: el promedio del borde de la imagen (así un logo
-  // sobre blanco sigue sobre blanco). Si el borde es transparente (PNG de
-  // logo), blanco.
-  function colorDeBordes(fuente) {
-    const n = 48;
-    const c = document.createElement('canvas');
-    c.width = c.height = n;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(fuente, 0, 0, n, n);
-    const { data } = ctx.getImageData(0, 0, n, n);
-    let r = 0, g = 0, b = 0, opacos = 0, total = 0;
-    for (let y = 0; y < n; y++) {
-      for (let x = 0; x < n; x++) {
-        if (x > 1 && x < n - 2 && y > 1 && y < n - 2) continue;
-        const i = (y * n + x) * 4;
-        total++;
-        if (data[i + 3] < 128) continue;
-        opacos++;
-        r += data[i];
-        g += data[i + 1];
-        b += data[i + 2];
-      }
-    }
-    if (opacos < total / 2) return '#ffffff';
-    const hex = (v) => Math.round(v / opacos).toString(16).padStart(2, '0');
-    return `#${hex(r)}${hex(g)}${hex(b)}`;
-  }
-
   function aplicarModo(modo) {
     const e = edicion;
-    e.escala = modo === 'llenar' ? e.cubrir : e.contener * 0.86;
+    e.escala = escalaDeModo(modo, e.iw, e.ih);
     e.cx = SALIDA / 2;
     e.cy = SALIDA / 2;
     acomodar();
@@ -306,16 +267,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   });
 
   function pintar(ctx, lado, fuente) {
-    const e = edicion;
-    const k = lado / SALIDA;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = fondoInput.value;
-    ctx.fillRect(0, 0, lado, lado);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    const w = e.iw * e.escala * k;
-    const h = e.ih * e.escala * k;
-    ctx.drawImage(fuente, e.cx * k - w / 2, e.cy * k - h / 2, w, h);
+    pintarCuadro(ctx, lado, fuente, { ...edicion, fondo: fondoInput.value });
   }
 
   function dibujar() {

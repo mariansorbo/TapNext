@@ -7,9 +7,10 @@
 <title>Prueba — pantalla del tap de organizaciones</title>
 <!--
   Página de PRUEBA: carrusel con la pantalla del tap de distintas
-  organizaciones (logos inventados en public/images/prueba-logos/). Mismo CSS
-  que server/index.js → pantallaRedireccion + orgBloque, y el fondo sale del
-  mismo cálculo que usa el editor de Mi panel (src/color-logo.js). No redirige.
+  organizaciones (logos inventados en public/images/prueba-logos/, cuadrados,
+  apaisados y verticales). Cada logo pasa por el mismo encuadre automático que
+  el editor de Mi panel (src/encuadre.js) y el fondo sale del mismo cálculo
+  (src/color-logo.js). Mismo CSS que server/index.js → orgBloque. No redirige.
 -->
 <style>
   :root{--violet:#7B5CFF}
@@ -34,8 +35,6 @@
     letter-spacing:-.03em;opacity:0;transform:translateY(8px) scale(.97)}
   .mark .tap{background:var(--acento);color:var(--acento-texto);padding:.06em .26em .12em;border-radius:.16em;
     clip-path:inset(0 100% 0 0)}
-  .by{font-size:clamp(1rem,4.6vw,1.25rem);color:var(--texto2);max-width:22ch;overflow-wrap:anywhere;opacity:0}
-  .by b{color:var(--texto);font-weight:600}
   .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:var(--pista);overflow:hidden}
   .bar i{display:block;height:100%;background:var(--acento);transform:translateX(-100%)}
   .cta{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;
@@ -47,7 +46,6 @@
   .slide.run .org-img{opacity:1;transform:none}
   .slide.run .mark{animation:rise .22s cubic-bezier(.2,.7,.2,1) forwards}
   .slide.run .mark .tap{animation:wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards}
-  .slide.run .by{animation:show .25s .12s forwards}
   .slide.run .cta{animation:show .2s .08s forwards}
   .slide.run .bar i{animation:fill 1200ms .3s linear forwards}
   @keyframes show{to{opacity:1}}
@@ -84,11 +82,16 @@
 
   <script type="module">
     import { colorMayoritario, paletaPantalla } from '/src/color-logo.js';
+    import { encuadreAutomatico } from '/src/encuadre.js';
 
-    // Logos inventados. El fondo NO está escrito acá: se calcula de cada
-    // imagen, igual que en el editor de Mi panel.
+    // Logos inventados, de distintas formas. Ni el encuadre ni el fondo están
+    // escritos acá: se calculan de cada imagen, igual que en el editor de Mi
+    // panel cuando la organización sube el archivo y toca "Guardar" sin mover nada.
     const ORGS = [
       { nombre: 'Ferretería Los Andes', logo: 'ferreteria-los-andes.svg' },
+      { nombre: 'Transportes del Sur', logo: 'transportes-del-sur.svg' },
+      { nombre: 'Heladería Polo', logo: 'heladeria-polo.svg' },
+      { nombre: 'Gimnasio Fuerza', logo: 'gimnasio-fuerza.svg' },
       { nombre: 'Café Brasa', logo: 'cafe-brasa.svg' },
       { nombre: 'Lumen Estudio', logo: 'lumen-estudio.svg' },
       { nombre: 'Vivero Verde Raíz', logo: 'vivero-verde-raiz.svg' },
@@ -122,7 +125,8 @@
     let actual = 0;
     function mostrarDetalle(i) {
       const o = ORGS[i];
-      detalle.textContent = `${i + 1}/${ORGS.length} · fondo ${o.color || 'negro de marca (logo sin color)'}`;
+      const forma = o.forma ? `${o.forma} · ` : '';
+      detalle.textContent = `${i + 1}/${ORGS.length} · ${forma}fondo ${o.color || 'negro de marca (logo sin color)'}`;
     }
 
     const slides = ORGS.map((o, i) => {
@@ -130,10 +134,9 @@
       s.className = 'slide';
       s.dataset.i = i;
       s.innerHTML = `
-        <div class="org-img"><img src="/images/prueba-logos/${esc(o.logo)}" alt="${esc(o.nombre)}"></div>
+        <div class="org-img"><img alt="${esc(o.nombre)}"></div>
         <div class="firma">
           <div class="mark">Next<span class="tap">Tap</span></div>
-          <div class="by"><b>${esc(o.nombre)}</b></div>
         </div>
         <div class="bar"><i></i></div>
         <a class="cta" href="/">Comprá el tuyo en <b>next-tap.tech</b></a>`;
@@ -146,7 +149,12 @@
       puntos.appendChild(p);
 
       cargar(`/images/prueba-logos/${o.logo}`).then((img) => {
-        o.color = colorDe(img);
+        // Lo que sube el editor: el cuadrado de 1080 ya encuadrado.
+        const cuadro = encuadreAutomatico(img);
+        s.querySelector('.org-img img').src = cuadro.canvas.toDataURL('image/png');
+        const tipo = cuadro.iw === cuadro.ih ? 'cuadrado' : cuadro.iw > cuadro.ih ? 'apaisado' : 'vertical';
+        o.forma = `${tipo} ${cuadro.iw}×${cuadro.ih}${cuadro.modo === 'entera' ? ' → entra entera' : ''}`;
+        o.color = colorDe(cuadro.canvas);
         const pal = paletaPantalla(o.color);
         s.style.setProperty('--fondo', pal.fondo);
         s.style.setProperty('--texto', pal.texto);
