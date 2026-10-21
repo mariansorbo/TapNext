@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo genérico de la demo "Para empresas" (variante 1): solo texto, fondo blanco. -->
+  <rect width="1080" height="1080" fill="#ffffff"/>
+  <text x="540" y="590" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="170" font-weight="800" fill="#D9480F" letter-spacing="-4">Tu marca</text>
+</svg>

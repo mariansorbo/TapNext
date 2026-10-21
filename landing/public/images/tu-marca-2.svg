@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo genérico de la demo "Para empresas" (variante 2): llena el cuadro, isotipo + texto. -->
+  <rect width="1080" height="1080" fill="#1F7A5C"/>
+  <circle cx="540" cy="420" r="170" fill="none" stroke="#F4EBD0" stroke-width="44"/>
+  <circle cx="540" cy="420" r="62" fill="#F4EBD0"/>
+  <text x="540" y="790" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="140" font-style="italic" fill="#F4EBD0">Tu marca</text>
+</svg>

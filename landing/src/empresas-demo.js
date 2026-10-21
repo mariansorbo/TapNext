@@ -7,12 +7,13 @@
 import { colorMayoritario, paletaPantalla } from './color-logo.js';
 import { encuadreAutomatico, colorDeBordes } from './encuadre.js';
 
-// Tres casos: primero un logo genérico que dice "Tu empresa", después dos de
-// los inventados de la página de prueba.
+// Tres casos, todos "Tu marca" en variantes distintas (solo texto sobre
+// blanco, isotipo que llena el cuadro, apaisado transparente), así se ve que
+// el fondo y el encuadre se adaptan a cualquier logo.
 const ORGS = [
-  { logo: '/images/tu-empresa.svg', destino: 'wa' },
-  { logo: '/images/prueba-logos/lumen-estudio.svg', destino: 'ig' },
-  { logo: '/images/prueba-logos/transportes-del-sur.svg', destino: 'wa' },
+  { logo: '/images/tu-marca-1.svg', destino: 'wa' },
+  { logo: '/images/tu-marca-2.svg', destino: 'ig' },
+  { logo: '/images/tu-marca-3.svg', destino: 'wa' },
 ];
 // El dueño del llavero es siempre el mismo personaje.
 const PERSONA = 'Juan Pérez';

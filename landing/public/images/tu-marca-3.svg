@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 420" width="1600" height="420">
+  <!-- Logo genérico de la demo "Para empresas" (variante 3): apaisado, fondo transparente como un PNG. -->
+  <g transform="translate(60 60)">
+    <rect x="0" y="0" width="300" height="300" rx="70" fill="#2B59C3"/>
+    <path d="M90 210 L150 90 L210 210 Z" fill="#ffffff"/>
+  </g>
+  <text x="430" y="270" font-family="Helvetica, Arial, sans-serif" font-size="190" font-weight="800" fill="#2B59C3" letter-spacing="-6">TU MARCA</text>
+</svg>
