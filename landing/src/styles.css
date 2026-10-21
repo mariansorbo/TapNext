@@ -409,16 +409,33 @@ h2{
 .emp-logo-pantalla .emp-mark{font-size:1.2rem; opacity:1; transform:none;}
 .emp-logo-pantalla .emp-mark .tap{clip-path:none;}
 /* Combo de fin de año (WhatsApp + Instagram por persona). */
-.emp-combo-pill{display:inline-block; margin:0 0 18px; padding:7px 14px; border-radius:999px;
-  background:rgba(123,92,255,0.14); border:1px solid rgba(123,92,255,0.45); color:var(--paper);
-  font-size:0.86rem; line-height:1.35;}
-.emp-combo-pill b{color:var(--violet); font-weight:700; white-space:nowrap;}
+/* Banner de la oferta (landing y arranque de /empresas): bloque violeta lleno,
+   precio grande y un brillo que lo cruza cada tanto, para que se vea primero. */
+.emp-oferta{
+  position:relative; overflow:hidden; display:flex; flex-direction:column; gap:4px;
+  margin:0 0 22px; padding:16px 18px 14px; border-radius:18px; max-width:440px;
+  background:linear-gradient(135deg,#7B5CFF 0%,#9A7BFF 55%,#C3A8FF 100%); color:#14171A;
+  box-shadow:0 14px 34px -12px rgba(123,92,255,.75);
+  animation:emp-oferta-pulso 2.8s ease-in-out infinite;
+}
+.emp-oferta::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);
+  transform:translateX(-100%); animation:emp-oferta-brillo 3.6s ease-in-out infinite;
+}
+.emp-oferta-tag{align-self:flex-start; font-family:var(--mono); font-size:0.72rem; font-weight:500;
+  text-transform:uppercase; letter-spacing:0.08em; background:#14171A; color:#EDEFE9; padding:4px 10px; border-radius:999px;}
+.emp-oferta-precio{font-family:var(--display); font-weight:700; font-size:clamp(2.2rem,9vw,2.8rem); letter-spacing:-0.03em; line-height:1.05; margin-top:6px;}
+.emp-oferta-precio small{font-size:0.95rem; font-weight:600; letter-spacing:0;}
+.emp-oferta-detalle{font-size:0.92rem; font-weight:500; line-height:1.35;}
+.emp-oferta-ir{margin-top:8px; font-weight:700; font-size:0.9rem; text-decoration:underline; text-underline-offset:3px;}
+@keyframes emp-oferta-pulso{0%,100%{transform:scale(1);} 50%{transform:scale(1.015);}}
+@keyframes emp-oferta-brillo{0%,55%{transform:translateX(-100%);} 85%,100%{transform:translateX(100%);}}
+@media (prefers-reduced-motion: reduce){ .emp-oferta, .emp-oferta::after{animation:none;} }
 .emp-combo{display:grid; gap:28px; border:1px solid var(--line); border-radius:22px; padding:24px;
   background:var(--surface);}
-.emp-combo-fotos{display:flex; justify-content:center;}
-.emp-combo-fotos img{width:min(170px,42vw); height:auto; filter:drop-shadow(0 12px 20px rgba(0,0,0,.45));}
-.emp-combo-fotos img + img{margin-left:-18px; transform:rotate(8deg) translateY(10px);}
-.emp-combo-fotos img:first-child{transform:rotate(-8deg);}
+.emp-combo-foto{border-radius:16px; overflow:hidden; background:#E6E4E0;}
+.emp-combo-foto img{display:block; width:100%; height:auto;}
 .emp-combo-label{font-family:var(--mono); font-size:0.78rem; color:var(--violet); text-transform:uppercase; letter-spacing:0.08em;}
 .emp-combo-precio{font-family:var(--display); font-weight:700; font-size:clamp(2.6rem,9vw,3.6rem); letter-spacing:-0.03em; line-height:1.1; margin:4px 0 14px;}
 .emp-combo-incluye{list-style:none; display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
