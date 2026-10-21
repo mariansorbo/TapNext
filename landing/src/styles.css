@@ -231,6 +231,183 @@ h2{
 .cta-final h2{margin:0 auto 18px; max-width:none;}
 .cta-final .btn-primary{font-size:1rem; padding:13px 30px;}
 
+/* EMPRESAS — cuenta de organización. Mobile primero: texto, teléfono con la
+   demo, bloques, pasos y CTA apilados. La pantalla del teléfono replica la
+   del tap (server/index.js → orgBloque); la anima src/empresas-demo.js. */
+.empresas-top{display:flex; flex-direction:column; gap:36px;}
+.empresas-top .section-lead{margin-bottom:0;}
+/* clip-path recorta solo por arriba (el borde superior del teléfono): la mano
+   entra desde ahí y de los dedos apenas se ve la punta. */
+.empresas-demo{margin:0; display:flex; flex-direction:column; align-items:center; gap:14px; position:relative;
+  clip-path:inset(0 -100vw -100vw -100vw);}
+#empresas, .pagina-empresas section{overflow-x:clip;}
+/* La mano con el llavero que se acerca al teléfono (la mueve src/empresas-demo.js). */
+.emp-mano{
+  position:absolute; z-index:2; pointer-events:none; width:min(230px,60vw); aspect-ratio:1;
+  left:50%; top:11%; opacity:0; will-change:transform, opacity;
+}
+.emp-mano svg{display:block; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45));}
+.empresas-demo figcaption{font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim); text-align:center; max-width:32ch;}
+.empresas-phone{
+  position:relative; width:min(240px,64vw); aspect-ratio:9/19; border-radius:34px; overflow:hidden;
+  border:7px solid #2A2E33; background:var(--ink);
+}
+.emp-pantalla{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:16px; padding:18px; opacity:0; transition:opacity .3s ease;
+}
+.emp-pantalla.on{opacity:1;}
+.empresas-phone.cambiando .emp-pantalla{transition:none;} /* el teléfono nuevo llega ya en su inicio */
+.emp-tap{background:var(--fondo,#14171A); color:var(--texto,#EDEFE9); font-family:var(--display);}
+.emp-org-img{
+  width:62%; aspect-ratio:1; border-radius:16px; overflow:hidden; background:var(--pista);
+  box-shadow:var(--sombra); opacity:0; transform:scale(.96);
+  transition:opacity .25s ease, transform .3s cubic-bezier(.2,.7,.2,1);
+}
+.emp-org-img img{display:block; width:100%; height:100%; object-fit:cover;}
+.emp-mark{display:flex; align-items:baseline; gap:.1em; font-weight:700; font-size:1.9rem; letter-spacing:-.03em;
+  opacity:0; transform:translateY(8px) scale(.97);}
+.emp-mark .tap{background:var(--acento,#7B5CFF); color:var(--acento-texto,#14171A); padding:.06em .26em .12em;
+  border-radius:.16em; clip-path:inset(0 100% 0 0);}
+.emp-bar{width:40%; height:2px; border-radius:2px; background:var(--pista); overflow:hidden;}
+.emp-bar i{display:block; height:100%; background:var(--acento,#7B5CFF); transform:translateX(-100%);}
+.emp-tap.on .emp-org-img{opacity:1; transform:none;}
+.emp-tap.on .emp-mark{animation:emp-rise .22s cubic-bezier(.2,.7,.2,1) forwards;}
+.emp-tap.on .emp-mark .tap{animation:emp-wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards;}
+.emp-tap.on .emp-bar i{animation:emp-fill 1100ms .2s linear forwards;}
+@keyframes emp-rise{to{opacity:1; transform:none;}}
+@keyframes emp-wipe{to{clip-path:inset(0 0 0 0);}}
+@keyframes emp-fill{to{transform:translateX(0);}}
+/* Pantalla de inicio desbloqueada, antes del tap: una vuelta iPhone, otra
+   Android (el teléfono lleva la clase .ios / .android). Apps de siempre,
+   dibujadas simples, sin logos. */
+/* Dos teléfonos que se distinguen a simple vista: iPhone oscuro, esquinas muy
+   redondas; Android plateado, más angosto, esquinas más rectas y borde fino. */
+.empresas-phone.ios{border-radius:40px; border:8px solid #1D1D1F; box-shadow:0 0 0 2px #5A5A5F;}
+.empresas-phone.android{aspect-ratio:9/20.5; width:min(226px,60vw); border-radius:22px; border:5px solid #0B0C0E;
+  box-shadow:0 0 0 3px #B9C3CD;}
+.emp-camara{position:absolute; z-index:3; top:7px; left:50%; transform:translateX(-50%); background:#000;}
+.empresas-phone.ios .emp-camara{width:64px; height:18px; border-radius:10px;}
+.empresas-phone.android .emp-camara{width:10px; height:10px; border-radius:50%; top:9px;}
+.emp-home{justify-content:flex-start; align-items:stretch; gap:0; padding:0; color:#fff;
+  font-family:-apple-system, 'SF Pro Text', Roboto, var(--body);}
+.emp-ios{background:linear-gradient(165deg,#1B3A78 0%,#5B4BB7 50%,#D9779A 100%);}
+.emp-android{background:linear-gradient(175deg,#0E3F3A 0%,#1F7A63 55%,#9FD3B6 100%);}
+.home-status{display:flex; justify-content:space-between; align-items:center; padding:9px 16px 0; font-size:.6rem; font-weight:600;}
+.home-status .bat{width:16px; height:8px; border:1px solid #fff; border-radius:2.5px; position:relative;}
+.home-status .bat::after{content:''; position:absolute; inset:1px 4px 1px 1px; background:#fff; border-radius:1px;}
+.home-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:11px 0; padding:24px 6px 0; justify-items:center;}
+.app{display:flex; flex-direction:column; align-items:center; gap:3px; font-size:.5rem; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,.3);}
+.app i{width:38px; height:38px; border-radius:10px; background:var(--c); display:flex; align-items:center; justify-content:center; text-shadow:none;}
+.app svg{width:22px; height:22px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.app i.claro svg{stroke:#1C1C1E;}
+.app .cal{display:flex; flex-direction:column; align-items:center; color:#111; font-weight:700; font-size:1.05rem; line-height:1;}
+.app .cal small{color:#E5383B; font-size:.42rem; font-weight:600; text-transform:uppercase; margin-bottom:1px;}
+.home-buscar{align-self:center; margin:auto 0 8px; font-size:.55rem; padding:4px 12px; border-radius:999px; background:rgba(255,255,255,.28);}
+.home-dock{display:flex; justify-content:space-around; margin:0 7px 9px; padding:7px 4px; border-radius:22px; background:rgba(255,255,255,.26);}
+.emp-android .app i{border-radius:50%;}
+.emp-android .home-grid{padding-top:0; margin-top:auto;}
+.home-reloj{padding:30px 16px 0; font-family:Roboto, var(--body); font-size:2.7rem; font-weight:300; line-height:1;}
+.home-fecha{padding:4px 17px 0; font-size:.65rem; opacity:.9;}
+.emp-android .home-dock{background:none; margin-bottom:4px;}
+.emp-android .home-buscar{margin:0 10px 12px; align-self:stretch; background:#fff; color:#5F6368; padding:7px 12px; font-size:.6rem;}
+
+/* Lo que se abre después del tap: un chat de WhatsApp o un perfil de
+   Instagram, en versión wireframe (sin logos, solo la forma de cada app). */
+.emp-wa, .emp-ig{justify-content:flex-start; align-items:stretch; gap:0; padding:0; font-family:var(--body);}
+.emp-av{
+  flex-shrink:0; border-radius:50%; background:#C9CEC6; color:#3B4148;
+  display:flex; align-items:center; justify-content:center; font-weight:600; overflow:hidden;
+}
+.emp-av img{display:block; width:100%; height:100%; object-fit:cover;}
+.emp-wa{background:#EFE7DE; color:#111B21;}
+.wa-top{display:flex; align-items:center; gap:8px; background:#008069; color:#fff; padding:26px 10px 9px;}
+.wa-back{font-size:1.3rem; line-height:1;}
+.wa-top .emp-av{width:28px; height:28px; font-size:.8rem;}
+.wa-quien{display:flex; flex-direction:column; line-height:1.15;}
+.wa-quien b{font-size:.8rem; font-weight:600;}
+.wa-quien small{font-size:.62rem; opacity:.8;}
+.wa-chat{flex:1; display:flex; flex-direction:column; gap:6px; padding:10px 8px;}
+.wa-input{display:flex; align-items:center; gap:6px; padding:6px 6px 12px;}
+.wa-input span{flex:1; background:#fff; border-radius:999px; padding:6px 10px; font-size:.68rem; color:#8696A0;}
+.wa-input b{width:26px; height:26px; border-radius:50%; background:#00A884;}
+.emp-ig{background:#fff; color:#000; padding:0 10px;}
+.ig-top{padding:26px 0 10px; font-size:.82rem; font-weight:700;}
+.ig-perfil{display:flex; align-items:center; gap:10px;}
+.ig-anillo{padding:2px; border-radius:50%; background:linear-gradient(45deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5);}
+.ig-anillo .emp-av{width:52px; height:52px; font-size:1.1rem; border:2px solid #fff;}
+.ig-stats{flex:1; display:flex; justify-content:space-between; text-align:center;}
+.ig-stats div{display:flex; flex-direction:column; line-height:1.2;}
+.ig-stats b{font-size:.74rem;}
+.ig-stats small{font-size:.56rem; color:#555;}
+.ig-bio{display:flex; flex-direction:column; gap:4px; margin-top:8px;}
+.ig-bio b{font-size:.7rem;}
+.ig-bio i, .ig-grid i{display:block; background:#EFEFEF;}
+.ig-bio i{height:6px; border-radius:3px; width:85%;}
+.ig-bio i.corta{width:55%;}
+.ig-btns{display:flex; gap:5px; margin-top:10px;}
+.ig-btns span{flex:1; text-align:center; font-size:.66rem; font-weight:600; padding:5px 0; border-radius:6px; background:#EFEFEF;}
+.ig-btns .seguir{background:#0095F6; color:#fff;}
+.ig-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:2px; margin:12px -10px 0;}
+.ig-grid i{aspect-ratio:1;}
+.ig-grid i:nth-child(3n+1){background:#E4E4E4;}
+.ig-grid i:nth-child(4n+2){background:#DADADA;}
+@media (prefers-reduced-motion: reduce){
+  .emp-tap.on .emp-mark, .emp-tap.on .emp-mark .tap, .emp-tap.on .emp-bar i{animation-duration:.01ms;}
+}
+
+.empresas-steps{margin-top:56px;}
+.empresas-pasos{
+  list-style:none; counter-reset:paso; margin-top:48px; padding:20px 22px;
+  border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; gap:12px;
+}
+.empresas-pasos li{counter-increment:paso; display:flex; gap:12px; color:var(--paper-dim); font-size:0.98rem;}
+.empresas-pasos li::before{content:counter(paso); font-family:var(--mono); color:var(--violet); min-width:1ch;}
+.empresas-cta{margin-top:44px; display:flex; flex-direction:column; align-items:flex-start; gap:18px;}
+.empresas-cta p{font-family:var(--display); font-weight:600; font-size:clamp(1.25rem,2.4vw,1.6rem); letter-spacing:-0.01em; max-width:26ch;}
+
+@media (max-width:600px){
+  .empresas-cta{align-items:stretch;}
+  .empresas-cta .btn-primary{text-align:center;}
+  .empresas-cta .btn-ghost{align-self:center;}
+}
+@media (min-width:900px){
+  .empresas-top{flex-direction:row; align-items:center; justify-content:space-between; gap:48px;}
+  .empresas-phone{width:260px;}
+  .empresas-phone.android{width:246px;}
+  .empresas-pasos{flex-direction:row; justify-content:space-between; gap:24px;}
+  .empresas-cta{flex-direction:row; align-items:center; flex-wrap:wrap; gap:22px;}
+  .empresas-cta p{flex-basis:100%;}
+}
+
+.empresas-mas{display:inline-block; margin-top:22px;}
+.empresas-demo-link{display:block; color:inherit;}
+
+/* PÁGINA EMPRESAS (empresas.html) — reusa la sección de la landing y la demo. */
+.emp-hero{border-top:none; padding-top:30px;}
+.emp-h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,6vw,3.2rem); letter-spacing:-0.025em;
+  line-height:1.05; margin-bottom:22px; max-width:16ch;}
+.emp-hero .section-lead{margin-top:0;}
+.emp-hero .empresas-cta{margin-top:30px;}
+.emp-nota{margin-top:32px; font-family:var(--mono); font-size:0.8rem; color:var(--paper-dim);}
+.emp-logos{display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; margin-top:36px; padding-bottom:10px;}
+.emp-logo-pantalla{
+  flex:0 0 150px; aspect-ratio:9/16; border-radius:18px; scroll-snap-align:start;
+  background:var(--fondo,var(--surface)); color:var(--texto,var(--paper));
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+  border:1px solid var(--line); font-family:var(--display);
+}
+.emp-logo-pantalla .emp-org-img{width:66%; border-radius:12px; opacity:1; transform:none;}
+.emp-logo-pantalla .emp-mark{font-size:1.2rem; opacity:1; transform:none;}
+.emp-logo-pantalla .emp-mark .tap{clip-path:none;}
+.emp-cta-solo{margin-top:28px;}
+.emp-cierre{color:var(--paper-dim); margin:-6px 0 20px;}
+.emp-cierre-mail{margin-top:16px;}
+@media (min-width:900px){
+  .emp-demo-grande .empresas-phone{width:290px;}
+  .emp-demo-grande .empresas-phone.android{width:274px;}
+}
+
 /* PHOTO PLACEHOLDER */
 .photo-frame{
   position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--line);

@@ -41,6 +41,7 @@ export default defineConfig({
         activacion: resolve(root, 'activacion.html'),
         faqs: resolve(root, 'faqs.html'),
         quienesSomos: resolve(root, 'quienes-somos.html'),
+        empresas: resolve(root, 'empresas.html'),
         admin: resolve(root, 'admin.html'),
         vendedor: resolve(root, 'vendedor.html'),
         demo: resolve(root, 'demo.html'),
