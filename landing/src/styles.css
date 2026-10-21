@@ -408,9 +408,12 @@ h2{
 }
 
 /* PHOTO PLACEHOLDER */
+/* Sale del ancho del .wrap: casi de borde a borde (12px de aire por lado),
+   con tope en pantallas muy anchas. */
 .photo-frame{
   position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--line);
   aspect-ratio:16/8; background:var(--surface);
+  width:min(calc(100vw - 24px), 1400px); left:50%; transform:translateX(-50%);
 }
 .photo-video{
   position:absolute; inset:0; width:100%; height:100%;
