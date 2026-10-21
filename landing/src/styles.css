@@ -243,8 +243,8 @@ h2{
 #empresas, .pagina-empresas section{overflow-x:clip;}
 /* La mano con el llavero que se acerca al teléfono (la mueve src/empresas-demo.js). */
 .emp-mano{
-  position:absolute; z-index:2; pointer-events:none; width:min(230px,60vw); aspect-ratio:1;
-  left:50%; top:11%; opacity:0; will-change:transform, opacity;
+  position:absolute; z-index:5; pointer-events:none; width:min(230px,60vw); aspect-ratio:1;
+  left:50%; top:17%; opacity:0; will-change:transform, opacity;
 }
 .emp-mano svg{display:block; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45));}
 .empresas-demo figcaption{font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim); text-align:center; max-width:32ch;}
@@ -356,13 +356,6 @@ h2{
   .emp-tap.on .emp-mark, .emp-tap.on .emp-mark .tap, .emp-tap.on .emp-bar i{animation-duration:.01ms;}
 }
 
-.empresas-steps{margin-top:56px;}
-.empresas-pasos{
-  list-style:none; counter-reset:paso; margin-top:48px; padding:20px 22px;
-  border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; gap:12px;
-}
-.empresas-pasos li{counter-increment:paso; display:flex; gap:12px; color:var(--paper-dim); font-size:0.98rem;}
-.empresas-pasos li::before{content:counter(paso); font-family:var(--mono); color:var(--violet); min-width:1ch;}
 .empresas-cta{margin-top:44px; display:flex; flex-direction:column; align-items:flex-start; gap:18px;}
 .empresas-cta p{font-family:var(--display); font-weight:600; font-size:clamp(1.25rem,2.4vw,1.6rem); letter-spacing:-0.01em; max-width:26ch;}
 
@@ -375,12 +368,18 @@ h2{
   .empresas-top{flex-direction:row; align-items:center; justify-content:space-between; gap:48px;}
   .empresas-phone{width:260px;}
   .empresas-phone.android{width:246px;}
-  .empresas-pasos{flex-direction:row; justify-content:space-between; gap:24px;}
   .empresas-cta{flex-direction:row; align-items:center; flex-wrap:wrap; gap:22px;}
   .empresas-cta p{flex-basis:100%;}
 }
 
-.empresas-mas{display:inline-block; margin-top:22px;}
+/* Sección corta de la landing: título, demo más chica (teléfono entero) y botón
+   a /empresas debajo (el detalle está en empresas.html). */
+.empresas-mas{display:block; width:fit-content; margin:20px auto 0;}
+#empresas h2{margin-bottom:0;}
+#empresas .empresas-top{gap:24px;}
+#empresas .empresas-phone{width:min(200px,54vw);}
+#empresas .empresas-phone.android{width:min(190px,51vw);}
+#empresas .emp-mano{width:min(190px,50vw);}
 .empresas-demo-link{display:block; color:inherit;}
 
 /* PÁGINA EMPRESAS (empresas.html) — reusa la sección de la landing y la demo. */
