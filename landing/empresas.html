@@ -23,19 +23,22 @@
 <!-- 1. Arranque -->
 <section class="emp-hero">
   <div class="wrap">
-    <div class="empresas-top">
-      <div>
+    <!-- En celular: texto, teléfono y botones, en ese orden. En compu, el
+         teléfono va a la derecha de texto + botones (grid en styles.css). -->
+    <div class="emp-hero-grid">
+      <div class="emp-hero-texto">
         <div class="kicker">Para empresas</div>
+        <a href="#combo" class="emp-combo-pill">Combo por persona: llavero de WhatsApp + Instagram · <b>$30.000</b></a>
         <h1 class="emp-h1">Primero tu empresa. Después, su contacto.</h1>
         <p class="section-lead">Cada vez que alguien de tu equipo comparte su WhatsApp o su Instagram con un llavero NextTap, durante un momento aparece tu logo. Tu empresa, presente en cada presentación.</p>
-        <div class="empresas-cta">
-          <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener" class="btn-primary">Hablemos por WhatsApp</a>
-          <a href="mailto:ventas@next-tap.tech?subject=NextTap%20para%20empresas" class="btn-ghost">o escribinos a ventas@next-tap.tech</a>
-        </div>
       </div>
       <figure class="empresas-demo emp-demo-grande" data-empresas-demo>
         <figcaption>Así se ve cada tap de tu equipo. El fondo toma el color de tu logo.</figcaption>
       </figure>
+      <div class="empresas-cta">
+        <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener" class="btn-primary">Hablemos por WhatsApp</a>
+        <a href="mailto:ventas@next-tap.tech?subject=NextTap%20para%20empresas" class="btn-ghost">o escribinos a ventas@next-tap.tech</a>
+      </div>
     </div>
   </div>
 </section>
@@ -102,14 +105,27 @@
   </div>
 </section>
 
-<!-- 5. Regalo de fin de año -->
-<section>
+<!-- 5. Regalo de fin de año: el combo -->
+<section id="combo">
   <div class="wrap">
     <div class="kicker">Fin de año</div>
-    <h2>El regalo para tu equipo que además trabaja para tu marca.</h2>
-    <p class="section-lead">Pensado para Recursos Humanos y Marketing: un regalo que tu gente va a usar todos los días, y que cada vez que lo usa presenta a tu empresa. Lo armamos para todo tu equipo.</p>
-    <div class="empresas-cta emp-cta-solo">
-      <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20cotizar%20NextTap%20para%20mi%20equipo" target="_blank" rel="noopener" class="btn-primary">Quiero cotizar para mi equipo</a>
+    <h2>El regalo de fin de año para tu equipo.</h2>
+    <div class="emp-combo">
+      <div class="emp-combo-fotos">
+        <img src="/images/modelos/whatsapp-llavero.png" alt="Llavero NextTap de WhatsApp" width="600" height="600" loading="lazy">
+        <img src="/images/modelos/instagram-llavero.png" alt="Llavero NextTap de Instagram" width="600" height="600" loading="lazy">
+      </div>
+      <div class="emp-combo-info">
+        <div class="emp-combo-label">Combo por persona</div>
+        <div class="emp-combo-precio">$30.000</div>
+        <ul class="emp-combo-incluye">
+          <li>Llavero de WhatsApp</li>
+          <li>Llavero de Instagram</li>
+          <li>Tu logo en cada tap</li>
+        </ul>
+        <p class="emp-combo-condiciones">Mínimo 15 combos · Pago por transferencia · Válido hasta el 20 de noviembre</p>
+        <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20el%20combo%20de%20fin%20de%20a%C3%B1o%20para%20mi%20equipo" target="_blank" rel="noopener" class="btn-primary">Quiero el combo para mi equipo</a>
+      </div>
     </div>
   </div>
 </section>

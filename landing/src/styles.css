@@ -376,6 +376,8 @@ h2{
    a /empresas debajo (el detalle está en empresas.html). */
 .empresas-mas{display:block; width:fit-content; margin:20px auto 0;}
 #empresas h2{margin-bottom:0;}
+#empresas .section-lead{margin-top:12px;}
+#empresas .empresas-combo-linea{margin:16px 0 0;}
 #empresas .empresas-top{gap:24px;}
 #empresas .empresas-phone{width:min(200px,54vw);}
 #empresas .empresas-phone.android{width:min(190px,51vw);}
@@ -387,7 +389,14 @@ h2{
 .emp-h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,6vw,3.2rem); letter-spacing:-0.025em;
   line-height:1.05; margin-bottom:22px; max-width:16ch;}
 .emp-hero .section-lead{margin-top:0;}
-.emp-hero .empresas-cta{margin-top:30px;}
+.emp-hero-grid{display:grid; grid-template-areas:"texto" "demo" "cta"; gap:32px;}
+.emp-hero-texto{grid-area:texto;}
+.emp-hero-grid .empresas-demo{grid-area:demo;}
+.emp-hero-grid .empresas-cta{grid-area:cta; margin-top:0;}
+@media (min-width:900px){
+  .emp-hero-grid{grid-template-areas:"texto demo" "cta demo"; grid-template-columns:1fr auto;
+    grid-template-rows:auto 1fr; column-gap:48px; align-items:start;}
+}
 .emp-nota{margin-top:32px; font-family:var(--mono); font-size:0.8rem; color:var(--paper-dim);}
 .emp-logos{display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; margin-top:36px; padding-bottom:10px;}
 .emp-logo-pantalla{
@@ -399,7 +408,27 @@ h2{
 .emp-logo-pantalla .emp-org-img{width:66%; border-radius:12px; opacity:1; transform:none;}
 .emp-logo-pantalla .emp-mark{font-size:1.2rem; opacity:1; transform:none;}
 .emp-logo-pantalla .emp-mark .tap{clip-path:none;}
-.emp-cta-solo{margin-top:28px;}
+/* Combo de fin de año (WhatsApp + Instagram por persona). */
+.emp-combo-pill{display:inline-block; margin:0 0 18px; padding:7px 14px; border-radius:999px;
+  background:rgba(123,92,255,0.14); border:1px solid rgba(123,92,255,0.45); color:var(--paper);
+  font-size:0.86rem; line-height:1.35;}
+.emp-combo-pill b{color:var(--violet); font-weight:700; white-space:nowrap;}
+.emp-combo{display:grid; gap:28px; border:1px solid var(--line); border-radius:22px; padding:24px;
+  background:var(--surface);}
+.emp-combo-fotos{display:flex; justify-content:center;}
+.emp-combo-fotos img{width:min(170px,42vw); height:auto; filter:drop-shadow(0 12px 20px rgba(0,0,0,.45));}
+.emp-combo-fotos img + img{margin-left:-18px; transform:rotate(8deg) translateY(10px);}
+.emp-combo-fotos img:first-child{transform:rotate(-8deg);}
+.emp-combo-label{font-family:var(--mono); font-size:0.78rem; color:var(--violet); text-transform:uppercase; letter-spacing:0.08em;}
+.emp-combo-precio{font-family:var(--display); font-weight:700; font-size:clamp(2.6rem,9vw,3.6rem); letter-spacing:-0.03em; line-height:1.1; margin:4px 0 14px;}
+.emp-combo-incluye{list-style:none; display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
+.emp-combo-incluye li{display:flex; gap:10px; color:var(--paper-dim);}
+.emp-combo-incluye li::before{content:'✓'; color:var(--violet); font-weight:700;}
+.emp-combo-condiciones{font-family:var(--mono); font-size:0.78rem; color:var(--paper-dim); margin-bottom:22px;}
+@media (max-width:600px){ .emp-combo .btn-primary{display:block; text-align:center;} }
+@media (min-width:900px){
+  .emp-combo{grid-template-columns:1fr 1fr; align-items:center; padding:40px;}
+}
 .emp-cierre{color:var(--paper-dim); margin:-6px 0 20px;}
 .emp-cierre-mail{margin-top:16px;}
 @media (min-width:900px){
