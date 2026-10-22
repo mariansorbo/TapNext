@@ -46,7 +46,7 @@ const MANO_VUELTA = [
 ];
 const MS_IDA = 750;
 const MS_VUELTA = 650;
-const MS_TAP = 1800;
+const MS_TAP = 1200; // cuánto queda en pantalla la marca de la empresa antes del contacto
 const MS_CONTACTO = 1700;
 const MS_HOME = 900;
 const LADO = 400; // px de la imagen que se muestra (el editor sube 1080)
