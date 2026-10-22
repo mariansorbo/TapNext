@@ -599,23 +599,27 @@ h2{
 .emp-proceso-num{display:block; font-family:var(--mono); font-size:.72rem; color:var(--violet); margin-bottom:4px;}
 .emp-proceso h3{font-family:var(--display); font-size:1.02rem; font-weight:600; letter-spacing:-.01em; margin-bottom:4px;}
 .emp-proceso p{color:var(--paper-dim); font-size:.86rem; line-height:1.45;}
-/* Celular: los pasos son un mazo de cartas en un solo lugar. La de adelante
-   (data-pos="0") se anima; después pasa al fondo y sube la siguiente. Las dos
-   de atrás asoman arriba, más chicas. Lo maneja src/empresas.js. */
+/* Celular: los pasos son SIEMPRE un mazo de cartas en un solo lugar (sale de
+   los estilos, no depende del JS). La de adelante (data-pos="0") se anima;
+   después pasa al fondo y sube la siguiente. Las dos de atrás asoman arriba,
+   más chicas. La rotación la maneja src/empresas.js. */
 @media (max-width:899px){
-  .emp-proceso.mazo{display:grid; gap:0; padding-top:30px; max-width:420px;}
-  .emp-proceso.mazo li{grid-area:1/1; padding:14px 14px 18px; border-radius:18px; background:var(--surface);
+  .emp-proceso{display:grid; gap:0; padding-top:30px; max-width:420px;}
+  .emp-proceso li{grid-area:1/1; padding:14px 14px 18px; border-radius:18px; background:var(--surface);
     border:1px solid var(--line); box-shadow:0 14px 30px -14px rgba(0,0,0,.7);
     transition:transform .55s cubic-bezier(.3,.7,.3,1), opacity .55s ease;}
-  .emp-proceso.mazo li::after{display:none;}
-  .emp-proceso.mazo .proc-ilus{background:var(--ink);}
-  .emp-proceso.mazo li[data-pos="0"]{z-index:6;}
-  .emp-proceso.mazo li[data-pos="1"]{z-index:5; transform:translateY(-14px) scale(.95); opacity:.75;}
-  .emp-proceso.mazo li[data-pos="2"]{z-index:4; transform:translateY(-28px) scale(.9); opacity:.45;}
-  .emp-proceso.mazo li[data-pos="3"], .emp-proceso.mazo li[data-pos="4"],
-  .emp-proceso.mazo li[data-pos="5"]{z-index:1; transform:translateY(-34px) scale(.86); opacity:0;}
+  .emp-proceso li::after{display:none;}
+  .emp-proceso .proc-ilus{background:var(--ink);}
+  .emp-proceso li[data-pos="0"]{z-index:6;}
+  /* Antes de que corra el JS (o si no corre): la 01 adelante y las demás ocultas. */
+  .emp-proceso li:not([data-pos]):first-child{z-index:6;}
+  .emp-proceso li:not([data-pos]):not(:first-child){opacity:0;}
+  .emp-proceso li[data-pos="1"]{z-index:5; transform:translateY(-14px) scale(.95); opacity:.75;}
+  .emp-proceso li[data-pos="2"]{z-index:4; transform:translateY(-28px) scale(.9); opacity:.45;}
+  .emp-proceso li[data-pos="3"], .emp-proceso li[data-pos="4"],
+  .emp-proceso li[data-pos="5"]{z-index:1; transform:translateY(-34px) scale(.86); opacity:0;}
   /* La que se va: baja un poco y se desvanece mientras pasa al fondo. */
-  .emp-proceso.mazo li.saliendo{z-index:7; transform:translateY(26px) scale(.96); opacity:0;}
+  .emp-proceso li.saliendo{z-index:7; transform:translateY(26px) scale(.96); opacity:0;}
 }
 @media (min-width:900px){
   .emp-proceso{flex-direction:row; max-width:none; gap:34px;}

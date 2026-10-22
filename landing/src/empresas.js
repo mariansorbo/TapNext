@@ -196,8 +196,13 @@ const PROCESO_DESFASE_MS = 450;
 const PROCESO_CARTA_MS = 3400;
 function initProceso(ol) {
   const pasos = [...ol.children];
+  // Celular: siempre mazo, también con "reducir movimiento" (las cartas pasan
+  // igual; los dibujos quedan quietos por CSS). Si la ventana cruza el ancho
+  // de celular, se recarga para armar el modo que corresponde.
+  const celular = matchMedia('(max-width: 899px)');
+  celular.addEventListener('change', () => location.reload());
+  if (celular.matches) return initMazo(ol, pasos);
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return ol.classList.add('quieto');
-  if (matchMedia('(max-width: 899px)').matches) return initMazo(ol, pasos);
   let timers = [];
   const animar = (li) => {
     li.classList.remove('on');
@@ -226,7 +231,6 @@ function initProceso(ol) {
   ).observe(ol);
 }
 function initMazo(ol, pasos) {
-  ol.classList.add('mazo');
   let frente = 0;
   let timer = null;
   const ubicar = () => pasos.forEach((li, i) => (li.dataset.pos = String((i - frente + pasos.length) % pasos.length)));
