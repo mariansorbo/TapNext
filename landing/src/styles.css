@@ -76,6 +76,11 @@ h1{
   overflow-wrap:break-word;
 }
 h1 em{font-style:normal; color:var(--violet);}
+/* Palabra que rota en el hero (src/main.js): distinto → WhatsApp → Instagram. */
+h1 em[data-palabra-rota]{display:inline-block;}
+h1 em[data-red="wa"]{color:#25D366;}
+h1 em[data-red="ig"]{background:linear-gradient(90deg,#F58529,#DD2A7B 45%,#8134AF); -webkit-background-clip:text; background-clip:text; color:transparent;}
+h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 .hero p.lead{
   font-size:1.08rem; color:var(--paper-dim); max-width:46ch; margin-bottom:34px;
 }

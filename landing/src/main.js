@@ -11,6 +11,32 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
+// Hero: "Compartí distinto" rota a "WhatsApp" y "Instagram" y vuelve a
+// "distinto" (3 s en distinto, 2 s en cada red). Con "reducir movimiento" queda fija.
+const PALABRAS_HERO = [
+  { texto: 'distinto', ms: 3000 },
+  { texto: 'WhatsApp', red: 'wa', ms: 2000 },
+  { texto: 'Instagram', red: 'ig', ms: 2000 },
+];
+const palabraHero = document.querySelector('[data-palabra-rota]');
+if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  let n = 0;
+  const siguiente = () => {
+    setTimeout(() => {
+      n = (n + 1) % PALABRAS_HERO.length;
+      const p = PALABRAS_HERO[n];
+      palabraHero.textContent = p.texto;
+      if (p.red) palabraHero.dataset.red = p.red;
+      else delete palabraHero.dataset.red;
+      palabraHero.classList.remove('cambia');
+      void palabraHero.offsetWidth; // reinicia la animación de entrada
+      palabraHero.classList.add('cambia');
+      siguiente();
+    }, PALABRAS_HERO[n].ms);
+  };
+  siguiente();
+}
+
 // Videos: sin menú de clic derecho ("Guardar video como…"), sin botón de
 // descarga ni picture-in-picture. No es blindaje, pero saca la descarga fácil.
 document.addEventListener('contextmenu', (e) => {
