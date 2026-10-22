@@ -192,9 +192,12 @@ document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
 // quietas en su estado final.
 const PROCESO_MS = 3200;
 const PROCESO_DESFASE_MS = 450;
+// En celular, en cambio, es un mazo: una carta por vez (ver .mazo en styles.css).
+const PROCESO_CARTA_MS = 3400;
 function initProceso(ol) {
   const pasos = [...ol.children];
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return ol.classList.add('quieto');
+  if (matchMedia('(max-width: 899px)').matches) return initMazo(ol, pasos);
   let timers = [];
   const animar = (li) => {
     li.classList.remove('on');
@@ -220,6 +223,40 @@ function initProceso(ol) {
       if (e.isIntersecting) arrancar();
     },
     { threshold: 0.15 },
+  ).observe(ol);
+}
+function initMazo(ol, pasos) {
+  ol.classList.add('mazo');
+  let frente = 0;
+  let timer = null;
+  const ubicar = () => pasos.forEach((li, i) => (li.dataset.pos = String((i - frente + pasos.length) % pasos.length)));
+  const animarFrente = () => {
+    const li = pasos[frente];
+    li.classList.remove('on');
+    void li.offsetWidth; // reinicia sus animaciones
+    li.classList.add('on');
+  };
+  const siguiente = () => {
+    const sale = pasos[frente];
+    sale.classList.add('saliendo');
+    setTimeout(() => {
+      sale.classList.remove('saliendo', 'on');
+      frente = (frente + 1) % pasos.length;
+      ubicar();
+      animarFrente();
+      timer = setTimeout(siguiente, PROCESO_CARTA_MS);
+    }, 450);
+  };
+  ubicar();
+  new IntersectionObserver(
+    ([e]) => {
+      clearTimeout(timer);
+      if (e.isIntersecting) {
+        animarFrente();
+        timer = setTimeout(siguiente, PROCESO_CARTA_MS);
+      }
+    },
+    { threshold: 0.4 },
   ).observe(ol);
 }
 document.querySelectorAll('.emp-proceso').forEach(initProceso);

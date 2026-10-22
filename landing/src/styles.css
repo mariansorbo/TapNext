@@ -599,6 +599,24 @@ h2{
 .emp-proceso-num{display:block; font-family:var(--mono); font-size:.72rem; color:var(--violet); margin-bottom:4px;}
 .emp-proceso h3{font-family:var(--display); font-size:1.02rem; font-weight:600; letter-spacing:-.01em; margin-bottom:4px;}
 .emp-proceso p{color:var(--paper-dim); font-size:.86rem; line-height:1.45;}
+/* Celular: los pasos son un mazo de cartas en un solo lugar. La de adelante
+   (data-pos="0") se anima; después pasa al fondo y sube la siguiente. Las dos
+   de atrás asoman arriba, más chicas. Lo maneja src/empresas.js. */
+@media (max-width:899px){
+  .emp-proceso.mazo{display:grid; gap:0; padding-top:30px; max-width:420px;}
+  .emp-proceso.mazo li{grid-area:1/1; padding:14px 14px 18px; border-radius:18px; background:var(--surface);
+    border:1px solid var(--line); box-shadow:0 14px 30px -14px rgba(0,0,0,.7);
+    transition:transform .55s cubic-bezier(.3,.7,.3,1), opacity .55s ease;}
+  .emp-proceso.mazo li::after{display:none;}
+  .emp-proceso.mazo .proc-ilus{background:var(--ink);}
+  .emp-proceso.mazo li[data-pos="0"]{z-index:6;}
+  .emp-proceso.mazo li[data-pos="1"]{z-index:5; transform:translateY(-14px) scale(.95); opacity:.75;}
+  .emp-proceso.mazo li[data-pos="2"]{z-index:4; transform:translateY(-28px) scale(.9); opacity:.45;}
+  .emp-proceso.mazo li[data-pos="3"], .emp-proceso.mazo li[data-pos="4"],
+  .emp-proceso.mazo li[data-pos="5"]{z-index:1; transform:translateY(-34px) scale(.86); opacity:0;}
+  /* La que se va: baja un poco y se desvanece mientras pasa al fondo. */
+  .emp-proceso.mazo li.saliendo{z-index:7; transform:translateY(26px) scale(.96); opacity:0;}
+}
 @media (min-width:900px){
   .emp-proceso{flex-direction:row; max-width:none; gap:34px;}
   .emp-proceso li{flex:1 1 0;}
@@ -634,15 +652,19 @@ h2{
 .emp-proceso li.on .pi-cursor{animation:pi-cursor 1.5s .3s both;}
 @keyframes pi-brillo{to{stroke:#C3A8FF; stroke-width:5;}}
 .emp-proceso li.on .pi-esquinas{animation:pi-brillo .35s 1.45s 2 alternate;}
-/* 4. Llega la caja, se abre y asoman los llaveros */
-.pi-solapa-izq{transform-origin:left bottom; transform:rotate(-125deg);}
-.pi-solapa-der{transform-origin:right bottom; transform:rotate(125deg);}
-.pi-llaveros{transform:translateY(-26px);}
-@keyframes pi-llega{from{transform:translateX(-90px); opacity:0;}}
-@keyframes pi-cerrada{from{transform:none;}}
-.emp-proceso li.on .pi-caja{animation:pi-llega .6s .2s cubic-bezier(.2,.7,.3,1) both;}
-.emp-proceso li.on .pi-solapa-izq, .emp-proceso li.on .pi-solapa-der{animation:pi-cerrada .35s .9s both;}
-.emp-proceso li.on .pi-llaveros{animation:pi-cerrada .45s 1.25s cubic-bezier(.2,.9,.3,1.3) both;}
+/* 4. La caja llega abierta desde la izquierda, caen los llaveros adentro, se
+   cierra y se va por la derecha. Quieta (estado base): cerrada en el medio. */
+.pi-solapa-izq{transform-origin:left bottom;}
+.pi-solapa-der{transform-origin:right bottom;}
+@keyframes pi-caja-viaje{0%{transform:translateX(-95px); opacity:0;} 14%,74%{transform:none; opacity:1;}
+  100%{transform:translateX(95px); opacity:0;}}
+@keyframes pi-caen{0%,22%{transform:translateY(-38px);} 40%{transform:none;}}
+@keyframes pi-solapa-i{0%,44%{transform:rotate(-125deg);} 56%{transform:none;}}
+@keyframes pi-solapa-d{0%,44%{transform:rotate(125deg);} 56%{transform:none;}}
+.emp-proceso li.on .pi-caja{animation:pi-caja-viaje 2.9s ease-in-out both;}
+.emp-proceso li.on .pi-llaveros{animation:pi-caen 2.9s cubic-bezier(.5,0,.75,.4) both;}
+.emp-proceso li.on .pi-solapa-izq{animation:pi-solapa-i 2.9s ease-in-out both;}
+.emp-proceso li.on .pi-solapa-der{animation:pi-solapa-d 2.9s ease-in-out both;}
 /* 5. Cada uno toca su llavero, uno atrás del otro */
 @keyframes pi-tap{50%{transform:translate(-3px,-7px);}}
 .emp-proceso li.on .pi-persona .pi-mano-llavero{animation:pi-tap .45s both;}
