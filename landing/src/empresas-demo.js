@@ -212,7 +212,10 @@ function montar(figura) {
   const fase = (nombre) => figura.dispatchEvent(new CustomEvent('demo-fase', { detail: nombre }));
   // data-espera-tap: ms extra de la marca en pantalla, para la demo que se
   // desliza de columna (así la marca queda 1,2 s quieta después de llegar).
-  const msTap = MS_TAP + (Number(figura.dataset.esperaTap) || 0);
+  // (data-espera-tap-media: solo cuando esa media query se cumple, ej. en compu
+  // donde la demo se desliza; en celular queda quieta y no hace falta.)
+  const msTapActual = () =>
+    MS_TAP + (matchMedia(figura.dataset.esperaTapMedia || 'all').matches ? Number(figura.dataset.esperaTap) || 0 : 0);
   const tap = phone.querySelector('.emp-tap');
   const destinos = { wa: phone.querySelector('.emp-wa'), ig: phone.querySelector('.emp-ig') };
   const imgEl = tap.querySelector('img');
@@ -361,7 +364,7 @@ function montar(figura) {
           if (visible && !document.hidden) ciclo();
           else corriendo = false;
         }, MS_CONTACTO);
-      }, msTap);
+      }, msTapActual());
     };
   }
 

@@ -497,7 +497,24 @@ h2{
 /* "Un segundo que es de tu marca" en compu: la demo corre detrás de los tres
    pasos y se corre de columna según la fase (data-fase, src/empresas.js).
    En celular no se muestra (y al no verse, no arranca). */
-.emp-demo-fondo{display:none;}
+/* En celular: el teléfono queda fijo y encima, translúcido, aparece solo el
+   paso que está pasando (acerca → aparece tu empresa → se abre el contacto). */
+@media (max-width:899px){
+  .emp-recorrido{position:relative; display:flex; justify-content:center;}
+  .emp-demo-fondo{display:flex; position:relative; margin:0 auto; pointer-events:none;}
+  .emp-demo-fondo figcaption{display:none;}
+  .emp-recorrido .steps{position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:6;
+    width:min(212px, calc(60vw - 16px)); display:grid;} /* dentro del teléfono (el más angosto, Android) */
+  .emp-recorrido .step{grid-area:1/1; border:none; padding:14px 16px; border-radius:14px;
+    background:rgba(20,23,26,.72); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    opacity:0; transform:translateY(8px); transition:opacity .35s ease, transform .35s ease;}
+  .emp-recorrido .step h3{font-size:1.05rem; margin-bottom:6px;}
+  .emp-recorrido .step p{font-size:.86rem;}
+  .emp-recorrido .step-num{margin-bottom:4px;}
+  .emp-recorrido[data-fase="acerca"] .step:nth-child(1),
+  .emp-recorrido[data-fase="tap"] .step:nth-child(2),
+  .emp-recorrido[data-fase="contacto"] .step:nth-child(3){opacity:1; transform:none;}
+}
 @media (min-width:900px){
   /* Los pasos van al pie del teléfono y un poco más abajo: solo pisan el
      borde inferior, así la pantalla se ve casi entera. El margen de abajo
