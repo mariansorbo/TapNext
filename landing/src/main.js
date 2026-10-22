@@ -36,7 +36,10 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const ajustar = () => {
     const palabra = Math.max(...PALABRAS_HERO.map((p) => ancho(`<em>${p.texto}</em>`)));
     palabraHero.style.width = `${palabra}px`;
-    const linea = ancho('Compartí ') + palabra + ancho('.');
+    // La frase entera, con la palabra ya en su ancho fijo: medir "Compartí " suelto
+    // pierde el espacio del final y el punto terminaba en el renglón de abajo.
+    const linea =
+      ancho(`Compartí <em style="display:inline-block; width:${palabra}px"></em>.`) + 4;
     const hero = titulo.closest('.hero');
     const cs = getComputedStyle(hero);
     const disponible = hero.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);

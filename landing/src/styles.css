@@ -276,6 +276,13 @@ h2{
   border-radius:.16em; clip-path:inset(0 100% 0 0);}
 .emp-bar{width:40%; height:2px; border-radius:2px; background:var(--pista); overflow:hidden;}
 .emp-bar i{display:block; height:100%; background:var(--acento,#7B5CFF); transform:translateX(-100%);}
+/* "Comprá el tuyo en next-tap.tech": igual que en la pantalla real del tap
+   (server/index.js → .cta), a escala del teléfono de la demo. */
+.emp-cta{position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; bottom:9%;
+  font-size:.62rem; color:var(--texto2, rgba(237,239,233,.72)); opacity:0;}
+.emp-cta b{color:var(--texto, #EDEFE9); font-weight:600; text-decoration:underline; text-underline-offset:2px;}
+.emp-tap.on .emp-cta{animation:emp-cta-in .2s .08s forwards;} /* solo opacidad: el transform la centra */
+@keyframes emp-cta-in{to{opacity:1;}}
 .emp-tap.on .emp-org-img{opacity:1; transform:none;}
 .emp-tap.on .emp-mark{animation:emp-rise .22s cubic-bezier(.2,.7,.2,1) forwards;}
 .emp-tap.on .emp-mark .tap{animation:emp-wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards;}

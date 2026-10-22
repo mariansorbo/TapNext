@@ -120,6 +120,7 @@ const PLANTILLA = `
       <div class="emp-org-img"><img alt=""></div>
       <div class="emp-mark">Next<span class="tap">Tap</span></div>
       <div class="emp-bar"><i></i></div>
+      <span class="emp-cta">Comprá el tuyo en <b>next-tap.tech</b></span>
     </div>
     <div class="emp-pantalla emp-wa">
       <div class="wa-top">
@@ -265,6 +266,7 @@ function montar(figura) {
     const p = o.pal;
     tap.style.setProperty('--fondo', p.fondo);
     tap.style.setProperty('--texto', p.texto);
+    tap.style.setProperty('--texto2', p.texto2);
     tap.style.setProperty('--pista', p.pista);
     tap.style.setProperty('--acento', p.acento);
     tap.style.setProperty('--acento-texto', p.acentoTexto);
