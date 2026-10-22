@@ -109,7 +109,7 @@ const HOME = {
 // El teléfono y la mano se arman acá, así la misma demo va en la landing y en
 // empresas.html: cada página solo pone <figure class="empresas-demo" data-empresas-demo>.
 const PLANTILLA = `
-  <div class="empresas-phone" id="empresas-phone" aria-hidden="true">
+  <div class="empresas-phone" aria-hidden="true">
     <div class="emp-pantalla emp-home emp-ios"></div>
     <div class="emp-pantalla emp-home emp-android"></div>
     <div class="emp-pantalla emp-tap">
@@ -160,9 +160,6 @@ const PLANTILLA = `
     </svg>
   </div>`;
 
-const figura = document.querySelector('[data-empresas-demo]');
-figura?.insertAdjacentHTML('afterbegin', PLANTILLA);
-const phone = figura && document.getElementById('empresas-phone');
 
 function cargar(src) {
   return new Promise((resolve, reject) => {
@@ -181,6 +178,13 @@ function colorDe(canvas) {
   return colorMayoritario(ctx.getImageData(0, 0, 128, 128).data);
 }
 
+// Los logos se preparan una sola vez aunque haya más de una demo en la página.
+let preparados = null;
+const prepararTodos = () =>
+  (preparados ??= Promise.allSettled(ORGS.map(preparar)).then((rs) =>
+    rs.filter((r) => r.status === 'fulfilled').map((r) => r.value),
+  ));
+
 async function preparar(o) {
   const img = await cargar(o.logo);
   const cuadro = encuadreAutomatico(img).canvas;
@@ -191,7 +195,15 @@ async function preparar(o) {
   return { ...o, src: chico.toDataURL('image/png'), pal: paletaPantalla(colorDe(cuadro), colorDeBordes(cuadro)) };
 }
 
-if (phone) {
+// Cada <figure data-empresas-demo> es una demo independiente. En cada momento
+// de la secuencia avisa con un evento "demo-fase" (detail: 'acerca' | 'tap' |
+// 'contacto'), así quien la use puede acompañarla (ver empresas.js).
+document.querySelectorAll('[data-empresas-demo]').forEach(montar);
+
+function montar(figura) {
+  figura.insertAdjacentHTML('afterbegin', PLANTILLA);
+  const phone = figura.querySelector('.empresas-phone');
+  const fase = (nombre) => figura.dispatchEvent(new CustomEvent('demo-fase', { detail: nombre }));
   const tap = phone.querySelector('.emp-tap');
   const destinos = { wa: phone.querySelector('.emp-wa'), ig: phone.querySelector('.emp-ig') };
   const imgEl = tap.querySelector('img');
@@ -268,6 +280,7 @@ if (phone) {
     const o = orgs[i];
     corriendo = true;
     // Con tres casos, el sistema alterna por vuelta (no por caso): nunca dos iguales seguidos.
+    fase('acerca');
     await mostrarHome(vuelta++ % 2 ? 'android' : 'ios');
     if (quieto || !mano) return mostrarTap(o);
     llavero.setAttribute('href', LLAVERO[o.destino]);
@@ -275,9 +288,11 @@ if (phone) {
     const ida = mano.animate(MANO_IDA, { duration: MS_IDA, easing: 'cubic-bezier(.25,.7,.3,1)', fill: 'forwards' });
     ida.onfinish = () => {
       mostrarTap(o);
+      fase('tap');
       mano.animate(MANO_VUELTA, { duration: MS_VUELTA, delay: 120, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' });
       setTimeout(() => {
         mostrarContacto(o);
+        fase('contacto');
         setTimeout(() => {
           i = (i + 1) % orgs.length;
           if (visible && !document.hidden) ciclo();
@@ -295,9 +310,7 @@ if (phone) {
     async ([e]) => {
       visible = e.isIntersecting;
       if (visible && !orgs) {
-        orgs = (await Promise.allSettled(ORGS.map(preparar)))
-          .filter((r) => r.status === 'fulfilled')
-          .map((r) => r.value);
+        orgs = await prepararTodos();
         if (!orgs.length) return;
       }
       seguir();

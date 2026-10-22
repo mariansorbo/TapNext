@@ -16,10 +16,10 @@ export const correoDisponible = Boolean(RESEND_API_KEY && EMAIL_FROM);
 /**
  * Manda un mail. Best-effort: nunca lanza — devuelve true si Resend lo aceptó,
  * false si no está configurado o si falló (y en ese caso deja el error en consola).
- * @param {{ to: string, subject: string, text: string, html?: string }} msg
+ * @param {{ to: string, subject: string, text: string, html?: string, replyTo?: string }} msg
  * @returns {Promise<boolean>}
  */
-export async function enviarCorreo({ to, subject, text, html }) {
+export async function enviarCorreo({ to, subject, text, html, replyTo }) {
   if (!correoDisponible) {
     console.log(`[correo demo] Para ${to} — "${subject}"\n${text}`);
     return false;
@@ -37,6 +37,7 @@ export async function enviarCorreo({ to, subject, text, html }) {
         subject,
         text,
         ...(html ? { html } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
     });
     if (!res.ok) {

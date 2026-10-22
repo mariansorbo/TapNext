@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NextTap para empresas — Tu marca en cada presentación</title>
-  <meta name="description" content="Con la cuenta para empresas, cada llavero NextTap de tu equipo muestra tu logo un instante antes de abrir su WhatsApp o su Instagram.">
+  <meta name="description" content="Con la cuenta para empresas, cada llavero NextTap de tu equipo muestra tu marca un instante antes de abrir su WhatsApp o su Instagram.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
@@ -31,18 +31,18 @@
         <a href="#combo" class="emp-oferta">
           <span class="emp-oferta-tag">🎁 Oferta fin de año</span>
           <span class="emp-oferta-precio">$30.000 <small>por persona</small></span>
-          <span class="emp-oferta-detalle">Llavero de WhatsApp + llavero de Instagram, con tu logo en cada tap</span>
+          <span class="emp-oferta-detalle">Llavero de WhatsApp + llavero de Instagram, con tu marca en cada tap</span>
           <span class="emp-oferta-ir">Ver el combo →</span>
         </a>
         <h1 class="emp-h1">Primero tu empresa. Después, su contacto.</h1>
-        <p class="section-lead">Cada vez que alguien de tu equipo comparte su WhatsApp o su Instagram con un llavero NextTap, durante un momento aparece tu logo. Tu empresa, presente en cada presentación.</p>
+        <p class="section-lead">Cada vez que alguien de tu equipo comparte su WhatsApp o su Instagram con un llavero NextTap, durante un momento aparece tu marca. Tu empresa, presente en cada presentación.</p>
       </div>
       <figure class="empresas-demo emp-demo-grande" data-empresas-demo>
-        <figcaption>Así se ve cada tap de tu equipo. El fondo toma el color de tu logo.</figcaption>
+        <figcaption>Así se ve cada tap de tu equipo.</figcaption>
       </figure>
       <div class="empresas-cta">
         <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener" class="btn-primary">Hablemos por WhatsApp</a>
-        <a href="mailto:ventas@next-tap.tech?subject=NextTap%20para%20empresas" class="btn-ghost">o escribinos a ventas@next-tap.tech</a>
+        <a href="#contacto" class="btn-ghost">o escribinos por mail</a>
       </div>
     </div>
   </div>
@@ -53,6 +53,10 @@
   <div class="wrap">
     <div class="kicker">Cómo se ve</div>
     <h2>Un segundo que es de tu marca.</h2>
+    <!-- En compu, detrás de los pasos corre la misma demo y se va moviendo de
+         columna en columna según el momento (empresas.js escucha "demo-fase"). -->
+    <div class="emp-recorrido" data-fase="acerca">
+    <figure class="empresas-demo emp-demo-fondo" data-empresas-demo aria-hidden="true"></figure>
     <div class="steps">
       <div class="step">
         <div class="step-num">01</div>
@@ -62,13 +66,14 @@
       <div class="step">
         <div class="step-num">02</div>
         <h3>Aparece tu empresa.</h3>
-        <p>Antes de cualquier otra cosa, en la pantalla de la otra persona se ve tu logo, con un fondo que toma el color de tu marca.</p>
+        <p>Antes de cualquier otra cosa, en la pantalla de la otra persona se ve tu marca, con un fondo que toma sus colores.</p>
       </div>
       <div class="step">
         <div class="step-num">03</div>
         <h3>Se abre su contacto.</h3>
         <p>Al instante se abre el WhatsApp o el Instagram de tu colaborador, listo para escribirle o seguirlo.</p>
       </div>
+    </div>
     </div>
     <p class="emp-nota">Funciona en iPhone y en Android. Sin apps, sin escanear nada.</p>
   </div>
@@ -83,7 +88,7 @@
       <div class="step">
         <div class="step-num">01</div>
         <h3>Soy de acá.</h3>
-        <p>Cuando alguien de tu equipo pasa su contacto con tu logo adelante, no solo comparte un número: está diciendo “mirá, soy parte de esto”. La gente se presenta orgullosa de dónde trabaja.</p>
+        <p>Cuando alguien de tu equipo pasa su contacto con tu marca adelante, no solo comparte un número: está diciendo “mirá, soy parte de esto”. La gente se presenta orgullosa de dónde trabaja.</p>
       </div>
       <div class="step">
         <div class="step-num">02</div>
@@ -102,11 +107,10 @@
 <!-- 4. Cómo se configura -->
 <section>
   <div class="wrap">
-    <div class="kicker">Tu logo</div>
-    <h2>Subís tu logo y listo.</h2>
-    <p class="section-lead">Desde tu panel cargás la imagen o el logo de tu empresa y lo encuadrás como quieras: lo arrastrás, le hacés zoom y elegís si entra entero o si llena el cuadro. El fondo de la pantalla toma solo el color de tu logo, y el texto se ajusta para que siempre se lea bien.</p>
+    <div class="kicker">Tu marca</div>
+    <h2>Subís tu marca y listo.</h2>
+    <p class="section-lead">Desde tu panel cargás la imagen de tu marca y listo.</p>
     <div class="emp-logos" id="emp-logos" aria-label="Ejemplos de la pantalla con distintos logos"></div>
-    <p class="emp-nota">Si cambiás el logo, cambia en todos los llaveros del equipo a la vez.</p>
   </div>
 </section>
 
@@ -125,7 +129,7 @@
         <ul class="emp-combo-incluye">
           <li>Llavero de WhatsApp</li>
           <li>Llavero de Instagram</li>
-          <li>Tu logo en cada tap</li>
+          <li>Tu marca en cada tap</li>
         </ul>
         <p class="emp-combo-condiciones">Mínimo 15 combos · Pago por transferencia · Válido hasta el 20 de noviembre</p>
         <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20el%20combo%20de%20fin%20de%20a%C3%B1o%20para%20mi%20equipo" target="_blank" rel="noopener" class="btn-primary" data-referido>Quiero el combo para mi equipo</a>
@@ -152,7 +156,7 @@
       </div>
       <div class="step">
         <div class="step-num">03</div>
-        <h3>Subís tu logo.</h3>
+        <h3>Subís tu marca.</h3>
         <p>Lo encuadrás desde tu panel y cargás el contacto de cada persona. Desde ese momento, cada tap empieza con tu empresa.</p>
       </div>
     </div>
@@ -174,7 +178,7 @@
         <div class="faq-answer"><p>Sí, cuando quieras, desde el panel.</p></div>
       </div>
       <div class="faq-item">
-        <button type="button" class="faq-question">¿Puedo cambiar el logo más adelante?<span class="faq-icon">+</span></button>
+        <button type="button" class="faq-question">¿Puedo cambiar la imagen de mi marca más adelante?<span class="faq-icon">+</span></button>
         <div class="faq-answer"><p>Sí. Lo cambiás una vez y se actualiza en todos los llaveros del equipo.</p></div>
       </div>
       <div class="faq-item">
@@ -186,7 +190,7 @@
         <div class="faq-answer"><p>Con cualquier celular moderno, iPhone o Android. No hace falta instalar nada.</p></div>
       </div>
       <div class="faq-item">
-        <button type="button" class="faq-question">¿Cuánto dura la pantalla con mi logo?<span class="faq-icon">+</span></button>
+        <button type="button" class="faq-question">¿Cuánto dura la pantalla con mi marca?<span class="faq-icon">+</span></button>
         <div class="faq-answer"><p>Alrededor de un segundo: suficiente para que se vea, sin hacer esperar a nadie.</p></div>
       </div>
       <div class="faq-item">
@@ -198,12 +202,37 @@
 </section>
 
 <!-- 8. Cierre -->
-<section class="cta-final">
+<section class="cta-final" id="contacto">
   <div class="wrap">
     <h2>Tu empresa, presente en cada presentación.</h2>
     <p class="emp-cierre">Contanos de tu equipo y te armamos una propuesta.</p>
-    <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener" class="btn-primary">Hablemos por WhatsApp</a>
-    <p class="emp-cierre-mail"><a href="mailto:ventas@next-tap.tech?subject=NextTap%20para%20empresas" class="btn-ghost">o escribinos a ventas@next-tap.tech</a></p>
+    <!-- Lo envía src/empresas.js a /api/contacto-empresas (server/contacto-empresas.js). -->
+    <form class="emp-form" id="emp-form" novalidate>
+      <div class="emp-form-fila">
+        <label>Nombre
+          <input type="text" name="nombre" placeholder="Ej: Laura Fernández" autocomplete="name" maxlength="100" required>
+        </label>
+        <label>Empresa
+          <input type="text" name="empresa" placeholder="Ej: Grupo Andina" autocomplete="organization" maxlength="120" required>
+        </label>
+      </div>
+      <div class="emp-form-fila">
+        <label>Mail
+          <input type="email" name="email" placeholder="Ej: laura@grupoandina.com" autocomplete="email" maxlength="120" required>
+        </label>
+        <label>Cantidad de combos
+          <input type="text" name="combos" placeholder="Ej: 40" inputmode="numeric" maxlength="6">
+        </label>
+      </div>
+      <label>Mensaje
+        <textarea name="mensaje" rows="4" maxlength="2000" placeholder="Ej: Somos 40 en el equipo: 25 usan WhatsApp y 15 Instagram. Los queremos para la fiesta de fin de año, el 12 de diciembre."></textarea>
+      </label>
+      <!-- Honeypot: invisible para las personas, solo lo completa un bot. -->
+      <label class="emp-form-trampa" aria-hidden="true">Web <input type="text" name="web" tabindex="-1" autocomplete="off"></label>
+      <button type="submit" class="btn-primary">Enviar</button>
+      <p class="emp-form-estado" role="status"></p>
+    </form>
+    <p class="emp-cierre-wa">¿Preferís WhatsApp? <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener">Hablemos por WhatsApp</a></p>
   </div>
 </section>
 

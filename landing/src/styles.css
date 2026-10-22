@@ -456,7 +456,44 @@ h2{
   .emp-combo{grid-template-columns:1fr 1fr; align-items:center; padding:40px;}
 }
 .emp-cierre{color:var(--paper-dim); margin:-6px 0 20px;}
-.emp-cierre-mail{margin-top:16px;}
+/* "Un segundo que es de tu marca" en compu: la demo corre detrás de los tres
+   pasos y se corre de columna según la fase (data-fase, src/empresas.js).
+   En celular no se muestra (y al no verse, no arranca). */
+.emp-demo-fondo{display:none;}
+@media (min-width:900px){
+  .emp-recorrido{position:relative; min-height:500px; display:flex; align-items:center;}
+  .emp-recorrido .steps{position:relative; z-index:1; width:100%;}
+  .emp-recorrido .step{background:rgba(20,23,26,.55); padding:16px 18px; border-radius:0 14px 14px 0;
+    text-shadow:0 1px 10px rgba(20,23,26,.9);}
+  .emp-demo-fondo{display:flex; position:absolute; top:50%; left:0; width:calc(100% / 3); margin:0;
+    transform:translate(0,-50%); transition:transform .9s cubic-bezier(.65,0,.35,1); opacity:.5;
+    pointer-events:none;}
+  .emp-demo-fondo .empresas-phone{width:220px;}
+  .emp-demo-fondo .empresas-phone.android{width:208px;}
+  .emp-demo-fondo .emp-mano{width:200px;}
+  .emp-demo-fondo figcaption{display:none;}
+  .emp-recorrido[data-fase="tap"] .emp-demo-fondo{transform:translate(100%,-50%);}
+  .emp-recorrido[data-fase="contacto"] .emp-demo-fondo{transform:translate(200%,-50%);}
+}
+
+/* Formulario de contacto del cierre (src/empresas.js). */
+.emp-form{display:flex; flex-direction:column; gap:14px; max-width:620px; margin:0 auto; text-align:left;}
+.emp-form-fila{display:grid; gap:14px;}
+.emp-form label{display:flex; flex-direction:column; gap:6px; font-size:0.82rem; color:var(--paper-dim);}
+.emp-form input, .emp-form textarea{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+  color:var(--paper); font:inherit; font-size:0.95rem; resize:vertical;
+}
+.emp-form input::placeholder, .emp-form textarea::placeholder{color:rgba(237,239,233,.38);}
+.emp-form input:focus, .emp-form textarea:focus{outline:none; border-color:var(--violet);}
+.emp-form .btn-primary{margin-top:4px; border:none; cursor:pointer;}
+.emp-form .btn-primary:disabled{opacity:.6; cursor:wait;}
+.emp-form-trampa{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;}
+.emp-form-estado{min-height:1.4em; font-size:0.9rem; color:var(--paper);}
+.emp-form-estado.is-error{color:#FF8A8A;}
+.emp-cierre-wa{margin-top:22px; color:var(--paper-dim); font-size:0.95rem;}
+.emp-cierre-wa a{color:var(--paper); text-decoration:underline; text-underline-offset:3px;}
+@media (min-width:700px){ .emp-form-fila{grid-template-columns:1fr 1fr;} }
 @media (min-width:900px){
   .emp-demo-grande .empresas-phone{width:290px;}
   .emp-demo-grande .empresas-phone.android{width:274px;}

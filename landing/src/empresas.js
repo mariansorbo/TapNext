@@ -80,6 +80,56 @@ function initReferido() {
 }
 initReferido();
 
+// Formulario "Contanos de tu equipo" (cierre de la página): lo recibe
+// server/contacto-empresas.js y llega por mail a ventas@next-tap.tech.
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+const ABIERTA_EN = Date.now();
+
+function initFormContacto() {
+  const form = document.getElementById('emp-form');
+  if (!form) return;
+  const estado = form.querySelector('.emp-form-estado');
+  const boton = form.querySelector('button[type="submit"]');
+  const mostrar = (msj, error = false) => {
+    estado.textContent = msj;
+    estado.classList.toggle('is-error', error);
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const datos = Object.fromEntries(new FormData(form));
+    if (!datos.nombre.trim() || !datos.empresa.trim()) return mostrar('Completá tu nombre y el de tu empresa.', true);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(datos.email.trim())) return mostrar('Revisá tu mail: así te respondemos.', true);
+
+    boton.disabled = true;
+    mostrar('Enviando…');
+    try {
+      const res = await fetch(`${API_BASE}/api/contacto-empresas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...datos, ms: Date.now() - ABIERTA_EN }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'No pudimos enviar tu mensaje.');
+      form.reset();
+      mostrar('¡Listo! Recibimos tu consulta y te respondemos por mail.');
+    } catch (err) {
+      mostrar(`${err.message} Si preferís, escribinos por WhatsApp.`, true);
+    } finally {
+      boton.disabled = false;
+    }
+  });
+}
+initFormContacto();
+
+// "Un segundo que es de tu marca": la demo de fondo se para detrás del paso
+// que está pasando (acerca el llavero → aparece tu empresa → se abre el contacto).
+document.querySelectorAll('.emp-recorrido').forEach((recorrido) => {
+  recorrido.querySelector('[data-empresas-demo]')?.addEventListener('demo-fase', (e) => {
+    recorrido.dataset.fase = e.detail;
+  });
+});
+
 // "Subís tu logo y listo": tiras de pantallas del tap con logos inventados de
 // la página de prueba. Encuadre y fondo calculados igual que el editor de Mi
 // panel (src/encuadre.js, src/color-logo.js), sin nada escrito a mano.
