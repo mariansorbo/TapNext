@@ -20,22 +20,27 @@ const PALABRAS_HERO = [
 ];
 const palabraHero = document.querySelector('[data-palabra-rota]');
 if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  // Todas las palabras ocupan el ancho de "distinto": si una es más larga
-  // (Instagram), se achica un poco la letra en vez de empujar el renglón.
-  const medidor = palabraHero.cloneNode();
-  medidor.removeAttribute('data-palabra-rota');
+  // Las tres palabras van al mismo tamaño de letra. Para que ninguna corra el
+  // texto: la palabra ocupa siempre el ancho de la más larga, y el título se
+  // ensancha (hasta donde da la pantalla) para que "Compartí <palabra>." entre
+  // en un renglón. Así el título queda igual con cualquiera de las tres.
+  const titulo = palabraHero.closest('h1');
+  const medidor = document.createElement('span');
   medidor.setAttribute('aria-hidden', 'true');
-  medidor.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap; width:auto;';
-  palabraHero.after(medidor);
-  const ancho = (texto) => {
-    medidor.textContent = texto;
-    return medidor.getBoundingClientRect().width;
+  medidor.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap;';
+  titulo.appendChild(medidor);
+  const ancho = (html) => {
+    medidor.innerHTML = html;
+    return Math.ceil(medidor.getBoundingClientRect().width);
   };
   const ajustar = () => {
-    const base = ancho(PALABRAS_HERO[0].texto);
-    const w = ancho(palabraHero.textContent);
-    palabraHero.style.width = `${base}px`;
-    palabraHero.style.fontSize = w > base ? `${base / w}em` : '';
+    const palabra = Math.max(...PALABRAS_HERO.map((p) => ancho(`<em>${p.texto}</em>`)));
+    palabraHero.style.width = `${palabra}px`;
+    const linea = ancho('Compartí ') + palabra + ancho('.');
+    const hero = titulo.closest('.hero');
+    const cs = getComputedStyle(hero);
+    const disponible = hero.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    titulo.style.minWidth = linea <= disponible ? `${linea}px` : '';
   };
   ajustar();
   addEventListener('resize', ajustar);

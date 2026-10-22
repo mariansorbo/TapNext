@@ -536,6 +536,29 @@ h2{
   .emp-carrusel-item{padding:60px max(28px, calc((100vw - 1120px) / 2 + 28px)) 90px;}
 }
 
+/* Activación de un llavero de empresa: aviso de qué ve la empresa (src/activacion.js). */
+.activacion-org{margin:6px 0 18px; padding:12px 14px; border-radius:12px; font-size:.88rem; line-height:1.45;
+  background:rgba(123,92,255,.1); border:1px solid rgba(123,92,255,.35); color:var(--paper);}
+
+/* Mi panel → Llaveros de tu equipo (src/org-llaveros.js). */
+.org-llaveros{margin-top:34px; padding-top:26px; border-top:1px solid var(--line);}
+.org-llaveros-lista{display:grid; gap:12px; margin-top:16px;}
+.org-llavero{border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:var(--surface-2);}
+.org-llavero header{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px;}
+.org-llavero-codigo{font-family:var(--mono); font-size:.85rem; letter-spacing:.04em;}
+.org-llavero-tipo{font-size:.78rem; color:var(--paper-dim);}
+.org-llavero-estado{margin-left:auto; font-size:.72rem; font-weight:600; padding:3px 10px; border-radius:999px;
+  background:rgba(237,239,233,.1); color:var(--paper-dim);}
+.org-llavero-estado.is-activo{background:rgba(37,211,102,.16); color:#5BE38E;}
+.org-llavero-estado.is-desactivado{background:rgba(255,107,107,.15); color:#FF8A8A;}
+.org-llavero dl{display:grid; gap:6px; margin-bottom:12px;}
+.org-llavero dl div{display:flex; gap:10px; font-size:.88rem;}
+.org-llavero dt{color:var(--paper-dim); min-width:96px;}
+.org-llavero dd{color:var(--paper); word-break:break-all;}
+.org-llavero-vacio{font-size:.88rem; color:var(--paper-dim); margin-bottom:12px;}
+.org-llavero-acciones{display:flex; gap:18px;}
+.org-llavero-acciones button:disabled{opacity:.5; cursor:wait;}
+
 /* Formulario de contacto del cierre (src/empresas.js). */
 .emp-form{display:flex; flex-direction:column; gap:14px; max-width:620px; margin:0 auto; text-align:left;}
 .emp-form-fila{display:grid; gap:14px;}

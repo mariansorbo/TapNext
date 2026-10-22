@@ -11,6 +11,7 @@
 
 import { colorMayoritario, paletaPantalla } from './color-logo.js';
 import { SALIDA, escalasPara, modoInicial, escalaDeModo, colorDeBordes, pintarCuadro } from './encuadre.js';
+import { initOrgLlaveros } from './org-llaveros.js';
 
 // En el celu el cuadro mide hasta ~320 px de CSS × 3 de densidad ≈ 960 px reales.
 const PX_REALES_EN_PANTALLA = 960;
@@ -44,6 +45,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
   const colorOrigen = $('org-color-origen');
 
   let org = null;
+  const llaveros = initOrgLlaveros({ api });
 
   const setStatus = (clase, texto) => {
     status.className = `modal-status${clase ? ` ${clase}` : ''}`;
@@ -54,6 +56,7 @@ export function initOrgPanel({ api, apiBase, getToken, onSesionVencida }) {
     org = nueva || null;
     box.hidden = !org;
     if (!org) return;
+    llaveros.cargar();
     nombreInput.value = org.nombre;
     if (!edicion) mostrarImagenGuardada();
   }

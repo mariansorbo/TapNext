@@ -15,11 +15,26 @@
 // Público:
 //   GET    /api/org/imagen/:ver          la imagen, cacheable para siempre
 //   (el tap la pide como /v/<código>?logo=<ver>, mismo origen que la pantalla)
+//   GET    /api/me/organizacion/llaveros                    → los llaveros de la empresa, con
+//                                                           el destino, mail y teléfono de quien lo activó
+//   POST   /api/me/organizacion/llaveros/:codigo/desactivar → deja de llevar al contacto
+//   POST   /api/me/organizacion/llaveros/:codigo/reactivar
+//   POST   /api/me/organizacion/llaveros/:codigo/resetear   → borra a la persona y su contacto:
+//                                                           queda listo para que lo active otra
 // Admin:
 //   GET    /api/admin/organizaciones
 //   POST   /api/admin/organizaciones     { email, nombre } → convierte (o crea) la cuenta
 //   PATCH  /api/admin/organizaciones/:id { nombre }
 //   DELETE /api/admin/organizaciones/:id → vuelve a ser cuenta común
+//   POST   /api/admin/organizaciones/:id/llaveros { codigos } → asigna llaveros (código público
+//                                        o UID, separados por espacio/coma/renglón) a la empresa
+//   DELETE /api/admin/organizaciones/:id/llaveros/:codigo     → lo desasigna
+//
+// Llaveros de la empresa (organizacion_stickers): qué empresa "es dueña" de un
+// llavero es independiente de quién lo activó. La empresa los compra y los
+// reparte; cada persona activa el suyo gratis con su cuenta y su contacto, y la
+// pantalla del tap igual muestra la marca de la empresa. Desde Mi panel la
+// empresa ve todos sus llaveros y puede desactivarlos o resetearlos.
 //
 // La imagen llega ya recortada por el navegador (editor de Mi panel: cuadrada,
 // 1080 px, WebP o JPEG). Acá solo se valida que sea una imagen de verdad y de
@@ -46,7 +61,25 @@ await db.executeMultiple(`
   -- Color del borde de la imagen ya encuadrada: si coincide con el fondo, la
   -- imagen se funde con la pantalla y el cuadro va sin sombra.
   ALTER TABLE organizaciones ADD COLUMN IF NOT EXISTS color_borde TEXT;
+
+  CREATE TABLE IF NOT EXISTS organizacion_stickers (
+    sticker_id INTEGER PRIMARY KEY REFERENCES stickers(id) ON DELETE CASCADE,
+    organizacion_id INTEGER NOT NULL REFERENCES organizaciones(comprador_id) ON DELETE CASCADE,
+    asignado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    desactivado_en TIMESTAMPTZ             -- no NULL = la empresa lo desactivó: el tap no lleva al contacto
+  );
+  CREATE INDEX IF NOT EXISTS idx_org_stickers_org ON organizacion_stickers(organizacion_id);
 `);
+
+// Los productos que ya estaban a nombre de una cuenta de empresa (modelo
+// anterior: la marca salía del dueño) pasan a ser llaveros de esa empresa.
+// RETURNING sticker_id explícito: la tabla no tiene id y el shim de db.js le
+// agregaría RETURNING id a cualquier INSERT que no traiga uno.
+await db.execute(
+  `INSERT INTO organizacion_stickers (sticker_id, organizacion_id)
+   SELECT s.id, o.comprador_id FROM stickers_actual s JOIN organizaciones o ON o.comprador_id = s.comprador_id
+   ON CONFLICT (sticker_id) DO NOTHING RETURNING sticker_id`
+);
 
 export const ORG_NOMBRE_MAX = 40;
 const IMAGEN_MAX_BYTES = 1_500_000;
@@ -104,7 +137,23 @@ export async function enviarImagenOrg(res, ver) {
   res.send(o.imagen);
 }
 
-export function crearOrganizacionesRouter({ requireAuth }) {
+// Estado de un llavero para la empresa: desactivado (lo apagó la empresa),
+// activo (alguien lo activó) o sin_activar (todavía nadie lo usó).
+const estadoLlavero = (f) => (f.desactivado_en ? 'desactivado' : f.estado === 'activo' ? 'activo' : 'sin_activar');
+
+// Separa una lista pegada de códigos (espacios, comas, renglones).
+const listaCodigos = (texto) => [
+  ...new Set(
+    String(texto ?? '')
+      .split(/[\s,;]+/)
+      .map((c) => c.trim())
+      .filter(Boolean)
+  ),
+];
+
+// deps.resetearSticker(sticker, motivo) → { status, body }: lo arma index.js con
+// la reescritura maestra (borra persona, contacto y venta; queda activable gratis).
+export function crearOrganizacionesRouter({ requireAuth, resetearSticker }) {
   const r = express.Router();
 
   r.get('/org/imagen/:ver', (req, res) => enviarImagenOrg(res, req.params.ver));
@@ -170,6 +219,74 @@ export function crearOrganizacionesRouter({ requireAuth }) {
     res.json({ organizacion: await organizacionDe(req.comprador.id) });
   });
 
+  // --- Llaveros de la empresa ---
+  r.get('/me/organizacion/llaveros', requireAuth, requireOrg, async (req, res) => {
+    const filas = await q(
+      `SELECT s.codigo_publico, s.modelo, s.funcion, s.estado, s.comprador_id, s.vigente_desde,
+              os.desactivado_en, d.tipo AS destino_tipo, d.valor AS destino_valor, c.email, c.whatsapp
+         FROM organizacion_stickers os
+         JOIN stickers_actual s ON s.id = os.sticker_id
+         LEFT JOIN destinos d ON d.sticker_id = s.id
+         LEFT JOIN compradores c ON c.id = s.comprador_id
+        WHERE os.organizacion_id = ?
+        ORDER BY (s.estado = 'activo') DESC, s.codigo_publico`,
+      [req.comprador.id]
+    );
+    res.json({
+      llaveros: filas.map((f) => {
+        // La persona es quien lo activó; si sigue a nombre de la empresa, no hay persona.
+        const persona = f.comprador_id && f.comprador_id !== req.comprador.id;
+        return {
+          codigo: f.codigo_publico,
+          modelo: f.modelo,
+          funcion: f.funcion,
+          estado: estadoLlavero(f),
+          destino: f.destino_tipo ? { tipo: f.destino_tipo, valor: f.destino_valor } : null,
+          email: persona ? f.email : null,
+          telefono: persona ? f.whatsapp : null,
+          desde: f.estado === 'activo' ? f.vigente_desde : null,
+        };
+      }),
+    });
+  });
+
+  // Llavero de ESTA empresa (si no, 404: no se puede tocar uno ajeno).
+  async function llaveroDeLaOrg(req, res) {
+    const [s] = await q(
+      `SELECT s.*, os.desactivado_en FROM organizacion_stickers os JOIN stickers_actual s ON s.id = os.sticker_id
+        WHERE os.organizacion_id = ? AND s.codigo_publico = ?`,
+      [req.comprador.id, req.params.codigo]
+    );
+    if (!s) res.status(404).json({ error: 'Ese llavero no es de tu empresa.' });
+    return s || null;
+  }
+
+  r.post('/me/organizacion/llaveros/:codigo/desactivar', requireAuth, requireOrg, async (req, res) => {
+    const s = await llaveroDeLaOrg(req, res);
+    if (!s) return;
+    await q('UPDATE organizacion_stickers SET desactivado_en = COALESCE(desactivado_en, NOW()) WHERE sticker_id = ?', [
+      s.id,
+    ]);
+    res.json({ ok: true, estado: 'desactivado' });
+  });
+
+  r.post('/me/organizacion/llaveros/:codigo/reactivar', requireAuth, requireOrg, async (req, res) => {
+    const s = await llaveroDeLaOrg(req, res);
+    if (!s) return;
+    await q('UPDATE organizacion_stickers SET desactivado_en = NULL WHERE sticker_id = ?', [s.id]);
+    res.json({ ok: true, estado: s.estado === 'activo' ? 'activo' : 'sin_activar' });
+  });
+
+  r.post('/me/organizacion/llaveros/:codigo/resetear', requireAuth, requireOrg, async (req, res) => {
+    const s = await llaveroDeLaOrg(req, res);
+    if (!s) return;
+    const [org] = await q('SELECT nombre FROM organizaciones WHERE comprador_id = ?', [req.comprador.id]);
+    const { status, body } = await resetearSticker(s, `Reseteado por la empresa ${org?.nombre || ''}`.trim());
+    if (status >= 400) return res.status(status).json(body);
+    await q('UPDATE organizacion_stickers SET desactivado_en = NULL WHERE sticker_id = ?', [s.id]);
+    res.json({ ok: true, estado: 'sin_activar' });
+  });
+
   // Imagen más grande que el tope: express.raw tira 413 — lo devolvemos en
   // castellano (el editor ya achica, esto es por si alguien llama a mano).
   r.use((err, req, res, next) => {
@@ -182,13 +299,17 @@ export function crearOrganizacionesRouter({ requireAuth }) {
   return r;
 }
 
-export function crearOrganizacionesAdminRouter() {
+// deps.liberarGratis(sticker, motivo) → { status, body }: lo arma index.js con
+// la activación liberada gratis (así cada persona activa el suyo sin pagar).
+export function crearOrganizacionesAdminRouter({ liberarGratis } = {}) {
   const r = express.Router();
 
   r.get('/organizaciones', async (req, res) => {
     const filas = await q(
       `SELECT o.comprador_id, o.nombre, o.imagen_ver, o.creada_en, c.email,
-              (SELECT COUNT(*) FROM stickers_actual s WHERE s.comprador_id = o.comprador_id) AS productos
+              (SELECT COUNT(*) FROM organizacion_stickers os WHERE os.organizacion_id = o.comprador_id) AS productos,
+              (SELECT COUNT(*) FROM organizacion_stickers os JOIN stickers_actual s ON s.id = os.sticker_id
+                WHERE os.organizacion_id = o.comprador_id AND s.estado = 'activo') AS activos
          FROM organizaciones o JOIN compradores c ON c.id = o.comprador_id
         ORDER BY o.creada_en DESC`
     );
@@ -199,6 +320,7 @@ export function crearOrganizacionesAdminRouter() {
         email: o.email,
         imagenUrl: urlImagen(o.imagen_ver),
         productos: Number(o.productos),
+        activos: Number(o.activos),
         creadaEn: o.creada_en,
       }))
     );
@@ -231,6 +353,53 @@ export function crearOrganizacionesAdminRouter() {
       Number(req.params.id),
     ]);
     res.json({ ok: true });
+  });
+
+  // Asigna llaveros a la empresa. Los que todavía no se vendieron quedan con
+  // activación liberada gratis: la empresa los reparte y cada persona activa el suyo.
+  r.post('/organizaciones/:id/llaveros', async (req, res) => {
+    const orgId = Number(req.params.id);
+    const [org] = await q('SELECT nombre FROM organizaciones WHERE comprador_id = ?', [orgId]);
+    if (!org) return res.status(404).json({ error: 'Esa organización no existe.' });
+    const codigos = listaCodigos(req.body?.codigos);
+    if (!codigos.length) return res.status(400).json({ error: 'Pegá al menos un código.' });
+
+    const resultado = { asignados: [], liberados: [], noEncontrados: [], deOtraEmpresa: [] };
+    for (const codigo of codigos) {
+      const [s] = await q(
+        'SELECT * FROM stickers_actual WHERE codigo_publico = ? OR UPPER(uid_nfc) = UPPER(?) LIMIT 1',
+        [codigo, codigo]
+      );
+      if (!s) {
+        resultado.noEncontrados.push(codigo);
+        continue;
+      }
+      const [ya] = await q('SELECT organizacion_id FROM organizacion_stickers WHERE sticker_id = ?', [s.id]);
+      if (ya && ya.organizacion_id !== orgId) {
+        resultado.deOtraEmpresa.push(s.codigo_publico);
+        continue;
+      }
+      await q(
+        `INSERT INTO organizacion_stickers (sticker_id, organizacion_id) VALUES (?, ?)
+         ON CONFLICT (sticker_id) DO NOTHING RETURNING sticker_id`,
+        [s.id, orgId]
+      );
+      resultado.asignados.push(s.codigo_publico);
+      if (s.estado === 'en_stock' && liberarGratis) {
+        const { status } = await liberarGratis(s, `Regalo de la empresa ${org.nombre}`);
+        if (status < 400) resultado.liberados.push(s.codigo_publico);
+      }
+    }
+    res.json(resultado);
+  });
+
+  r.delete('/organizaciones/:id/llaveros/:codigo', async (req, res) => {
+    await q(
+      `DELETE FROM organizacion_stickers WHERE organizacion_id = ?
+         AND sticker_id = (SELECT id FROM stickers WHERE codigo_publico = ?)`,
+      [Number(req.params.id), req.params.codigo]
+    );
+    res.status(204).end();
   });
 
   r.delete('/organizaciones/:id', async (req, res) => {

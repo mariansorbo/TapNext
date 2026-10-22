@@ -172,7 +172,19 @@ app.use('/api', crearContactoEmpresasRouter());
 
 // Organizaciones (cuenta de empresa): nombre + imagen de la pantalla del tap —
 // ver server/organizaciones.js.
-app.use('/api', crearOrganizacionesRouter({ requireAuth }));
+// Resetear = reescritura maestra: borra a la persona, su contacto y la venta,
+// y deja el llavero activable gratis para que lo active otra persona.
+app.use(
+  '/api',
+  crearOrganizacionesRouter({
+    requireAuth,
+    resetearSticker: async (sticker, motivo) => {
+      // Todavía sin activar y ya activable: no hay nada que borrar.
+      if (sticker.estado === 'en_stock' && (await liberacionVigente(sticker.id))) return { status: 200, body: { ok: true } };
+      return crearLiberacion(MODO_DEPS, { sticker, gratis: true, motivo, forzar: true });
+    },
+  })
+);
 
 function isoInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60_000).toISOString();
@@ -2836,7 +2848,17 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
 // Ver server/modo-activacion.js.
 app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
 app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
-app.use('/api/admin', requireAdmin, crearOrganizacionesAdminRouter());
+app.use(
+  '/api/admin',
+  requireAdmin,
+  crearOrganizacionesAdminRouter({
+    // Llavero asignado a una empresa sin vender: activable gratis por quien lo reciba.
+    liberarGratis: async (sticker, motivo) =>
+      (await liberacionVigente(sticker.id))
+        ? { status: 200, body: { ok: true } }
+        : crearLiberacion(MODO_DEPS, { sticker, gratis: true, motivo }),
+  })
+);
 
 // Cola de entrega y botón de despacho (late binding). Ver server/despacho.js y
 // "Cola de entrega y botón de despacho" en el vault. El router aplica
@@ -3608,6 +3630,40 @@ ${o.color ? `<meta name="theme-color" content="${o.color}">
 // tapea solo ve que es real pero está sin activar — sin botones de acción,
 // solo un link de texto a la marca. HTML autónomo, mismo criterio que
 // pantallaRedireccion (un request, sin bundle).
+// Llavero que la empresa desactivó (ver server/organizaciones.js).
+function pantallaDesactivado(orgNombre) {
+  const esc = (v) =>
+    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const quien = orgNombre ? esc(orgNombre) : 'la empresa';
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NextTap — llavero desactivado</title>
+<style>
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--paper);
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:18px;min-height:100svh;padding:32px 24px;text-align:center;-webkit-font-smoothing:antialiased}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.2rem,12vw,3.4rem);letter-spacing:-.03em;margin-bottom:6px}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
+  h1{font-size:clamp(1.3rem,6vw,1.8rem);font-weight:600;letter-spacing:-.02em;max-width:18ch}
+  p{color:rgba(237,239,233,.62);max-width:32ch;line-height:1.5}
+  a{color:rgba(237,239,233,.5);font-size:.85rem;text-decoration:none;margin-top:8px}
+</style>
+</head>
+<body>
+  <div class="mark">Next<span class="tap">Tap</span></div>
+  <h1>Este llavero está desactivado.</h1>
+  <p>Lo desactivó ${quien}. Por ahora no lleva a ningún contacto.</p>
+  <a href="${FRONTEND_URL}">Conocé NextTap &rarr;</a>
+</body>
+</html>`;
+}
+
 function pantallaNoActivado(codigo, cola = null) {
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -3805,16 +3861,25 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // rewrite de /v/ sin configurar otra ruta.
   if (req.query.logo) return enviarImagenOrg(res, req.query.logo);
 
-  // La organización dueña (si es cuenta de empresa) viene en la misma consulta.
+  // La empresa del llavero viene en la misma consulta: la de la asignación
+  // (organizacion_stickers, aunque lo haya activado un empleado) o, si no hay,
+  // la del dueño (cuenta de empresa). os.desactivado_en = la empresa lo apagó.
   const sticker = await get(
-    `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor,
+    `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor, os.desactivado_en AS org_desactivado,
             o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver, o.color_fondo AS org_color, o.color_borde AS org_borde
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
-       LEFT JOIN organizaciones o ON o.comprador_id = s.comprador_id
+       LEFT JOIN organizacion_stickers os ON os.sticker_id = s.id
+       LEFT JOIN organizaciones o ON o.comprador_id = COALESCE(os.organizacion_id, s.comprador_id)
       WHERE s.codigo_publico = ?`,
     [req.params.codigo]
   );
+
+  // Desactivado por la empresa: no lleva al contacto de nadie.
+  if (sticker && sticker.org_desactivado) {
+    registrarTap(req, res, { stickerId: sticker.id, resultado: 'desactivado' });
+    return res.type('html').send(pantallaDesactivado(sticker.org_nombre));
+  }
 
   if (sticker && sticker.estado === 'activo') {
     const org = sticker.org_nombre
@@ -3949,10 +4014,18 @@ app.get('/api/activacion/:codigo', routerThrottle, async (req, res) => {
         ? `${PUBLIC_ROUTER_BASE}/v/${sticker.codigo_publico}`
         : r.web || r.url || destino.valor;
   }
+  // Llavero de una empresa: la activación le avisa a la persona que la empresa
+  // va a ver su contacto, mail y teléfono, y que puede desactivarlo o resetearlo.
+  const org = await get(
+    `SELECT o.nombre FROM organizacion_stickers os JOIN organizaciones o ON o.comprador_id = os.organizacion_id
+      WHERE os.sticker_id = ?`,
+    [sticker.id]
+  );
   res.json({
     codigo: sticker.codigo_publico,
     modelo,
     funcion: sticker.funcion || null,
+    organizacion: org ? org.nombre : null,
     // en_stock (activable) | vendido_pendiente (pago sin confirmar) | activo
     estado: sticker.estado,
     yaActivado: sticker.estado === 'activo',

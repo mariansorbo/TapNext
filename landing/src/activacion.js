@@ -136,6 +136,16 @@ async function init() {
   const paso3 = document.querySelector('.activacion-pasos li:nth-child(3)');
   if (pasoListo && paso3) paso3.innerHTML = `<b>Listo</b> — ${pasoListo}`;
 
+  // Llavero de una empresa: se avisa qué datos va a ver y qué puede hacer.
+  const orgAviso = document.getElementById('org-aviso');
+  if (info.organizacion && orgAviso) {
+    const org = info.organizacion;
+    orgAviso.textContent =
+      `Este llavero es un regalo de ${org}. Al activarlo, ${org} va a poder ver el contacto que cargues, ` +
+      'tu mail y tu teléfono, y desactivar o resetear el llavero.';
+    orgAviso.hidden = false;
+  }
+
   if (info.liberada) {
     // Activación gratis: se verifica el email por código antes de activar.
     const paso2 = document.querySelector('.activacion-pasos li:nth-child(2)');

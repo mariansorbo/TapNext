@@ -1,8 +1,10 @@
 // Sección "Organizaciones" del panel admin: qué cuentas son de empresa (sus
-// productos muestran NextTap + su imagen al tapear). Se convierte
+// llaveros muestran NextTap + su imagen al tapear). Se convierte
 // una cuenta por mail — si no existe todavía, se crea y la empresa entra a Mi
 // panel con un código. La imagen la carga la organización desde Mi panel.
-// Backend en server/organizaciones.js.
+// "Asignar llaveros": se pegan los códigos (o UIDs) de los llaveros que se le
+// venden; los que no están vendidos quedan con activación gratis para que cada
+// persona del equipo active el suyo. Backend en server/organizaciones.js.
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -28,7 +30,7 @@ export function initOrganizacionesAdmin({ api, apiBase }) {
         tabla.innerHTML = '<p class="admin-empty">Todavía no hay organizaciones.</p>';
         return;
       }
-      tabla.innerHTML = `<table><thead><tr><th>Imagen</th><th>Nombre</th><th>Cuenta</th><th>Productos</th><th></th></tr></thead><tbody>${orgs
+      tabla.innerHTML = `<table><thead><tr><th>Imagen</th><th>Nombre</th><th>Cuenta</th><th>Llaveros</th><th></th></tr></thead><tbody>${orgs
         .map(
           (o) => `<tr>
             <td>${
@@ -38,8 +40,9 @@ export function initOrganizacionesAdmin({ api, apiBase }) {
             }</td>
             <td><b>${esc(o.nombre)}</b></td>
             <td>${esc(o.email || '—')}</td>
-            <td>${o.productos}</td>
+            <td>${o.productos} <span class="admin-muted">(${o.activos} activos)</span></td>
             <td>
+              <button type="button" class="row-btn org-asignar" data-id="${o.compradorId}" data-nombre="${esc(o.nombre)}">Asignar llaveros</button>
               <button type="button" class="row-btn org-renombrar" data-id="${o.compradorId}" data-nombre="${esc(o.nombre)}">Renombrar</button>
               <button type="button" class="row-btn danger org-quitar" data-id="${o.compradorId}" data-nombre="${esc(o.nombre)}">Quitar</button>
             </td>
@@ -47,6 +50,27 @@ export function initOrganizacionesAdmin({ api, apiBase }) {
         )
         .join('')}</tbody></table>`;
 
+      tabla.querySelectorAll('.org-asignar').forEach((btn) =>
+        btn.addEventListener('click', async () => {
+          const codigos = prompt(
+            `Códigos (o UIDs) de los llaveros para "${btn.dataset.nombre}", separados por espacio o coma:`
+          );
+          if (!codigos) return;
+          try {
+            const r = await api(`/organizaciones/${btn.dataset.id}/llaveros`, {
+              method: 'POST',
+              body: JSON.stringify({ codigos }),
+            });
+            const lineas = [`Asignados: ${r.asignados.length} (${r.liberados.length} quedaron con activación gratis).`];
+            if (r.noEncontrados.length) lineas.push(`No encontrados: ${r.noEncontrados.join(', ')}`);
+            if (r.deOtraEmpresa.length) lineas.push(`Ya son de otra empresa: ${r.deOtraEmpresa.join(', ')}`);
+            alert(lineas.join('\n'));
+            await cargar();
+          } catch (err) {
+            alert(err.message);
+          }
+        })
+      );
       tabla.querySelectorAll('.org-renombrar').forEach((btn) =>
         btn.addEventListener('click', async () => {
           const nombre = prompt('Nombre de la organización:', btn.dataset.nombre);
