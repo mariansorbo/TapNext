@@ -185,18 +185,29 @@ function initCarrusel(raiz) {
 }
 document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
 
-// Título del arranque: "Después, su WhatsApp / su Instagram", según el llavero
-// que está usando la demo de al lado en cada vuelta.
+// "su WhatsApp / su Instagram" según el llavero que usa una demo en cada vuelta:
+// el título del arranque sigue a la demo de al lado, y el paso 03 ("Se abre su
+// …") a la que corre detrás de los pasos (en celular esa no se ve: sigue a la
+// del arranque).
 const NOMBRE_DESTINO = { wa: 'WhatsApp', ig: 'Instagram' };
-const palabraDestino = document.querySelector('[data-destino-titulo]');
-document.querySelector('.emp-hero [data-empresas-demo]')?.addEventListener('demo-destino', (e) => {
-  if (!palabraDestino || !NOMBRE_DESTINO[e.detail]) return;
-  palabraDestino.dataset.destino = e.detail;
-  palabraDestino.textContent = NOMBRE_DESTINO[e.detail];
-  palabraDestino.classList.remove('cambia');
-  void palabraDestino.offsetWidth; // reinicia la animación de entrada
-  palabraDestino.classList.add('cambia');
+function cambiarDestino(palabra, destino) {
+  if (!palabra || !NOMBRE_DESTINO[destino]) return;
+  palabra.dataset.destino = destino;
+  palabra.textContent = NOMBRE_DESTINO[destino];
+  palabra.classList.remove('cambia');
+  void palabra.offsetWidth; // reinicia la animación de entrada
+  palabra.classList.add('cambia');
+}
+const demoArranque = document.querySelector('.emp-hero [data-empresas-demo]');
+const demoPasos = document.querySelector('.emp-recorrido [data-empresas-demo]');
+const palabraTitulo = document.querySelector('[data-destino-titulo]');
+const palabraPaso = document.querySelector('[data-destino-paso]');
+const demoPasosVisible = () => demoPasos && getComputedStyle(demoPasos).display !== 'none';
+demoArranque?.addEventListener('demo-destino', (e) => {
+  cambiarDestino(palabraTitulo, e.detail);
+  if (!demoPasosVisible()) cambiarDestino(palabraPaso, e.detail);
 });
+demoPasos?.addEventListener('demo-destino', (e) => cambiarDestino(palabraPaso, e.detail));
 
 // "Un segundo que es de tu marca": la demo de fondo se para detrás del paso
 // que está pasando (acerca el llavero → aparece tu empresa → se abre el contacto).
