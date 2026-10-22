@@ -691,6 +691,12 @@ h2{
 @keyframes pi-cursor-mon{from{transform:translate(0,0); opacity:0;} 30%{opacity:1;}}
 .emp-proceso li.on .pi-cursor-monitor{animation:pi-cursor-mon .8s .9s cubic-bezier(.3,.7,.3,1) both;}
 @media (prefers-reduced-motion: reduce){ .emp-proceso li.on .proc-ilus *{animation:none !important;} }
+/* Compu: cuadro todavía sin llenar (vacío) y cuadro que ya terminó (listo). */
+.emp-proceso li.vacio .proc-ilus svg{opacity:0;}
+.emp-proceso li .proc-ilus svg{transition:opacity .25s ease;}
+/* El paso 4 termina con la caja afuera: al congelarse vuelve a aparecer cerrada. */
+@keyframes pi-vuelve{from{opacity:0; transform:scale(.92);}}
+.emp-proceso li.listo .pi-caja{animation:pi-vuelve .35s ease-out both;}
 
 /* Formulario de contacto del cierre (src/empresas.js). */
 .emp-form{display:flex; flex-direction:column; gap:14px; max-width:620px; margin:0 auto; text-align:left;}

@@ -185,13 +185,12 @@ function initCarrusel(raiz) {
 }
 document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
 
-// "El proceso": las seis ilustraciones se mueven todo el tiempo. Cada una
-// repite su animación cada PROCESO_MS, arrancando PROCESO_DESFASE_MS después
-// de la anterior: se ve como una ola que corre de 01 a 06 (de izquierda a
-// derecha en compu). Solo corre a la vista; con "reducir movimiento" quedan
-// quietas en su estado final.
-const PROCESO_MS = 3200;
-const PROCESO_DESFASE_MS = 450;
+// "El proceso" en compu: los seis cuadros arrancan vacíos y se van llenando de
+// a uno, de 01 a 06: aparece la ilustración, hace su animación y queda
+// congelada en su estado final; recién ahí se llena el siguiente. Solo corre a
+// la vista (ver cuandoSeVe); con "reducir movimiento" quedan todas quietas.
+const PROCESO_PAUSA_MS = 350; // entre que un cuadro se congela y se llena el siguiente
+const PROCESO_TOPE_MS = 4500; // lo más que espera a que un cuadro termine su animación
 // En celular, en cambio, es un mazo: una carta por vez (ver .mazo en styles.css).
 const PROCESO_CARTA_MS = 3400;
 function initProceso(ol) {
@@ -203,26 +202,36 @@ function initProceso(ol) {
   celular.addEventListener('change', () => location.reload());
   if (celular.matches) return initMazo(ol, pasos);
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return ol.classList.add('quieto');
-  let timers = [];
-  const animar = (li) => {
-    li.classList.remove('on');
-    void li.offsetWidth; // reinicia sus animaciones
+  let vuelta = 0; // invalida lo pendiente de una corrida anterior
+  const vaciar = () => pasos.forEach((li) => (li.classList.remove('on', 'listo'), li.classList.add('vacio')));
+  const llenar = async (i, mia) => {
+    if (mia !== vuelta || i >= pasos.length) return;
+    const li = pasos[i];
+    li.classList.remove('vacio');
     li.classList.add('on');
+    // Espera a que terminen todas sus animaciones (con tope, por si el navegador
+    // las pausa, ej. pestaña en segundo plano) y lo deja congelado en el final.
+    await Promise.race([
+      Promise.all(li.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))),
+      new Promise((r) => setTimeout(r, PROCESO_TOPE_MS)),
+    ]);
+    if (mia !== vuelta) return;
+    li.classList.remove('on');
+    li.classList.add('listo');
+    setTimeout(() => llenar(i + 1, mia), PROCESO_PAUSA_MS);
   };
-  const arrancar = () =>
-    pasos.forEach((li, i) => {
-      timers.push(
-        setTimeout(() => {
-          animar(li);
-          timers.push(setInterval(() => animar(li), PROCESO_MS));
-        }, i * PROCESO_DESFASE_MS),
-      );
-    });
-  const parar = () => {
-    timers.forEach((t) => (clearTimeout(t), clearInterval(t)));
-    timers = [];
-  };
-  cuandoSeVe(ol, { arrancar, parar });
+  vaciar();
+  cuandoSeVe(ol, {
+    arrancar: () => {
+      vuelta++;
+      vaciar();
+      llenar(0, vuelta);
+    },
+    parar: () => {
+      vuelta++;
+      vaciar();
+    },
+  });
 }
 
 // Arranca la secuencia recién cuando la sección está casi entera a la vista
