@@ -222,17 +222,34 @@ function initProceso(ol) {
     timers.forEach((t) => (clearTimeout(t), clearInterval(t)));
     timers = [];
   };
+  cuandoSeVe(ol, { arrancar, parar });
+}
+
+// Arranca la secuencia recién cuando la sección está casi entera a la vista
+// (VISIBLE_PARA_ARRANCAR), no apenas asoma, así no se la encuentra a la mitad.
+// La frena cuando sale del todo, y la próxima vez que entra arranca de cero.
+const VISIBLE_PARA_ARRANCAR = 0.75;
+function cuandoSeVe(el, { arrancar, parar }) {
+  let corriendo = false;
   new IntersectionObserver(
     ([e]) => {
-      parar();
-      if (e.isIntersecting) arrancar();
+      if (!corriendo && e.intersectionRatio >= VISIBLE_PARA_ARRANCAR) {
+        corriendo = true;
+        arrancar();
+      } else if (corriendo && !e.isIntersecting) {
+        corriendo = false;
+        parar();
+      }
     },
-    { threshold: 0.15 },
-  ).observe(ol);
+    { threshold: [0, VISIBLE_PARA_ARRANCAR] },
+  ).observe(el);
 }
+
+const PROCESO_PRIMERA_EXTRA_MS = 1000; // la carta 01 queda un poco más, para ubicarse
 function initMazo(ol, pasos) {
   let frente = 0;
-  let timer = null;
+  let timers = [];
+  const despues = (ms, fn) => timers.push(setTimeout(fn, ms));
   const ubicar = () => pasos.forEach((li, i) => (li.dataset.pos = String((i - frente + pasos.length) % pasos.length)));
   const animarFrente = () => {
     const li = pasos[frente];
@@ -243,25 +260,28 @@ function initMazo(ol, pasos) {
   const siguiente = () => {
     const sale = pasos[frente];
     sale.classList.add('saliendo');
-    setTimeout(() => {
+    despues(450, () => {
       sale.classList.remove('saliendo', 'on');
       frente = (frente + 1) % pasos.length;
       ubicar();
       animarFrente();
-      timer = setTimeout(siguiente, PROCESO_CARTA_MS);
-    }, 450);
+      despues(PROCESO_CARTA_MS, siguiente);
+    });
+  };
+  const parar = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+    pasos.forEach((li) => li.classList.remove('saliendo', 'on'));
+  };
+  // Siempre desde la 01.
+  const arrancar = () => {
+    frente = 0;
+    ubicar();
+    animarFrente();
+    despues(PROCESO_CARTA_MS + PROCESO_PRIMERA_EXTRA_MS, siguiente);
   };
   ubicar();
-  new IntersectionObserver(
-    ([e]) => {
-      clearTimeout(timer);
-      if (e.isIntersecting) {
-        animarFrente();
-        timer = setTimeout(siguiente, PROCESO_CARTA_MS);
-      }
-    },
-    { threshold: 0.4 },
-  ).observe(ol);
+  cuandoSeVe(ol, { arrancar, parar });
 }
 document.querySelectorAll('.emp-proceso').forEach(initProceso);
 
