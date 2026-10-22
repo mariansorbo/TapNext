@@ -122,6 +122,19 @@ function initFormContacto() {
 }
 initFormContacto();
 
+// Título del arranque: "Después, su WhatsApp / su Instagram", según el llavero
+// que está usando la demo de al lado en cada vuelta.
+const NOMBRE_DESTINO = { wa: 'WhatsApp', ig: 'Instagram' };
+const palabraDestino = document.querySelector('[data-destino-titulo]');
+document.querySelector('.emp-hero [data-empresas-demo]')?.addEventListener('demo-destino', (e) => {
+  if (!palabraDestino || !NOMBRE_DESTINO[e.detail]) return;
+  palabraDestino.dataset.destino = e.detail;
+  palabraDestino.textContent = NOMBRE_DESTINO[e.detail];
+  palabraDestino.classList.remove('cambia');
+  void palabraDestino.offsetWidth; // reinicia la animación de entrada
+  palabraDestino.classList.add('cambia');
+});
+
 // "Un segundo que es de tu marca": la demo de fondo se para detrás del paso
 // que está pasando (acerca el llavero → aparece tu empresa → se abre el contacto).
 document.querySelectorAll('.emp-recorrido').forEach((recorrido) => {

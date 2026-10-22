@@ -48,6 +48,7 @@ const MS_IDA = 750;
 const MS_VUELTA = 650;
 const MS_TAP = 1200; // cuánto queda en pantalla la marca de la empresa antes del contacto
 const MS_CONTACTO = 1700;
+const MS_SEGUIR = 650; // desde que se abre el perfil de Instagram hasta el toque en "Seguir"
 const MS_HOME = 900;
 const LADO = 400; // px de la imagen que se muestra (el editor sube 1080)
 
@@ -132,7 +133,7 @@ const PLANTILLA = `
         <span class="ig-anillo"><span class="emp-av"></span></span>
         <div class="ig-stats">
           <div><b>48</b><small>posts</small></div>
-          <div><b>1.204</b><small>seguidores</small></div>
+          <div><b class="ig-seguidores">1.204</b><small>seguidores</small></div>
           <div><b>389</b><small>seguidos</small></div>
         </div>
       </div>
@@ -197,13 +198,17 @@ async function preparar(o) {
 
 // Cada <figure data-empresas-demo> es una demo independiente. En cada momento
 // de la secuencia avisa con un evento "demo-fase" (detail: 'acerca' | 'tap' |
-// 'contacto'), así quien la use puede acompañarla (ver empresas.js).
+// 'contacto'), y al empezar cada vuelta con "demo-destino" (detail: 'wa' |
+// 'ig', el llavero de esa vuelta), así quien la use puede acompañarla (ver empresas.js).
 document.querySelectorAll('[data-empresas-demo]').forEach(montar);
 
 function montar(figura) {
   figura.insertAdjacentHTML('afterbegin', PLANTILLA);
   const phone = figura.querySelector('.empresas-phone');
   const fase = (nombre) => figura.dispatchEvent(new CustomEvent('demo-fase', { detail: nombre }));
+  // data-espera-tap: ms extra de la marca en pantalla, para la demo que se
+  // desliza de columna (así la marca queda 1,2 s quieta después de llegar).
+  const msTap = MS_TAP + (Number(figura.dataset.esperaTap) || 0);
   const tap = phone.querySelector('.emp-tap');
   const destinos = { wa: phone.querySelector('.emp-wa'), ig: phone.querySelector('.emp-ig') };
   const imgEl = tap.querySelector('img');
@@ -267,10 +272,29 @@ function montar(figura) {
     apagar(tap);
   }
 
+  // En Instagram, un toque en "Seguir" al rato de abrirse el perfil: el botón
+  // pasa a "Siguiendo" y suma un seguidor. Se vuelve a "Seguir" en la vuelta siguiente.
+  const botonSeguir = destinos.ig.querySelector('.seguir');
+  const seguidores = destinos.ig.querySelector('.ig-seguidores');
+  const dejarDeSeguir = () => {
+    botonSeguir.classList.remove('siguiendo', 'tocando');
+    botonSeguir.textContent = 'Seguir';
+    seguidores.textContent = '1.204';
+  };
+
   function mostrarContacto(o) {
     // Después del tap se abre el chat de WhatsApp o el perfil de Instagram de la persona.
     const d = destinos[o.destino];
+    dejarDeSeguir();
     d.classList.add('on');
+    if (o.destino === 'ig' && !quieto) {
+      setTimeout(() => botonSeguir.classList.add('tocando'), MS_SEGUIR);
+      setTimeout(() => {
+        botonSeguir.classList.add('siguiendo');
+        botonSeguir.textContent = 'Siguiendo';
+        seguidores.textContent = '1.205';
+      }, MS_SEGUIR + 180);
+    }
   }
 
   // Una vuelta: pantalla de inicio (iPhone o Android, alternando) → la mano
@@ -281,6 +305,7 @@ function montar(figura) {
     corriendo = true;
     // Con tres casos, el sistema alterna por vuelta (no por caso): nunca dos iguales seguidos.
     fase('acerca');
+    figura.dispatchEvent(new CustomEvent('demo-destino', { detail: o.destino })); // 'wa' | 'ig'
     await mostrarHome(vuelta++ % 2 ? 'android' : 'ios');
     if (quieto || !mano) return mostrarTap(o);
     llavero.setAttribute('href', LLAVERO[o.destino]);
@@ -298,7 +323,7 @@ function montar(figura) {
           if (visible && !document.hidden) ciclo();
           else corriendo = false;
         }, MS_CONTACTO);
-      }, MS_TAP);
+      }, msTap);
     };
   }
 
