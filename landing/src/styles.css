@@ -605,6 +605,67 @@ h2{
   .emp-proceso li:not(:last-child)::after{content:'→'; left:auto; right:-24px; top:18px; bottom:auto;}
 }
 
+/* Ilustraciones de "El proceso" (empresas.html + src/empresas.js). Cada SVG
+   está dibujado en su estado FINAL; el paso activo (li.on) lo anima desde el
+   principio (keyframes "from" + fill both). La secuencia corre de 01 a 06. */
+.proc-ilus{height:112px; margin-bottom:12px; border-radius:14px; background:var(--surface);
+  border:1px solid var(--line); overflow:hidden;}
+.proc-ilus svg{display:block; width:100%; height:100%;}
+.proc-ilus svg *{transform-box:fill-box; transform-origin:center;}
+@keyframes pi-pop{from{transform:scale(0); opacity:0;}}
+.emp-proceso li.on .pi-pop{animation:pi-pop .35s 1.5s cubic-bezier(.2,.9,.3,1.4) both;}
+/* 1. Apretón de manos */
+@keyframes pi-sacudir{25%{transform:translateY(-5px);} 75%{transform:translateY(5px);}}
+.emp-proceso li.on .pi-manos{animation:pi-sacudir .45s .1s ease-in-out 3;}
+/* 2. Se prende la empresa */
+.pi-track, .pi-logo-act{fill:#7B5CFF;}
+.pi-knob{transform:translateX(24px);}
+@keyframes pi-apagado{from{fill:#3A4048;}}
+@keyframes pi-knob-off{from{transform:none;}}
+.emp-proceso li.on .pi-track{animation:pi-apagado .35s .5s both;}
+.emp-proceso li.on .pi-knob{animation:pi-knob-off .35s .5s cubic-bezier(.3,.7,.3,1) both;}
+.emp-proceso li.on .pi-logo-act{animation:pi-apagado .4s .95s both;}
+.emp-proceso li:nth-child(2).on .pi-pop{animation-delay:1.25s;}
+/* 3. El logo entra al encuadre */
+@keyframes pi-encuadre{from{transform:translate(30px,24px) scale(.55) rotate(-12deg);}}
+.emp-proceso li.on .pi-logo{animation:pi-encuadre 1.1s .3s cubic-bezier(.3,.7,.3,1) both;}
+.pi-cursor{opacity:0;}
+@keyframes pi-cursor{0%,75%{opacity:1;} 100%{opacity:0;}}
+.emp-proceso li.on .pi-cursor{animation:pi-cursor 1.5s .3s both;}
+@keyframes pi-brillo{to{stroke:#C3A8FF; stroke-width:5;}}
+.emp-proceso li.on .pi-esquinas{animation:pi-brillo .35s 1.45s 2 alternate;}
+/* 4. Llega la caja, se abre y asoman los llaveros */
+.pi-solapa-izq{transform-origin:left bottom; transform:rotate(-125deg);}
+.pi-solapa-der{transform-origin:right bottom; transform:rotate(125deg);}
+.pi-llaveros{transform:translateY(-26px);}
+@keyframes pi-llega{from{transform:translateX(-90px); opacity:0;}}
+@keyframes pi-cerrada{from{transform:none;}}
+.emp-proceso li.on .pi-caja{animation:pi-llega .6s .2s cubic-bezier(.2,.7,.3,1) both;}
+.emp-proceso li.on .pi-solapa-izq, .emp-proceso li.on .pi-solapa-der{animation:pi-cerrada .35s .9s both;}
+.emp-proceso li.on .pi-llaveros{animation:pi-cerrada .45s 1.25s cubic-bezier(.2,.9,.3,1.3) both;}
+/* 5. Cada uno toca su llavero, uno atrás del otro */
+@keyframes pi-tap{50%{transform:translate(-3px,-7px);}}
+.emp-proceso li.on .pi-persona .pi-mano-llavero{animation:pi-tap .45s both;}
+.emp-proceso li.on .pi-persona:nth-of-type(1) .pi-mano-llavero{animation-delay:.2s;}
+.emp-proceso li.on .pi-persona:nth-of-type(2) .pi-mano-llavero{animation-delay:.75s;}
+.emp-proceso li.on .pi-persona:nth-of-type(3) .pi-mano-llavero{animation-delay:1.3s;}
+.emp-proceso li.on .pi-persona:nth-of-type(1) .pi-pop{animation-delay:.5s;}
+.emp-proceso li.on .pi-persona:nth-of-type(2) .pi-pop{animation-delay:1.05s;}
+.emp-proceso li.on .pi-persona:nth-of-type(3) .pi-pop{animation-delay:1.6s;}
+/* 6. Mirando el panel: aparecen las filas y una se desactiva */
+@keyframes pi-fila{from{opacity:0; transform:translateX(-8px);}}
+.emp-proceso li.on .pi-fila{animation:pi-fila .35s both;}
+.emp-proceso li.on .pi-fila:nth-of-type(1){animation-delay:.2s;}
+.emp-proceso li.on .pi-fila:nth-of-type(2){animation-delay:.45s;}
+.emp-proceso li.on .pi-fila:nth-of-type(3){animation-delay:.7s;}
+.pi-punto-baja{fill:#FF6B6B;}
+@keyframes pi-verde{from{fill:#25D366;}}
+.emp-proceso li.on .pi-punto-baja{animation:pi-verde .3s 1.75s both;}
+.pi-cursor-monitor{transform:translate(-62px,24px);}
+@keyframes pi-cursor-mon{from{transform:translate(0,0); opacity:0;} 30%{opacity:1;}}
+.emp-proceso li.on .pi-cursor-monitor{animation:pi-cursor-mon .8s .9s cubic-bezier(.3,.7,.3,1) both;}
+@media (prefers-reduced-motion: reduce){ .emp-proceso li.on .proc-ilus *{animation:none !important;} }
+
 /* Formulario de contacto del cierre (src/empresas.js). */
 .emp-form{display:flex; flex-direction:column; gap:14px; max-width:620px; margin:0 auto; text-align:left;}
 .emp-form-fila{display:grid; gap:14px;}

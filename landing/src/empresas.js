@@ -185,6 +185,45 @@ function initCarrusel(raiz) {
 }
 document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
 
+// "El proceso": las seis ilustraciones se mueven todo el tiempo. Cada una
+// repite su animación cada PROCESO_MS, arrancando PROCESO_DESFASE_MS después
+// de la anterior: se ve como una ola que corre de 01 a 06 (de izquierda a
+// derecha en compu). Solo corre a la vista; con "reducir movimiento" quedan
+// quietas en su estado final.
+const PROCESO_MS = 3200;
+const PROCESO_DESFASE_MS = 450;
+function initProceso(ol) {
+  const pasos = [...ol.children];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return ol.classList.add('quieto');
+  let timers = [];
+  const animar = (li) => {
+    li.classList.remove('on');
+    void li.offsetWidth; // reinicia sus animaciones
+    li.classList.add('on');
+  };
+  const arrancar = () =>
+    pasos.forEach((li, i) => {
+      timers.push(
+        setTimeout(() => {
+          animar(li);
+          timers.push(setInterval(() => animar(li), PROCESO_MS));
+        }, i * PROCESO_DESFASE_MS),
+      );
+    });
+  const parar = () => {
+    timers.forEach((t) => (clearTimeout(t), clearInterval(t)));
+    timers = [];
+  };
+  new IntersectionObserver(
+    ([e]) => {
+      parar();
+      if (e.isIntersecting) arrancar();
+    },
+    { threshold: 0.15 },
+  ).observe(ol);
+}
+document.querySelectorAll('.emp-proceso').forEach(initProceso);
+
 // "su WhatsApp / su Instagram" según el llavero que usa una demo en cada vuelta:
 // el título del arranque sigue a la demo de al lado, y el paso 03 ("Se abre su
 // …") a la que corre detrás de los pasos (en celular esa no se ve: sigue a la
