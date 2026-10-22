@@ -2,11 +2,14 @@
 // cuando el webhook de Mercado Pago confirma el pago. El visitorId lo captura
 // el front (cookie PAPVisitorId que deja src/pap.js) al crear la venta.
 //
-// Patrón "integrador opcional", igual que meta-capi.js / enviopack.js: sin
-// PAP_URL, `papDisponible` es false y nada pega a la red.
+// La URL de la cuenta es pública: va por defecto (PAP_URL la pisa, PAP_URL=off
+// lo apaga). Solo se manda una venta si vino de un clic de afiliado.
 // Debug del lado de PAP: Tools > Sale requests log.
 
-const PAP_URL = (process.env.PAP_URL || '').replace(/\/+$/, '');
+const PAP_URL =
+  process.env.PAP_URL === 'off'
+    ? ''
+    : (process.env.PAP_URL || 'https://next-tap.postaffiliatepro.com').replace(/\/+$/, '');
 const PAP_ACCOUNT_ID = process.env.PAP_ACCOUNT_ID || 'default1';
 
 export const papDisponible = Boolean(PAP_URL);

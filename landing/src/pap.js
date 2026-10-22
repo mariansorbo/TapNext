@@ -4,12 +4,20 @@
 // la manda el server cuando Mercado Pago confirma el pago (ver server/pap.js),
 // así nunca se acredita una comisión por un pago que no entró.
 //
-// Sin VITE_PAP_URL no se carga nada (mismo criterio "integrador opcional" que
-// el resto de las integraciones).
-const PAP_URL = (import.meta.env.VITE_PAP_URL || '').replace(/\/+$/, '');
+// Solo se carga cuando la visita entra con un link de afiliado (a_aid en la
+// URL): cada llamada a PAP cuenta como "registro" del plan, y el tráfico de
+// Meta Ads llenaría el cupo sin traer comisiones. La cookie de esa primera
+// visita alcanza para atribuir la compra aunque vuelva días después.
+// La URL de la cuenta es pública (como el ID del pixel); VITE_PAP_URL la pisa
+// y VITE_PAP_URL=off lo apaga.
+const PAP_URL_ENV = import.meta.env.VITE_PAP_URL;
+const PAP_URL =
+  PAP_URL_ENV === 'off' ? '' : (PAP_URL_ENV || 'https://next-tap.postaffiliatepro.com').replace(/\/+$/, '');
 const PAP_ACCOUNT_ID = import.meta.env.VITE_PAP_ACCOUNT_ID || 'default1';
 
-if (PAP_URL) {
+const vieneDeAfiliado = /[?&#]a_aid=/.test(location.search + location.hash);
+
+if (PAP_URL && vieneDeAfiliado) {
   const s = document.createElement('script');
   s.id = 'pap_x2s6df8d';
   s.async = true;
