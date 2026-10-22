@@ -33,6 +33,7 @@ import { enviarGaPurchase, ga4Disponible, esGaClientId, esGaSessionId } from './
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
+import { crearPapAdminRouter } from './pap-admin.js';
 import { crearContactoEmpresasRouter } from './contacto-empresas.js';
 import {
   crearOrganizacionesRouter,
@@ -2848,6 +2849,9 @@ app.delete('/api/admin/activaciones-liberadas/:id', requireAdmin, async (req, re
 // Ver server/modo-activacion.js.
 app.use('/api/admin', requireAdmin, crearModoActivacionRouter(MODO_DEPS));
 app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
+// Solapa "Post Affiliate Pro" del panel (agencias, ventas por transferencia,
+// comisiones y pagos). Ver server/pap-admin.js.
+app.use('/api/admin', requireAdmin, crearPapAdminRouter());
 app.use(
   '/api/admin',
   requireAdmin,

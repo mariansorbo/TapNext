@@ -1356,6 +1356,39 @@ body.modal-open{overflow:hidden;}
 .admin-add-btn .add-icon{transition:transform .2s ease;}
 .admin-add-btn.is-open .add-icon{transform:rotate(45deg);}
 .admin-collapsible{margin-top:16px;}
+
+/* Solapas del admin (Panel / Post Affiliate Pro) */
+.admin-tabs{display:flex; gap:4px; margin-top:28px; border-bottom:1px solid var(--line); max-width:900px; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;}
+.admin-tab{
+  font-family:var(--mono); font-size:0.8rem; padding:10px 16px; color:var(--paper-dim); white-space:nowrap;
+  border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .2s ease, border-color .2s ease;
+}
+.admin-tab:hover{color:var(--paper);}
+.admin-tab.is-active{color:var(--paper); border-bottom-color:var(--violet);}
+
+/* Solapa Post Affiliate Pro (src/pap-admin.js) */
+.pap-estado{margin-top:24px; max-width:900px; padding:14px 16px; border:1px solid var(--violet); border-radius:12px; font-size:0.88rem; color:var(--paper-dim); line-height:1.5;}
+.pap-estado b{color:var(--paper);}
+.pap-pasos{display:flex; flex-direction:column; gap:10px; padding-left:22px; font-size:0.9rem; color:var(--paper-dim); line-height:1.5;}
+.pap-pasos b{color:var(--paper);}
+.pap-pasos li > span{display:block; font-size:0.8rem;}
+.pap-pasos .row-btn, .pap-agencia-pie .row-btn, .pap-acciones .row-btn{
+  font-family:var(--mono); font-size:0.72rem; padding:5px 11px; border:1px solid var(--line); border-radius:100px;
+  transition:border-color .2s ease; margin:2px 4px 2px 0; white-space:nowrap;
+}
+.pap-pasos .row-btn:hover, .pap-agencia-pie .row-btn:hover{border-color:var(--violet);}
+.pap-agencia-pie .row-btn:disabled{opacity:.45; cursor:not-allowed;}
+.pap-nota{margin-top:14px; font-size:0.85rem; max-width:none;}
+.pap-form{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:14px;}
+.pap-preview{font-size:0.85rem; color:var(--paper-dim); min-height:1.2em; margin:0 0 10px;}
+.pap-resumen-mes{font-size:0.92rem; color:var(--paper-dim); margin-bottom:16px;}
+.pap-resumen-mes b{color:var(--paper);}
+.pap-agencia{margin-bottom:22px;}
+.pap-agencia-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; font-size:0.95rem;}
+.pap-agencia-pie{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px; font-size:0.88rem; color:var(--paper-dim);}
+.pap-agencia-pie b{color:var(--paper);}
+.pap-pagado{color:#5FD08A;}
+@media (max-width:640px){.pap-form{grid-template-columns:1fr;}}
 .admin-filter-toggle{display:flex; gap:8px; margin-bottom:14px;}
 .admin-filter-btn{
   font-family:var(--mono); font-size:0.72rem; padding:7px 14px; border:1px solid var(--line); border-radius:100px;

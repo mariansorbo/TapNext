@@ -37,6 +37,13 @@
     <h2>Panel de administración.</h2>
     <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
 
+    <div class="admin-tabs" role="tablist">
+      <button type="button" class="admin-tab is-active" role="tab" data-admin-tab="panel-tab">Panel</button>
+      <button type="button" class="admin-tab" role="tab" data-admin-tab="pap-tab">Post Affiliate Pro</button>
+    </div>
+
+    <div id="panel-tab">
+
     <!-- Flujo de vida del producto -->
     <div class="admin-flow" id="admin-flow"></div>
 
@@ -221,6 +228,76 @@
       <div class="comision-banner" id="comisiones-banner"></div>
       <div class="admin-table" id="comisiones-table"></div>
     </div>
+    </div><!-- /panel-tab -->
+
+    <!-- Solapa Post Affiliate Pro: agencias, ventas por transferencia y comisiones. Ver src/pap-admin.js -->
+    <div id="pap-tab" hidden>
+      <div class="pap-estado" id="pap-estado" hidden></div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Cómo funciona</h3>
+          <div class="admin-head-actions">
+            <a class="admin-add-btn" id="pap-link-panel" href="#" target="_blank" rel="noopener"><span class="add-icon">↗</span> Abrir PAP</a>
+          </div>
+        </div>
+        <ol class="pap-pasos">
+          <li><b>Propuesta.</b> Le mandás a la agencia el mail de propuesta. <button type="button" class="row-btn" id="pap-copiar-propuesta">✉️ Copiar propuesta</button>
+            <span>Completá [Nombre] y [Agencia] antes de mandarlo.</span></li>
+          <li><b>Si dice que sí, la das de alta</b> en "Agencias" (abajo): agencia, persona de contacto, mail y un código corto (ej. <code>LOPEZ</code>). Queda aprobada en PAP con su link.</li>
+          <li><b>Bienvenida.</b> En su fila tocá <b>✉️ Bienvenida</b>: copia el mail ya completado con su link y su código. Pegalo en Gmail y mandalo.</li>
+          <li><b>Ventas por la web:</b> son automáticas. Si la empresa entra por el link y paga con Mercado Pago, la venta aparece sola en "Comisiones del mes" como <b>Pendiente</b>: aprobala cuando la compra quede firme.</li>
+          <li><b>Ventas por transferencia:</b> cuando te llega la plata y la empresa nombró a una agencia (por su código o su nombre), cargala en "Venta por transferencia". Queda aprobada al toque. <b>Preguntá siempre "¿quién te pasó nuestro contacto?"</b></li>
+          <li><b>Día 10 de cada mes:</b> en "Comisiones del mes" (viene puesto el mes anterior), por cada agencia: copiá alias y monto → transferí desde el banco → tocá <b>Ya transferí ✓</b> → <b>✉️ Copiar resumen</b> y mandáselo.</li>
+          <li><b>Si una empresa devuelve o no paga:</b> tocá <b>✕ Anular</b> en esa venta antes de pagar. Si ya le pagaste, descontalo del mes siguiente.</li>
+        </ol>
+        <p class="section-lead pap-nota">Reglas que le prometimos a las agencias: 20% del combo sin envío · la cookie del link dura 60 días · si la empresa nombra a la agencia, la venta es suya aunque no haya entrado por el link · se paga el día 10 lo aprobado del mes anterior.</p>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Agencias</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-nuevo"><span class="add-icon">+</span> Nueva agencia</button>
+          </div>
+        </div>
+        <div class="admin-collapsible" id="pap-nuevo-panel" hidden>
+          <div class="modal-form pap-form">
+            <label><span>Agencia</span><input id="pap-nuevo-agencia" placeholder="Consultora López RRHH"></label>
+            <label><span>Persona de contacto</span><input id="pap-nuevo-contacto" placeholder="Juana López"></label>
+            <label><span>Mail</span><input id="pap-nuevo-email" type="email" placeholder="juana@lopezrrhh.com.ar"></label>
+            <label><span>Código (link y transferencias)</span><input id="pap-nuevo-codigo" placeholder="LOPEZ" maxlength="20"></label>
+            <label><span>Alias o CBU para pagarle (opcional)</span><input id="pap-nuevo-alias" placeholder="lopez.rrhh.mp"></label>
+          </div>
+          <button type="button" class="btn-primary panel-btn" id="pap-nuevo-btn" style="width:auto;">Crear agencia</button>
+          <p class="modal-status" id="pap-nuevo-status"></p>
+        </div>
+        <div class="admin-table" id="pap-afiliados-table"></div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Venta por transferencia</h3>
+        <p class="section-lead pap-nota">Solo cuando ya te entró la plata. La venta va sin envío: el 20% se calcula sobre los combos.</p>
+        <div class="modal-form pap-form">
+          <label><span>Agencia</span><select id="pap-venta-afiliado"><option value="">Elegí la agencia…</option></select></label>
+          <label><span>Empresa que compró</span><input id="pap-venta-empresa" placeholder="Distribuidora Sur SRL"></label>
+          <label><span>Combos</span><input id="pap-venta-combos" type="number" min="1" value="1"></label>
+          <label><span>Monto sin envío</span><input id="pap-venta-monto" type="number" min="0" step="100"></label>
+          <label><span>N° de pedido (opcional)</span><input id="pap-venta-pedido" placeholder="se genera solo"></label>
+        </div>
+        <p class="pap-preview" id="pap-venta-preview"></p>
+        <button type="button" class="btn-primary panel-btn" id="pap-venta-btn" style="width:auto;">Cargar venta</button>
+        <p class="modal-status" id="pap-venta-status"></p>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Comisiones del mes</h3>
+          <div class="admin-head-actions"><input type="month" class="precio-input" id="pap-mes" style="width:auto;"></div>
+        </div>
+        <div id="pap-comisiones"></div>
+      </div>
+    </div><!-- /pap-tab -->
   </div>
 </section>
 
