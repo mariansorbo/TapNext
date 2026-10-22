@@ -190,6 +190,8 @@ document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
 // …") a la que corre detrás de los pasos (en celular esa no se ve: sigue a la
 // del arranque).
 const NOMBRE_DESTINO = { wa: 'WhatsApp', ig: 'Instagram' };
+const ACCION_DESTINO = { wa: 'escribirle', ig: 'seguirlo' };
+const accionPaso = document.querySelector('[data-destino-accion]');
 function cambiarDestino(palabra, destino) {
   if (!palabra || !NOMBRE_DESTINO[destino]) return;
   palabra.dataset.destino = destino;
@@ -208,6 +210,11 @@ demoArranque?.addEventListener('demo-destino', (e) => {
   if (!demoPasosVisible()) cambiarDestino(palabraPaso, e.detail);
 });
 demoPasos?.addEventListener('demo-destino', (e) => cambiarDestino(palabraPaso, e.detail));
+// El texto del paso 03 acompaña a su palabra: "listo para escribirle / seguirlo".
+new MutationObserver(() => {
+  const accion = ACCION_DESTINO[palabraPaso?.dataset.destino];
+  if (accion && accionPaso) accionPaso.textContent = accion;
+}).observe(palabraPaso || document.createElement('i'), { attributes: true, attributeFilter: ['data-destino'] });
 
 // "Un segundo que es de tu marca": la demo de fondo se para detrás del paso
 // que está pasando (acerca el llavero → aparece tu empresa → se abre el contacto).
