@@ -274,7 +274,7 @@ h2{
 .emp-tap.on .emp-org-img{opacity:1; transform:none;}
 .emp-tap.on .emp-mark{animation:emp-rise .22s cubic-bezier(.2,.7,.2,1) forwards;}
 .emp-tap.on .emp-mark .tap{animation:emp-wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards;}
-.emp-tap.on .emp-bar i{animation:emp-fill 1000ms .2s linear forwards;}
+.emp-tap.on .emp-bar i{animation:emp-fill 1800ms .2s linear forwards;}
 @keyframes emp-rise{to{opacity:1; transform:none;}}
 @keyframes emp-wipe{to{clip-path:inset(0 0 0 0);}}
 @keyframes emp-fill{to{transform:translateX(0);}}
@@ -330,7 +330,17 @@ h2{
 .wa-chat{flex:1; display:flex; flex-direction:column; gap:6px; padding:10px 8px;}
 .wa-input{display:flex; align-items:center; gap:6px; padding:6px 6px 12px;}
 .wa-input span{flex:1; background:#fff; border-radius:999px; padding:6px 10px; font-size:.68rem; color:#8696A0;}
-.wa-input b{width:26px; height:26px; border-radius:50%; background:#00A884;}
+.wa-input b{position:relative; width:26px; height:26px; border-radius:50%; background:#00A884;}
+.wa-input span.escrito{color:#111B21;}
+.wa-input b.tocando::after{content:''; position:absolute; inset:0; border-radius:50%; background:rgba(0,0,0,.3);
+  animation:emp-toque .45s ease-out forwards;}
+/* Mensaje enviado (empresas-demo.js): burbuja verde a la derecha, como en WhatsApp. */
+.wa-chat{justify-content:flex-end;}
+.wa-msg{align-self:flex-end; display:flex; align-items:flex-end; gap:6px; max-width:80%; background:#D9FDD3; color:#111B21;
+  font-size:.7rem; padding:5px 7px 4px 9px; border-radius:8px 2px 8px 8px; box-shadow:0 1px .5px rgba(0,0,0,.13);
+  animation:emp-msg .25s cubic-bezier(.2,.7,.3,1);}
+.wa-msg small{font-size:.5rem; color:#53BDEB; white-space:nowrap;}
+@keyframes emp-msg{from{opacity:0; transform:translateY(6px) scale(.96);} to{opacity:1; transform:none;}}
 .emp-ig{background:#fff; color:#000; padding:0 10px;}
 .ig-top{padding:26px 0 10px; font-size:.82rem; font-weight:700;}
 .ig-perfil{display:flex; align-items:center; gap:10px;}
@@ -494,6 +504,23 @@ h2{
   .emp-recorrido[data-fase="tap"] .emp-demo-fondo{transform:translate(100%,-50%);}
   .emp-recorrido[data-fase="contacto"] .emp-demo-fondo{transform:translate(200%,-50%);}
 }
+
+/* Carrusel "Por qué" (src/empresas.js): una tarjeta por vez, deslizable. */
+.emp-carrusel{position:relative;}
+.emp-carrusel-pista{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
+  overscroll-behavior-x:contain; border-radius:20px;}
+.emp-carrusel-pista::-webkit-scrollbar{display:none;}
+.emp-carrusel-item{flex:0 0 100%; scroll-snap-align:center; box-sizing:border-box;
+  padding:30px 26px; border:1px solid var(--line); border-radius:20px; background:var(--surface);
+  min-height:220px; display:flex; flex-direction:column; justify-content:center;}
+.emp-carrusel-item h3{font-family:var(--display); font-weight:600; font-size:clamp(1.4rem,4.5vw,2rem);
+  letter-spacing:-0.02em; margin-bottom:12px;}
+.emp-carrusel-item p{color:var(--paper-dim); font-size:1.02rem; line-height:1.55; max-width:62ch;}
+.emp-carrusel-puntos{display:flex; justify-content:center; gap:10px; margin-top:18px;}
+.emp-carrusel-puntos button{width:9px; height:9px; padding:0; border-radius:999px; border:none;
+  background:rgba(237,239,233,.25); cursor:pointer; transition:width .3s ease, background .3s ease;}
+.emp-carrusel-puntos button[aria-selected="true"]{width:26px; background:var(--violet);}
+@media (min-width:900px){ .emp-carrusel-item{padding:44px 52px; min-height:240px;} }
 
 /* Formulario de contacto del cierre (src/empresas.js). */
 .emp-form{display:flex; flex-direction:column; gap:14px; max-width:620px; margin:0 auto; text-align:left;}

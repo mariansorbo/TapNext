@@ -122,6 +122,69 @@ function initFormContacto() {
 }
 initFormContacto();
 
+// "Por qué": carrusel que rota solo cada CARRUSEL_MS y se puede deslizar a mano
+// (scroll-snap) o elegir con los puntitos. Si la persona lo toca, espera un
+// rato antes de volver a rotar. Con "reducir movimiento" no rota solo.
+const CARRUSEL_MS = 5000;
+const CARRUSEL_PAUSA_MS = 9000;
+
+function initCarrusel(raiz) {
+  const pista = raiz.querySelector('.emp-carrusel-pista');
+  const items = [...pista.children];
+  const puntos = raiz.querySelector('.emp-carrusel-puntos');
+  const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let actual = 0;
+  let timer = null;
+  let visible = false;
+
+  const ir = (i) => pista.scrollTo({ left: i * pista.clientWidth, behavior: quieto ? 'auto' : 'smooth' });
+  const botones = items.map((item, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-label', item.querySelector('h3')?.textContent || `Argumento ${i + 1}`);
+    b.addEventListener('click', () => {
+      ir(i);
+      pausar();
+    });
+    puntos.appendChild(b);
+    return b;
+  });
+  const marcar = (i) => {
+    actual = i;
+    botones.forEach((b, j) => b.setAttribute('aria-selected', String(j === i)));
+  };
+
+  function programar(ms = CARRUSEL_MS) {
+    clearTimeout(timer);
+    if (quieto || !visible) return;
+    timer = setTimeout(() => {
+      ir((actual + 1) % items.length);
+      programar();
+    }, ms);
+  }
+  const pausar = () => programar(CARRUSEL_PAUSA_MS);
+
+  let espera;
+  pista.addEventListener('scroll', () => {
+    clearTimeout(espera);
+    espera = setTimeout(() => marcar(Math.round(pista.scrollLeft / pista.clientWidth)), 60);
+  });
+  ['pointerdown', 'touchstart', 'wheel'].forEach((ev) => pista.addEventListener(ev, pausar, { passive: true }));
+
+  new IntersectionObserver(
+    ([e]) => {
+      visible = e.isIntersecting;
+      if (visible) programar();
+      else clearTimeout(timer);
+    },
+    { threshold: 0.4 },
+  ).observe(raiz);
+
+  marcar(0);
+}
+document.querySelectorAll('[data-carrusel]').forEach(initCarrusel);
+
 // Título del arranque: "Después, su WhatsApp / su Instagram", según el llavero
 // que está usando la demo de al lado en cada vuelta.
 const NOMBRE_DESTINO = { wa: 'WhatsApp', ig: 'Instagram' };

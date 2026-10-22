@@ -46,9 +46,12 @@ const MANO_VUELTA = [
 ];
 const MS_IDA = 750;
 const MS_VUELTA = 650;
-const MS_TAP = 1200; // cuánto queda en pantalla la marca de la empresa antes del contacto
-const MS_CONTACTO = 1700;
+const MS_TAP = 2000; // cuánto queda en pantalla la marca de la empresa antes del contacto
+const MS_CONTACTO = 2300; // chat o perfil en pantalla (alcanza para el "Hola" o el "Seguir")
 const MS_SEGUIR = 650; // desde que se abre el perfil de Instagram hasta el toque en "Seguir"
+const MS_ESCRIBIR = 450; // desde que se abre el chat de WhatsApp hasta que empieza a escribir
+const MS_LETRA = 110;
+const MENSAJE_WA = 'Hola';
 const MS_HOME = 900;
 const LADO = 400; // px de la imagen que se muestra (el editor sube 1080)
 
@@ -125,7 +128,7 @@ const PLANTILLA = `
         <div class="wa-quien"><b class="emp-nombre"></b><small>en línea</small></div>
       </div>
       <div class="wa-chat"></div>
-      <div class="wa-input"><span>Mensaje</span><b></b></div>
+      <div class="wa-input"><span class="wa-texto">Mensaje</span><b class="wa-enviar"></b></div>
     </div>
     <div class="emp-pantalla emp-ig">
       <div class="ig-top"><b class="emp-usuario"></b></div>
@@ -282,11 +285,44 @@ function montar(figura) {
     seguidores.textContent = '1.204';
   };
 
+  // En WhatsApp se escribe "Hola" letra por letra, se toca enviar y aparece
+  // el mensaje en el chat. Se limpia en la vuelta siguiente.
+  const chat = destinos.wa.querySelector('.wa-chat');
+  const campo = destinos.wa.querySelector('.wa-texto');
+  const enviar = destinos.wa.querySelector('.wa-enviar');
+  const limpiarChat = () => {
+    chat.textContent = '';
+    campo.textContent = 'Mensaje';
+    campo.classList.remove('escrito');
+    enviar.classList.remove('tocando');
+  };
+  function escribirHola() {
+    [...MENSAJE_WA].forEach((_, n) =>
+      setTimeout(() => {
+        campo.textContent = MENSAJE_WA.slice(0, n + 1);
+        campo.classList.add('escrito');
+      }, MS_ESCRIBIR + n * MS_LETRA),
+    );
+    const alEnviar = MS_ESCRIBIR + MENSAJE_WA.length * MS_LETRA + 250;
+    setTimeout(() => enviar.classList.add('tocando'), alEnviar);
+    setTimeout(() => {
+      const burbuja = document.createElement('div');
+      burbuja.className = 'wa-msg';
+      burbuja.innerHTML = `<span></span><small>10:30 ✓✓</small>`;
+      burbuja.querySelector('span').textContent = MENSAJE_WA;
+      chat.appendChild(burbuja);
+      campo.textContent = 'Mensaje';
+      campo.classList.remove('escrito');
+    }, alEnviar + 180);
+  }
+
   function mostrarContacto(o) {
     // Después del tap se abre el chat de WhatsApp o el perfil de Instagram de la persona.
     const d = destinos[o.destino];
     dejarDeSeguir();
+    limpiarChat();
     d.classList.add('on');
+    if (o.destino === 'wa' && !quieto) escribirHola();
     if (o.destino === 'ig' && !quieto) {
       setTimeout(() => botonSeguir.classList.add('tocando'), MS_SEGUIR);
       setTimeout(() => {
