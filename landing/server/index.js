@@ -3363,8 +3363,8 @@ function routerThrottle(req, res, next) {
 // antes de mandar al destino. Es la única superficie publicitaria de NextTap que
 // ve quien tapea el sticker de otra persona (casi siempre un cliente potencial),
 // así que vale ese ~1 s. HTML autónomo servido desde el backend: un request, sin
-// bundle ni llamadas extra. Para quien repite el mismo sticker en <12 h se
-// acorta a ~350 ms (el dueño no se come la intro cada vez). Sin JS, redirige ya.
+// bundle ni llamadas extra. Dura siempre 800 ms (1200 ms con organización),
+// también para quien repite el mismo sticker. Sin JS, redirige ya.
 // Link "Comprá el tuyo" de las pantallas del tap, con UTM para medir cuánta gente
 // llega a la web desde un llavero ajeno. utm_content = función del llavero
 // tocado (whatsapp, instagram…), para ver cuál convierte mejor.
@@ -3444,7 +3444,7 @@ function pantallaRedireccion(destino, tipo, org = null) {
 ${o.color ? `<meta name="theme-color" content="${o.color}">
 ` : ''}<noscript><meta http-equiv="refresh" content="0;url=${htmlUrl}"></noscript>
 <style>
-  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:500ms}
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--dur:800ms}
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%}
   body{background:var(--ink);color:var(--paper);
@@ -3486,16 +3486,10 @@ ${o.color ? `<meta name="theme-color" content="${o.color}">
   <script>
   (function(){
     ${o.js}
-    // Tiempos en pantalla, contados desde que la pantalla ya se pintó (no desde
-    // que llegó el HTML): 1ª vez / mismo sticker de nuevo en <12 h (el dueño).
+    // Tiempo en pantalla, contado desde que la pantalla ya se pintó (no desde
+    // que llegó el HTML). Siempre el mismo, sin importar cuántas veces se toque.
     // Con organización, más largo: la pantalla es su marca y la imagen se tiene que ver.
-    var DUR_PRIMERA=${org ? 1200 : 500}, DUR_MINIMA=${org ? 600 : 350};
-    var to=${jsUrl}, dur=DUR_PRIMERA;
-    try{
-      var k='nt:'+location.pathname, last=+localStorage.getItem(k)||0;
-      if(Date.now()-last<432e5) dur=DUR_MINIMA;
-      localStorage.setItem(k,String(Date.now()));
-    }catch(e){}
+    var to=${jsUrl}, dur=${org ? 1200 : 800};
     document.documentElement.style.setProperty('--dur',dur+'ms');
     var go=function(){location.replace(to)};
     var t=null;
