@@ -11,21 +11,43 @@ import { initFaqAccordion } from './faq.js';
 applyBrand('Conectá con tus clientes en un toque');
 initFaqAccordion();
 
-// Hero: "Compartí distinto" rota a "WhatsApp" y "Instagram" y vuelve a
+// Hero: "Compartí distinto" rota a "Instagram" y "WhatsApp" y vuelve a
 // "distinto" (3 s en distinto, 2 s en cada red). Con "reducir movimiento" queda fija.
 const PALABRAS_HERO = [
   { texto: 'distinto', ms: 3000 },
-  { texto: 'WhatsApp', red: 'wa', ms: 2000 },
   { texto: 'Instagram', red: 'ig', ms: 2000 },
+  { texto: 'WhatsApp', red: 'wa', ms: 2000 },
 ];
 const palabraHero = document.querySelector('[data-palabra-rota]');
 if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // Todas las palabras ocupan el ancho de "distinto": si una es más larga
+  // (Instagram), se achica un poco la letra en vez de empujar el renglón.
+  const medidor = palabraHero.cloneNode();
+  medidor.removeAttribute('data-palabra-rota');
+  medidor.setAttribute('aria-hidden', 'true');
+  medidor.style.cssText = 'position:absolute; visibility:hidden; white-space:nowrap; width:auto;';
+  palabraHero.after(medidor);
+  const ancho = (texto) => {
+    medidor.textContent = texto;
+    return medidor.getBoundingClientRect().width;
+  };
+  const ajustar = () => {
+    const base = ancho(PALABRAS_HERO[0].texto);
+    const w = ancho(palabraHero.textContent);
+    palabraHero.style.width = `${base}px`;
+    palabraHero.style.fontSize = w > base ? `${base / w}em` : '';
+  };
+  ajustar();
+  addEventListener('resize', ajustar);
+  document.fonts?.ready.then(ajustar);
+
   let n = 0;
   const siguiente = () => {
     setTimeout(() => {
       n = (n + 1) % PALABRAS_HERO.length;
       const p = PALABRAS_HERO[n];
       palabraHero.textContent = p.texto;
+      ajustar();
       if (p.red) palabraHero.dataset.red = p.red;
       else delete palabraHero.dataset.red;
       palabraHero.classList.remove('cambia');
