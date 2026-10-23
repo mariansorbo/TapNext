@@ -11,6 +11,9 @@ const PAP_URL =
     ? ''
     : (process.env.PAP_URL || 'https://next-tap.postaffiliatepro.com').replace(/\/+$/, '');
 const PAP_ACCOUNT_ID = process.env.PAP_ACCOUNT_ID || 'default1';
+// Campaña "Next Tap" (20%). Se fuerza en cada venta: si no, PAP usa la campaña
+// del primer clic del visitante, que puede ser otra (la de ejemplo pagaba 30%).
+const PAP_CAMPAIGN_ID = process.env.PAP_CAMPAIGN_ID ?? 'e75c685b';
 
 export const papDisponible = Boolean(PAP_URL);
 
@@ -32,6 +35,7 @@ export async function enviarVentaPap({ orderId, totalCost, visitorId, productId,
     OrderID: String(orderId),
   });
   if (visitorId) params.set('visitorId', visitorId);
+  if (PAP_CAMPAIGN_ID) params.set('CampaignID', PAP_CAMPAIGN_ID);
   if (productId) params.set('ProductID', productId);
   if (ip) params.set('ip', ip);
   if (userAgent) params.set('useragent', userAgent);

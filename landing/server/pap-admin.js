@@ -60,7 +60,36 @@ class PapError extends Error {
   }
 }
 
-async function pap(path, { method = 'GET', body, query } = {}) {
+// PAP limita los listados ("grid requests") a 1 por segundo por usuario: todas
+// las llamadas pasan en fila, separadas por al menos 1,1 s. Un 429 se reintenta
+// una vez.
+const ESPACIO_MS = 1100;
+let fila = Promise.resolve();
+let ultima = 0;
+function enFila(fn) {
+  const turno = fila.then(async () => {
+    const espera = ultima + ESPACIO_MS - Date.now();
+    if (espera > 0) await new Promise((r) => setTimeout(r, espera));
+    try {
+      return await fn();
+    } finally {
+      ultima = Date.now();
+    }
+  });
+  fila = turno.catch(() => {});
+  return turno;
+}
+
+async function pap(path, opciones = {}) {
+  try {
+    return await enFila(() => papDirecto(path, opciones));
+  } catch (err) {
+    if (err.reintentar) return enFila(() => papDirecto(path, opciones));
+    throw err;
+  }
+}
+
+async function papDirecto(path, { method = 'GET', body, query } = {}) {
   if (!PAP_URL || !PAP_API_KEY) throw new PapError(503, 'Falta la clave de API de Post Affiliate Pro (PAP_API_KEY).');
   const url = new URL(`${PAP_URL}/api/v3${path}`);
   for (const [k, v] of Object.entries(query || {})) if (v !== undefined && v !== '') url.searchParams.set(k, v);
@@ -85,7 +114,9 @@ async function pap(path, { method = 'GET', body, query } = {}) {
       data?.error?.code === 'insufficient_scope'
         ? 'la clave de API no tiene permiso para esto (revisá los Access scopes de la clave en PAP)'
         : data?.error?.message || data?.message || (typeof data?.error === 'string' ? data.error : '') || texto.slice(0, 200);
-    throw new PapError(res.status === 401 || res.status === 403 ? 502 : res.status >= 500 ? 502 : 400, `PAP: ${detalle}`);
+    const err = new PapError(res.status === 401 || res.status === 403 || res.status === 429 || res.status >= 500 ? 502 : 400, `PAP: ${detalle}`);
+    err.reintentar = res.status === 429;
+    throw err;
   }
   return data;
 }
