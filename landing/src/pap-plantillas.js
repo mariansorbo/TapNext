@@ -69,7 +69,8 @@ export function plantillaResumen({ grupo, mes }) {
     .map((v) => {
       const fecha = new Date(v.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
       const quien = v.empresa || 'Compra en la web';
-      return `- ${fecha} · ${quien} · venta ${pesos(v.totalCost)} · tu comisión ${pesos(v.comision)}`;
+      const que = v.productos && !/^combo$|^llavero/.test(v.productos) ? ` · ${v.productos}` : '';
+      return `- ${fecha} · ${quien}${que} · venta ${pesos(v.totalCost)} · tu comisión ${pesos(v.comision)}${v.nota ? ` (${v.nota})` : ''}`;
     })
     .join('\n');
   return {

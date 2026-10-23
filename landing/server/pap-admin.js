@@ -9,7 +9,8 @@
 //   GET   /pap/afiliados                   → agencias de PAP + datos locales (agencia, alias)
 //   POST  /pap/afiliados                   → { agencia, contacto, email, codigo, alias? }: alta aprobada
 //   PATCH /pap/afiliados/:id               → { alias }: datos locales de pago
-//   POST  /pap/ventas-transferencia        → { afiliadoId, empresa, combos, monto, pedido? }
+//   POST  /pap/ventas-transferencia        → { afiliadoId, empresa, combos, precioCombo, sueltas,
+//                                              precioSuelta, sueltasConComision, nota?, pedido? }
 //   GET   /pap/comisiones?mes=YYYY-MM      → ventas del mes agrupadas por agencia + si se pagó
 //   PATCH /pap/transacciones/:id           → { status: approved|declined|pending }
 //   POST  /pap/pagos                       → { afiliadoId, mes, monto }: marca el mes como pagado
@@ -122,6 +123,38 @@ function rangoDelMes(mes) {
   return { desde: `${mes}-01`, hasta: `${mes}-${String(ultimo).padStart(2, '0')}` };
 }
 
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+const pesosTxt = (n) => `$${Math.round(n).toLocaleString('es-AR')}`;
+
+// Venta por transferencia: combos + unidades sueltas, cada uno con su precio.
+// Las sueltas suman comisión solo si sueltasConComision (la decisión es del
+// admin en cada venta). Todo sin envío. Exportada para los tests.
+export function calcularVentaTransferencia(body, pct = COMISION_PCT) {
+  const combos = Math.max(0, Math.floor(Number(body.combos) || 0));
+  const sueltas = Math.max(0, Math.floor(Number(body.sueltas) || 0));
+  const precioCombo = Number(body.precioCombo);
+  const precioSuelta = Number(body.precioSuelta);
+  const sueltasConComision = body.sueltasConComision !== false;
+  if (!combos && !sueltas) return { error: 'Cargá al menos un combo o una unidad suelta.' };
+  if (combos && !(precioCombo > 0)) return { error: 'Falta el precio del combo.' };
+  if (sueltas && !(precioSuelta > 0)) return { error: 'Falta el precio de la unidad suelta.' };
+
+  const subCombos = combos * (precioCombo || 0);
+  const subSueltas = sueltas * (precioSuelta || 0);
+  const total = subCombos + subSueltas;
+  const base = subCombos + (sueltasConComision ? subSueltas : 0);
+  if (!(base > 0)) return { error: 'No queda nada sobre qué calcular la comisión.' };
+  const comision = Math.round(base * pct) / 100;
+
+  const partes = [combos && plural(combos, 'combo', 'combos'), sueltas && plural(sueltas, 'suelta', 'sueltas')].filter(Boolean);
+  const descripcion = partes.join(' + ');
+  const baseTexto =
+    sueltas && !sueltasConComision
+      ? `${pct}% sobre ${plural(combos, 'combo', 'combos')} (${pesosTxt(subCombos)}); las sueltas no suman comisión`
+      : `${pct}% sobre ${pesosTxt(base)} (${descripcion}) — transferencia`;
+  return { combos, sueltas, subCombos, subSueltas, total, base, comision, descripcion, baseTexto };
+}
+
 function afiliadoPublico(a, local) {
   return {
     id: a.id,
@@ -149,7 +182,9 @@ export function crearPapAdminRouter() {
     }
   };
 
-  r.get('/pap/estado', (req, res) => {
+  r.get('/pap/estado', async (req, res) => {
+    // Precio de la unidad suelta = el del llavero en la tabla de precios del admin.
+    const fila = (await q("SELECT precio FROM precios WHERE modelo = 'llavero'"))[0];
     res.json({
       configurado: Boolean(PAP_URL && PAP_API_KEY),
       cuentaUrl: PAP_URL,
@@ -159,6 +194,7 @@ export function crearPapAdminRouter() {
       landingUrl: LANDING_URL,
       comisionPct: COMISION_PCT,
       precioCombo: PRECIO_COMBO,
+      precioSuelta: fila ? Number(fila.precio) : null,
     });
   });
 
@@ -227,14 +263,16 @@ export function crearPapAdminRouter() {
     manejar(async (req, res) => {
       const afiliadoId = String(req.body?.afiliadoId || '').trim();
       const empresa = String(req.body?.empresa || '').trim().slice(0, 120);
-      const combos = Math.floor(Number(req.body?.combos));
-      const monto = Number(req.body?.monto);
+      const nota = String(req.body?.nota || '').trim().slice(0, 200);
+      const v = calcularVentaTransferencia(req.body || {});
       const pedido = String(req.body?.pedido || '').trim().slice(0, 60) || `TRANSF-${Date.now()}`;
       if (!afiliadoId) return res.status(400).json({ error: 'Elegí la agencia.' });
       if (!empresa) return res.status(400).json({ error: 'Poné el nombre de la empresa que compró.' });
-      if (!(combos >= 1)) return res.status(400).json({ error: 'La cantidad de combos tiene que ser 1 o más.' });
-      if (!(monto > 0)) return res.status(400).json({ error: 'El monto tiene que ser mayor a 0 (sin envío).' });
+      if (v.error) return res.status(400).json({ error: v.error });
 
+      // Lo que ve la agencia en su panel de PAP: Product ID = qué se llevó,
+      // total = la venta entera sin envío, comisión = lo que le toca (con o sin
+      // sueltas). data1/2/3 quedan en el detalle de la comisión.
       const campaignId = await idCampaniaDefault();
       const tx = await pap('/transactions', {
         method: 'POST',
@@ -242,17 +280,18 @@ export function crearPapAdminRouter() {
           affiliate_id: afiliadoId,
           type: 'sale',
           status: 'approved', // ya entró la plata: se carga cuando llega la transferencia
-          total_cost: monto,
-          commission: Math.round(monto * COMISION_PCT) / 100,
+          total_cost: v.total,
+          commission: v.comision,
           order_id: pedido,
-          product_id: 'combo',
+          product_id: v.descripcion,
           ...(campaignId ? { campaign_id: campaignId } : {}),
           data1: empresa,
-          data2: `${combos} combo(s) — transferencia`,
+          data2: v.baseTexto,
+          data3: nota || undefined,
           send_notification_email: false,
         },
       });
-      res.status(201).json({ transaccion: tx?.data || tx });
+      res.status(201).json({ transaccion: tx?.data || tx, ...v });
     })
   );
 
@@ -284,7 +323,9 @@ export function crearPapAdminRouter() {
           fecha: t.created_at,
           pedido: t.order_id,
           empresa: t.data1 || null,
+          productos: t.product_id || null,
           detalle: t.data2 || null,
+          nota: t.data3 || null,
           totalCost: Number(t.total_cost || 0),
           comision: Number(t.commission || 0),
           estado: t.status,

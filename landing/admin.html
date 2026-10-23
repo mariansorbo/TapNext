@@ -277,13 +277,21 @@
 
       <div class="admin-section">
         <h3>Venta por transferencia</h3>
-        <p class="section-lead pap-nota">Solo cuando ya te entró la plata. La venta va sin envío: el 20% se calcula sobre los combos.</p>
+        <p class="section-lead pap-nota">Solo cuando ya te entró la plata. Todo sin envío. La agencia ve en su panel qué se llevó la empresa (ej. "20 combos + 10 sueltas"), el total y su comisión.</p>
         <div class="modal-form pap-form">
           <label><span>Agencia</span><select id="pap-venta-afiliado"><option value="">Elegí la agencia…</option></select></label>
           <label><span>Empresa que compró</span><input id="pap-venta-empresa" placeholder="Distribuidora Sur SRL"></label>
-          <label><span>Combos</span><input id="pap-venta-combos" type="number" min="1" value="1"></label>
-          <label><span>Monto sin envío</span><input id="pap-venta-monto" type="number" min="0" step="100"></label>
           <label><span>N° de pedido (opcional)</span><input id="pap-venta-pedido" placeholder="se genera solo"></label>
+        </div>
+        <div class="modal-form pap-form">
+          <label><span>Combos</span><input id="pap-venta-combos" type="number" min="0" value="1"></label>
+          <label><span>Precio por combo</span><input id="pap-venta-precio-combo" type="number" min="0" step="100"></label>
+          <label><span>Unidades sueltas</span><input id="pap-venta-sueltas" type="number" min="0" value="0"></label>
+          <label><span>Precio por suelta</span><input id="pap-venta-precio-suelta" type="number" min="0" step="100"></label>
+        </div>
+        <label class="pap-check"><input type="checkbox" id="pap-venta-sueltas-comision" checked> Las unidades sueltas también suman comisión</label>
+        <div class="modal-form pap-form">
+          <label class="pap-form-ancho"><span>Nota para la agencia (opcional, la ve en su panel)</span><input id="pap-venta-nota" maxlength="200" placeholder="Regalo de fin de año para el equipo comercial"></label>
         </div>
         <p class="pap-preview" id="pap-venta-preview"></p>
         <button type="button" class="btn-primary panel-btn" id="pap-venta-btn" style="width:auto;">Cargar venta</button>

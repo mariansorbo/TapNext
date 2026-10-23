@@ -1380,6 +1380,9 @@ body.modal-open{overflow:hidden;}
 .pap-agencia-pie .row-btn:disabled{opacity:.45; cursor:not-allowed;}
 .pap-nota{margin-top:14px; font-size:0.85rem; max-width:none;}
 .pap-form{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:14px;}
+.pap-check{display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--paper-dim); margin:0 0 14px;}
+.pap-check input{accent-color:var(--violet); width:16px; height:16px;}
+.pap-form-ancho{grid-column:1 / -1;}
 .pap-preview{font-size:0.85rem; color:var(--paper-dim); min-height:1.2em; margin:0 0 10px;}
 .pap-resumen-mes{font-size:0.92rem; color:var(--paper-dim); margin-bottom:16px;}
 .pap-resumen-mes b{color:var(--paper);}

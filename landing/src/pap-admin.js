@@ -181,52 +181,72 @@ export function initPapAdmin({ api }) {
     }
   });
 
-  // --- Venta por transferencia ---
-  const actualizarMonto = () => {
-    const monto = $('pap-venta-monto');
-    if (monto.dataset.tocado) return;
-    const combos = Math.max(0, Math.floor(Number($('pap-venta-combos').value) || 0));
-    monto.value = combos * (estado?.precioCombo || 0);
-    actualizarComisionPreview();
-  };
-  const actualizarComisionPreview = () => {
-    const monto = Number($('pap-venta-monto').value) || 0;
-    $('pap-venta-preview').textContent = monto
-      ? `Comisión para la agencia: ${pesos((monto * (estado?.comisionPct || 0)) / 100)}`
+  // --- Venta por transferencia: combos + sueltas, cada uno con su precio ---
+  const num = (id) => Math.max(0, Number($(id).value) || 0);
+  function leerVenta() {
+    const combos = Math.floor(num('pap-venta-combos'));
+    const sueltas = Math.floor(num('pap-venta-sueltas'));
+    const precioCombo = num('pap-venta-precio-combo');
+    const precioSuelta = num('pap-venta-precio-suelta');
+    const sueltasConComision = $('pap-venta-sueltas-comision').checked;
+    const subCombos = combos * precioCombo;
+    const subSueltas = sueltas * precioSuelta;
+    const base = subCombos + (sueltasConComision ? subSueltas : 0);
+    const comision = (base * (estado?.comisionPct || 0)) / 100;
+    const partes = [combos && `${combos} ${combos === 1 ? 'combo' : 'combos'}`, sueltas && `${sueltas} ${sueltas === 1 ? 'suelta' : 'sueltas'}`].filter(Boolean);
+    return { combos, sueltas, precioCombo, precioSuelta, sueltasConComision, total: subCombos + subSueltas, comision, descripcion: partes.join(' + ') };
+  }
+  function actualizarPreview() {
+    const v = leerVenta();
+    $('pap-venta-sueltas-comision').closest('label').hidden = !v.sueltas;
+    $('pap-venta-preview').innerHTML = v.total
+      ? `<b>${esc(v.descripcion)}</b> · venta ${pesos(v.total)} · comisión para la agencia <b>${pesos(v.comision)}</b>${
+          v.sueltas && !v.sueltasConComision ? ' (solo sobre los combos)' : ''
+        }`
       : '';
-  };
-  $('pap-venta-combos').addEventListener('input', actualizarMonto);
-  $('pap-venta-monto').addEventListener('input', (e) => {
-    e.target.dataset.tocado = '1';
-    actualizarComisionPreview();
-  });
+  }
+  function precargarPrecios() {
+    if (!$('pap-venta-precio-combo').value) $('pap-venta-precio-combo').value = estado?.precioCombo || '';
+    if (!$('pap-venta-precio-suelta').value) $('pap-venta-precio-suelta').value = estado?.precioSuelta || '';
+    actualizarPreview();
+  }
+  actualizarPreview();
+  for (const id of ['pap-venta-combos', 'pap-venta-sueltas', 'pap-venta-precio-combo', 'pap-venta-precio-suelta', 'pap-venta-sueltas-comision'])
+    $(id).addEventListener('input', actualizarPreview);
 
   $('pap-venta-btn').addEventListener('click', async () => {
     const status = $('pap-venta-status');
     const btn = $('pap-venta-btn');
     const sel = $('pap-venta-afiliado');
     const agencia = sel.options[sel.selectedIndex]?.textContent || '';
-    const monto = Number($('pap-venta-monto').value);
+    const v = leerVenta();
     if (!sel.value) return setStatus(status, 'Elegí la agencia.', true);
-    if (!window.confirm(`¿Cargar venta de ${pesos(monto)} a ${agencia}? Queda aprobada para pagarle.`)) return;
+    if (!v.total) return setStatus(status, 'Cargá al menos un combo o una unidad suelta, con su precio.', true);
+    if (!window.confirm(`¿Cargar ${v.descripcion} (${pesos(v.total)}) a ${agencia}?
+Comisión: ${pesos(v.comision)}. Queda aprobada para pagarle.`)) return;
     btn.disabled = true;
     setStatus(status, 'Cargando…');
     try {
-      await api('/pap/ventas-transferencia', {
+      const r = await api('/pap/ventas-transferencia', {
         method: 'POST',
         body: JSON.stringify({
           afiliadoId: sel.value,
           empresa: $('pap-venta-empresa').value,
-          combos: $('pap-venta-combos').value,
-          monto,
           pedido: $('pap-venta-pedido').value,
+          nota: $('pap-venta-nota').value,
+          combos: v.combos,
+          precioCombo: v.precioCombo,
+          sueltas: v.sueltas,
+          precioSuelta: v.precioSuelta,
+          sueltasConComision: v.sueltasConComision,
         }),
       });
-      setStatus(status, `Cargada: ${pesos(monto)} para ${agencia}. Ya aparece en su panel de PAP.`);
-      for (const id of ['pap-venta-empresa', 'pap-venta-pedido']) $(id).value = '';
+      setStatus(status, `Cargada: ${r.descripcion} para ${agencia}, comisión ${pesos(r.comision)}. Ya aparece en su panel de PAP.`);
+      for (const id of ['pap-venta-empresa', 'pap-venta-pedido', 'pap-venta-nota']) $(id).value = '';
       $('pap-venta-combos').value = '1';
-      delete $('pap-venta-monto').dataset.tocado;
-      actualizarMonto();
+      $('pap-venta-sueltas').value = '0';
+      $('pap-venta-sueltas-comision').checked = true;
+      actualizarPreview();
       await cargarComisiones();
     } catch (err) {
       setStatus(status, err.message, true);
@@ -261,7 +281,7 @@ export function initPapAdmin({ api }) {
             .map(
               (v) => `<tr>
                 <td>${fecha(v.fecha)}</td>
-                <td><b>${esc(v.empresa || 'Compra en la web')}</b><br><span class="admin-muted">${esc(v.pedido || '')}${v.detalle ? ' · ' + esc(v.detalle) : ''}</span></td>
+                <td><b>${esc(v.empresa || 'Compra en la web')}</b>${v.productos ? ' · ' + esc(v.productos) : ''}<br><span class="admin-muted">${esc(v.pedido || '')}${v.detalle ? ' · ' + esc(v.detalle) : ''}${v.nota ? ' · ' + esc(v.nota) : ''}</span></td>
                 <td>${pesos(v.totalCost)}</td>
                 <td><b>${pesos(v.comision)}</b></td>
                 <td>${esc(ESTADOS[v.estado] || v.estado)}</td>
@@ -371,7 +391,7 @@ export function initPapAdmin({ api }) {
         return;
       }
       renderEstado();
-      actualizarMonto();
+      precargarPrecios();
       await Promise.all([cargarAfiliados(), cargarComisiones()]);
     },
   };
