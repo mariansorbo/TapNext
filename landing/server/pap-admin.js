@@ -15,8 +15,9 @@
 //   PATCH /pap/transacciones/:id           → { status: approved|declined|pending }
 //   POST  /pap/pagos                       → { afiliadoId, mes, monto }: marca el mes como pagado
 //   DELETE /pap/pagos/:afiliadoId/:mes     → deshace la marca
-//   PUT   /pap/plantillas/bienvenida       → { asunto, cuerpo }: guarda la bienvenida editada
-//   DELETE /pap/plantillas/bienvenida      → vuelve a la original (src/pap-plantillas.js)
+//   PUT   /pap/plantillas/:clave           → { asunto, cuerpo }: guarda la plantilla editada
+//   DELETE /pap/plantillas/:clave          → vuelve a la original (src/pap-plantillas.js)
+//     clave: bienvenida | primer_toque
 //
 // PAP no expone "pagado" por API, así que el pago mensual se registra acá
 // (tabla pap_pagos). La agencia (nombre comercial) y su alias también son
@@ -43,7 +44,7 @@ await db.executeMultiple(`
     creada_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE TABLE IF NOT EXISTS pap_plantillas (
-    clave TEXT PRIMARY KEY,                -- 'bienvenida'
+    clave TEXT PRIMARY KEY,                -- 'bienvenida' | 'primer_toque'
     asunto TEXT NOT NULL,
     cuerpo TEXT NOT NULL,
     editada_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -247,6 +248,15 @@ export function crearAfiliadosPublicoRouter() {
   return r;
 }
 
+// clave en la base → nombre en /pap/estado.
+const CLAVES_PLANTILLA = { bienvenida: 'bienvenida', primer_toque: 'primerToque' };
+async function plantillasGuardadas() {
+  const filas = await q('SELECT clave, asunto, cuerpo, editada_en FROM pap_plantillas');
+  const out = Object.fromEntries(Object.values(CLAVES_PLANTILLA).map((n) => [n, null]));
+  for (const f of filas) if (CLAVES_PLANTILLA[f.clave]) out[CLAVES_PLANTILLA[f.clave]] = { asunto: f.asunto, cuerpo: f.cuerpo, editada_en: f.editada_en };
+  return out;
+}
+
 export function crearPapAdminRouter() {
   const r = express.Router();
 
@@ -273,27 +283,29 @@ export function crearPapAdminRouter() {
       comisionPct: COMISION_PCT,
       precioCombo: PRECIO_COMBO,
       precioSuelta: fila ? Number(fila.precio) : null,
-      // Bienvenida editada en el admin; null = la original de src/pap-plantillas.js.
-      bienvenida: (await q("SELECT asunto, cuerpo, editada_en FROM pap_plantillas WHERE clave = 'bienvenida'"))[0] || null,
+      // Plantillas editadas en el admin; null = la original de src/pap-plantillas.js.
+      ...(await plantillasGuardadas()),
     });
   });
 
-  r.put('/pap/plantillas/bienvenida', async (req, res) => {
+  r.put('/pap/plantillas/:clave', async (req, res) => {
+    if (!CLAVES_PLANTILLA[req.params.clave]) return res.status(404).json({ error: 'Plantilla desconocida.' });
     const asunto = String(req.body?.asunto || '').trim().slice(0, 200);
     const cuerpo = String(req.body?.cuerpo || '').replace(/\r\n/g, '\n').trim().slice(0, 10000);
     if (!asunto || !cuerpo) return res.status(400).json({ error: 'Completá el asunto y el texto.' });
     const [fila] = await q(
-      `INSERT INTO pap_plantillas (clave, asunto, cuerpo) VALUES ('bienvenida', ?, ?)
+      `INSERT INTO pap_plantillas (clave, asunto, cuerpo) VALUES (?, ?, ?)
        ON CONFLICT (clave) DO UPDATE SET asunto = excluded.asunto, cuerpo = excluded.cuerpo, editada_en = NOW()
        RETURNING asunto, cuerpo, editada_en`,
-      [asunto, cuerpo]
+      [req.params.clave, asunto, cuerpo]
     );
-    res.json({ bienvenida: fila });
+    res.json({ plantilla: fila });
   });
 
-  r.delete('/pap/plantillas/bienvenida', async (req, res) => {
-    await q("DELETE FROM pap_plantillas WHERE clave = 'bienvenida' RETURNING clave");
-    res.json({ bienvenida: null });
+  r.delete('/pap/plantillas/:clave', async (req, res) => {
+    if (!CLAVES_PLANTILLA[req.params.clave]) return res.status(404).json({ error: 'Plantilla desconocida.' });
+    await q('DELETE FROM pap_plantillas WHERE clave = ? RETURNING clave', [req.params.clave]);
+    res.json({ plantilla: null });
   });
 
   r.get(

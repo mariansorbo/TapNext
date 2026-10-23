@@ -3,13 +3,15 @@
 // con el pago mensual. Backend en server/pap-admin.js.
 
 import {
-  plantillaPropuesta,
+  plantillaPrimerToque,
   plantillaBienvenida,
   plantillaResumen,
   comoTexto,
   nombreMes,
   BIENVENIDA_ORIGINAL,
   VARIABLES_BIENVENIDA,
+  PRIMER_TOQUE_ORIGINAL,
+  VARIABLES_PRIMER_TOQUE,
 } from './pap-plantillas.js';
 
 const esc = (s) =>
@@ -51,50 +53,64 @@ export function initPapAdmin({ api }) {
     el.textContent = texto;
   };
 
-  // --- Bienvenida editable (se guarda en el server; null = la original) ---
-  function renderBienvenida() {
-    const t = estado?.bienvenida || BIENVENIDA_ORIGINAL;
-    $('pap-bienvenida-asunto').value = t.asunto;
-    $('pap-bienvenida-cuerpo').value = t.cuerpo;
-    $('pap-bienvenida-estado').textContent = estado?.bienvenida
-      ? `Usás tu versión, editada el ${fecha(estado.bienvenida.editada_en)}. El botón ✉️ Bienvenida de cada agencia la copia completada con sus datos.`
-      : 'Usás la versión original. El botón ✉️ Bienvenida de cada agencia la copia completada con sus datos.';
-  }
-  $('pap-bienvenida-variables').innerHTML = Object.entries(VARIABLES_BIENVENIDA)
-    .map(([k, d]) => `<button type="button" data-variable="${k}" title="${esc(d)}">{${k}}</button>`)
-    .join('');
-  $('pap-bienvenida-variables').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-variable]');
-    if (!b) return;
-    const ta = $('pap-bienvenida-cuerpo');
-    const v = `{${b.dataset.variable}}`;
-    const i = ta.selectionStart ?? ta.value.length;
-    ta.value = ta.value.slice(0, i) + v + ta.value.slice(ta.selectionEnd ?? i);
-    ta.focus();
-    ta.selectionStart = ta.selectionEnd = i + v.length;
-  });
-  async function guardarBienvenida(metodo) {
-    const status = $('pap-bienvenida-status');
-    try {
-      const body = metodo === 'PUT' ? JSON.stringify({ asunto: $('pap-bienvenida-asunto').value, cuerpo: $('pap-bienvenida-cuerpo').value }) : undefined;
-      const { bienvenida } = await api('/pap/plantillas/bienvenida', { method: metodo, body });
-      estado = { ...estado, bienvenida };
-      renderBienvenida();
-      setStatus(status, metodo === 'PUT' ? 'Guardada. Ya la usa el botón ✉️ Bienvenida.' : 'Listo: volviste a la original.');
-    } catch (err) {
-      setStatus(status, err.message, true);
+  // --- Plantillas editables (primer toque y bienvenida) ---
+  // Se guardan en el server (tabla pap_plantillas); null en el estado = la original
+  // de src/pap-plantillas.js. Cada una tiene su sección en admin.html con ids
+  // pap-<prefijo>-asunto / -cuerpo / -variables / -estado / -guardar / -original / -status.
+  const EDITORES = [
+    { prefijo: 'primer', clave: 'primer_toque', campo: 'primerToque', original: PRIMER_TOQUE_ORIGINAL, variables: VARIABLES_PRIMER_TOQUE,
+      uso: 'El botón ✉️ Copiar primer toque (paso 1 de arriba) la copia completada.' },
+    { prefijo: 'bienvenida', clave: 'bienvenida', campo: 'bienvenida', original: BIENVENIDA_ORIGINAL, variables: VARIABLES_BIENVENIDA,
+      uso: 'El botón ✉️ Bienvenida de cada agencia la copia completada con sus datos.' },
+  ];
+  function renderPlantillas() {
+    for (const ed of EDITORES) {
+      const guardada = estado?.[ed.campo];
+      const t = guardada || ed.original;
+      $(`pap-${ed.prefijo}-asunto`).value = t.asunto;
+      $(`pap-${ed.prefijo}-cuerpo`).value = t.cuerpo;
+      $(`pap-${ed.prefijo}-estado`).textContent = guardada
+        ? `Usás tu versión, editada el ${fecha(guardada.editada_en)}. ${ed.uso}`
+        : `Usás la versión original. ${ed.uso}`;
     }
   }
-  $('pap-bienvenida-guardar').addEventListener('click', () => guardarBienvenida('PUT'));
-  $('pap-bienvenida-original').addEventListener('click', () => {
-    if (window.confirm('¿Volver a la bienvenida original? Se pierde tu versión.')) guardarBienvenida('DELETE');
-  });
+  for (const ed of EDITORES) {
+    const id = (x) => $(`pap-${ed.prefijo}-${x}`);
+    id('variables').innerHTML = Object.entries(ed.variables)
+      .map(([k, d]) => `<button type="button" data-variable="${k}" title="${esc(d)}">{${k}}</button>`)
+      .join('');
+    id('variables').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-variable]');
+      if (!b) return;
+      const ta = id('cuerpo');
+      const v = `{${b.dataset.variable}}`;
+      const i = ta.selectionStart ?? ta.value.length;
+      ta.value = ta.value.slice(0, i) + v + ta.value.slice(ta.selectionEnd ?? i);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = i + v.length;
+    });
+    const guardar = async (metodo) => {
+      try {
+        const body = metodo === 'PUT' ? JSON.stringify({ asunto: id('asunto').value, cuerpo: id('cuerpo').value }) : undefined;
+        const { plantilla } = await api(`/pap/plantillas/${ed.clave}`, { method: metodo, body });
+        estado = { ...estado, [ed.campo]: plantilla };
+        renderPlantillas();
+        setStatus(id('status'), metodo === 'PUT' ? 'Guardada. Ya la usa su botón de copiar.' : 'Listo: volviste a la original.');
+      } catch (err) {
+        setStatus(id('status'), err.message, true);
+      }
+    };
+    id('guardar').addEventListener('click', () => guardar('PUT'));
+    id('original').addEventListener('click', () => {
+      if (window.confirm('¿Volver a la versión original? Se pierde tu versión.')) guardar('DELETE');
+    });
+  }
 
   // --- Estado / configuración ---
   function renderEstado() {
     const banner = $('pap-estado');
     if (!estado) return;
-    renderBienvenida();
+    renderPlantillas();
     $('pap-link-panel').href = estado.panelMerchant || '#';
     if (estado.configurado) {
       banner.hidden = true;
@@ -447,9 +463,9 @@ Comisión: ${pesos(v.comision)}. Queda aprobada para pagarle.`)) return;
     }
   });
 
-  // --- Plantilla de propuesta ---
-  $('pap-copiar-propuesta').addEventListener('click', (e) => {
-    if (estado) copiar(comoTexto(plantillaPropuesta(estado)), e.currentTarget);
+  // --- Primer toque (paso 1) ---
+  $('pap-copiar-primer').addEventListener('click', (e) => {
+    if (estado) copiar(comoTexto(plantillaPrimerToque(estado)), e.currentTarget);
   });
 
   // Se carga recién la primera vez que se abre la solapa (cada llamada a PAP

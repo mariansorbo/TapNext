@@ -10,27 +10,34 @@ export const nombreMes = (mes) => {
 };
 const primerNombre = (contacto) => String(contacto || '').trim().split(/\s+/)[0] || '[Nombre]';
 
-export function plantillaPropuesta({ signupUrl, landingUrl, comisionPct }) {
-  return {
-    asunto: `Un regalo para los equipos de tus clientes, y ${comisionPct}% para vos`,
-    cuerpo: `Hola [Nombre]:
+// Primer toque: el primer mail a una consultora o agencia. Editable desde el
+// admin, igual que la bienvenida (tabla pap_plantillas, clave 'primer_toque').
+export const VARIABLES_PRIMER_TOQUE = {
+  comision_pct: 'Comisión en %',
+  landing: 'Página de NextTap (next-tap.tech)',
+  registro: 'Alta de afiliados en PAP',
+};
 
-Soy Mariano, de NextTap. Te escribo porque [Agencia] lleva RRHH de varias pymes, y tengo algo que les puede servir a ellas y a ustedes.
+export const PRIMER_TOQUE_ORIGINAL = {
+  asunto: 'Un regalo de fin de año para tus clientes (y {comision_pct}% para vos)',
+  cuerpo: `Hola [Nombre]:
 
-NextTap es un llavero con un chip: lo acercás a cualquier celular y se abre al instante el WhatsApp, el Instagram o la web de quien lo lleva. No hace falta app ni escanear nada. Lo usan vendedores, técnicos y equipos que están todo el día pasando su contacto.
+Te escribo porque trabajás con pymes que no tienen área de RRHH propia, y en estos meses todas preguntan lo mismo: qué regalar a fin de año. Hacemos llaveros NFC que abren el Instagram o el WhatsApp de cada persona con solo apoyarlos en un celular. Un regalo para los empleados, novedoso y útil, que de verdad van a usar.
 
-Para una pyme es un regalo de fin de año o de bienvenida que se usa todos los días. Además, puede llevar el nombre y el logo de la empresa: cuando alguien toca el llavero, aparece "NextTap by [Empresa]".
+La idea es que se lo ofrezcas a tus clientes: vos lo recomendás, nosotros hacemos todo (pedido, entrega, factura) y te llevás el {comision_pct}% de cada venta.
 
-La propuesta es simple: te sumás como socio, te doy un link y un código tuyos y, por cada combo que compre una empresa que llegó por vos, te llevás el ${comisionPct}%. No tenés que vender, cobrar ni entregar nada: nosotros nos encargamos del envío y la atención. Es un servicio más para ofrecerles a tus clientes, sin trabajo extra.
+Para que no tengas que creernos a ciegas, cada venta queda registrada en Post Affiliate Pro, una plataforma externa de afiliados. Te damos un link propio para pasarles a tus clientes y un panel con tu usuario. Cuando una empresa entra por tu link y compra, la venta se registra en el momento, con la fecha y el monto, y ves tu comisión acumulada. Es el mismo registro que vemos nosotros, así que los dos trabajamos con los mismos números: sabés exactamente qué vendiste y cuánto te corresponde por cada cliente que nos acercaste.
 
-Mirá cómo funciona en ${landingUrl}/?utm_source=mail&utm_medium=agencias&utm_campaign=afiliados
+Como la empresa y el producto son muy nuevos, estamos haciendo un lanzamiento con las primeras consultoras que se suman como aliadas: {comision_pct}% de comisión sobre cada combo de llaveros (Instagram + WhatsApp).
 
-Si te interesa, te mando un combo de muestra para que lo pruebes y te anotás acá: ${signupUrl}
+Mariano | NextTap
+ventas@next-tap.tech · next-tap.tech`,
+};
 
-Saludos,
-Mariano
-NextTap · ventas@next-tap.tech`,
-  };
+export function plantillaPrimerToque({ comisionPct, landingUrl = 'https://next-tap.tech', signupUrl, primerToque }) {
+  const vars = { comision_pct: comisionPct, landing: landingUrl, registro: signupUrl || '' };
+  const t = primerToque || PRIMER_TOQUE_ORIGINAL;
+  return { asunto: completar(t.asunto, vars), cuerpo: completar(t.cuerpo, vars) };
 }
 
 // Bienvenida: se puede editar desde el admin (se guarda en el server, tabla

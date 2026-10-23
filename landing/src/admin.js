@@ -168,6 +168,7 @@ function wireToggle(buttonId, panelId) {
 wireToggle('toggle-add-vendedor', 'add-vendedor-panel');
 wireToggle('toggle-pap-nuevo', 'pap-nuevo-panel');
 wireToggle('toggle-pap-bienvenida', 'pap-bienvenida-panel');
+wireToggle('toggle-pap-primer', 'pap-primer-panel');
 
 // Solapas de arriba: "Panel" (todo lo de siempre) y "Post Affiliate Pro"
 // (src/pap-admin.js, que carga sus datos recién la primera vez que se abre).

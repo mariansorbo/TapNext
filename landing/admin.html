@@ -242,7 +242,7 @@
           </div>
         </div>
         <ol class="pap-pasos">
-          <li><b>Propuesta.</b> Le mandás a la agencia el mail de propuesta. <button type="button" class="row-btn" id="pap-copiar-propuesta">✉️ Copiar propuesta</button>
+          <li><b>Primer toque.</b> Le mandás a la consultora o agencia el primer mail. <button type="button" class="row-btn" id="pap-copiar-primer">✉️ Copiar primer toque</button>
             <span>Completá [Nombre] y [Agencia] antes de mandarlo.</span></li>
           <li><b>Si dice que sí, la das de alta</b> en "Agencias" (abajo): agencia, persona de contacto, mail y un código corto (ej. <code>LOPEZ</code>). Queda aprobada en PAP con su link.</li>
           <li><b>Bienvenida.</b> En su fila tocá <b>✉️ Bienvenida</b>: copia el mail ya completado con su link y su código y, abajo, el mail para pymes armado con su código (con diseño). Pegalo en un mail nuevo de Gmail, poné el asunto que aparece arriba de la tabla y mandalo.</li>
@@ -252,6 +252,30 @@
           <li><b>Si una empresa devuelve o no paga:</b> tocá <b>✕ Anular</b> en esa venta antes de pagar. Si ya le pagaste, descontalo del mes siguiente.</li>
         </ol>
         <p class="section-lead pap-nota">Reglas que le prometimos a las agencias: 20% del combo sin envío · la cookie del link dura 60 días · si la empresa nombra a la agencia, la venta es suya aunque no haya entrado por el link · se paga el día 10 lo aprobado del mes anterior.</p>
+      </div>
+
+      <!-- Primer toque editable: se guarda en el server (pap_plantillas). Ver src/pap-admin.js -->
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Mensaje de primer toque</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-primer"><span class="add-icon">+</span> Editar</button>
+          </div>
+        </div>
+        <p class="section-lead pap-nota" id="pap-primer-estado"></p>
+        <div class="admin-collapsible" id="pap-primer-panel" hidden>
+          <div class="modal-form pap-form">
+            <label class="pap-form-ancho"><span>Asunto</span><input id="pap-primer-asunto" maxlength="200"></label>
+          </div>
+          <p class="pap-nota pap-variables-ayuda">Tocá una variable para meterla donde está el cursor. Se completa sola al copiar:</p>
+          <div class="pap-variables" id="pap-primer-variables"></div>
+          <textarea id="pap-primer-cuerpo" class="pap-primer-cuerpo" rows="22" maxlength="10000"></textarea>
+          <div class="pap-bienvenida-acciones">
+            <button type="button" class="btn-primary panel-btn" id="pap-primer-guardar" style="width:auto;">Guardar</button>
+            <button type="button" class="btn-ghost" id="pap-primer-original">Volver a la original</button>
+          </div>
+          <p class="modal-status" id="pap-primer-status"></p>
+        </div>
       </div>
 
       <!-- Bienvenida editable: se guarda en el server (pap_plantillas). Ver src/pap-admin.js -->
