@@ -117,8 +117,42 @@ export function initPapAdmin({ api }) {
     const a = afiliados.find((x) => x.id === id);
     if (!a) return;
     if (link) copiar(a.link, link);
-    else copiar(comoTexto(plantillaBienvenida({ afiliado: a, ...estado })), bienv);
+    else copiarBienvenida(a, bienv);
   });
+
+  // Bienvenida: el texto (con su link y su código) y, abajo, el mail para pymes
+  // ya armado con su código, con diseño, para pegar todo junto en Gmail.
+  // El armado del mail vive en public/mail/mail-afiliado.js (lo comparte con
+  // /mail/afiliados.html). Si algo falla, copia solo el texto como antes.
+  async function copiarBienvenida(a, btn) {
+    const plantilla = plantillaBienvenida({ afiliado: a, ...estado });
+    const texto = comoTexto(plantilla);
+    const original = btn.innerHTML;
+    btn.textContent = 'Armando…';
+    try {
+      const { armarMailAfiliado, textoAHtml, copiarHtml } = await import(/* @vite-ignore */ `${location.origin}/mail/mail-afiliado.js`);
+      const mail = await armarMailAfiliado({ codigo: String(a.codigo).toUpperCase(), aid: a.codigo });
+      const html = `${textoAHtml(plantilla.cuerpo)}<p style="margin:18px 0 14px; font-family:Arial,sans-serif; font-size:14px; line-height:21px; color:#222;"><b>Así se ve el mail que podés mandarles a tus contactos:</b></p>${mail}`;
+      if (!(await copiarHtml(html, texto))) throw new Error('sin portapapeles');
+      btn.textContent = 'Copiado ✓';
+      setTimeout(() => (btn.innerHTML = original), 2500);
+      avisoAsunto(`Bienvenida de ${a.agencia || a.contacto} copiada. Asunto: ${plantilla.asunto}`);
+    } catch {
+      btn.innerHTML = original;
+      copiar(texto, btn);
+    }
+  }
+  // El HTML copiado no lleva el asunto: queda escrito arriba de la tabla.
+  function avisoAsunto(msg) {
+    const tabla = $('pap-afiliados-table');
+    let p = tabla.parentElement.querySelector('.pap-bienvenida-asunto');
+    if (!p) {
+      p = document.createElement('p');
+      p.className = 'section-lead pap-nota pap-bienvenida-asunto';
+      tabla.before(p);
+    }
+    p.textContent = msg;
+  }
 
   $('pap-afiliados-table').addEventListener('change', async (e) => {
     const input = e.target.closest('.pap-alias');

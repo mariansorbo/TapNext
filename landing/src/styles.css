@@ -493,6 +493,7 @@ h2{
 @media (min-width:900px){
   .emp-combo{grid-template-columns:1fr 1fr; align-items:center; padding:40px;}
 }
+.solo-celu{display:none;}
 .emp-cierre{color:var(--paper-dim); margin:-6px 0 20px;}
 /* "Un segundo que es de tu marca" en compu: la demo corre detrás de los tres
    pasos y se corre de columna según la fase (data-fase, src/empresas.js).
@@ -515,6 +516,11 @@ h2{
   .emp-recorrido .step p{font-size:.7rem; line-height:1.4;}
   .emp-recorrido .step-num{font-size:.62rem; margin-bottom:2px;}
   .emp-recorrido .solo-compu{display:none;} /* en celular el paso 01 va sin descripción */
+  .emp-recorrido .solo-celu{display:inline;} /* texto corto del paso 02 */
+  /* Paso 02 chico, en el hueco entre la barrita de carga y el pie de la pantalla de la marca. */
+  .emp-recorrido .step:nth-child(2){margin-bottom:64px; padding:7px 10px; max-width:150px; justify-self:center;}
+  .emp-recorrido .step:nth-child(2) h3{font-size:.78rem; margin-bottom:1px;}
+  .emp-recorrido .step:nth-child(2) p{font-size:.64rem;}
   .emp-recorrido .step:nth-child(1){align-self:center; justify-self:center; margin-bottom:90px; padding:7px 12px;}
   .emp-recorrido .step:nth-child(1) h3{margin-bottom:0; white-space:nowrap;}
   .emp-recorrido .step:nth-child(3){align-self:center; margin-bottom:90px;}

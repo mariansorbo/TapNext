@@ -182,7 +182,9 @@
   Copiar mail
 </button>
 
-<script>
+<script type="module">
+import { armarMailAfiliado, textoAHtml, copiarHtml } from './mail-afiliado.js';
+
 (async () => {
   const q = new URLSearchParams(location.search);
   const limpiar = (v) => (v || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
@@ -230,111 +232,21 @@
   aLinkWeb.href = linkWeb.href;
   aLinkWeb.textContent = linkWeb.href;
 
-  // Los links del mail, con el código del afiliado. La campaña es siempre la del
-  // mail para pymes; el código va solo en los links al sitio (los lee GA), no en Instagram.
-  const UTM = { utm_source: 'afiliado', utm_medium: 'email', utm_campaign: 'mail_pymes' };
-  // Cartel con el código de descuento, para que quien recibe el mail lo vea escrito.
-  const cartelCodigo = (texto) => {
-    const t = document.createElement('table');
-    t.setAttribute('role', 'presentation'); t.setAttribute('cellpadding', '0'); t.setAttribute('cellspacing', '0'); t.setAttribute('border', '0');
-    t.innerHTML = `<tr><td bgcolor="#14171A" style="background:#14171A; border:1px dashed #EDEFE9; border-radius:10px; padding:10px 14px; font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; line-height:18px; color:#C9CDC4;">${texto}<br><span style="font-size:20px; line-height:28px; font-weight:700; letter-spacing:2px; color:#EDEFE9;">${codigo}</span></td></tr>`;
-    return t;
-  };
-  function personalizar(raiz) {
-    // En la tarjeta del combo, arriba del botón; y en el cierre, una línea más.
-    const botonCombo = [...raiz.querySelectorAll('a')].find((a) => a.textContent.includes('Quiero el combo'));
-    if (botonCombo) {
-      const cartel = cartelCodigo('Código de descuento');
-      cartel.style.marginBottom = '14px';
-      botonCombo.before(cartel);
-    }
-    const cierre = [...raiz.querySelectorAll('p')].find((p) => p.textContent.includes('te armamos una propuesta'));
-    if (cierre) cierre.innerHTML = `Contanos de tu equipo y te armamos una propuesta. Usá el código <strong style="color:#EDEFE9; font-family:'JetBrains Mono',Consolas,monospace; letter-spacing:1px;">${codigo}</strong> para tu descuento.`;
-    raiz.querySelectorAll('a[href]').forEach((a) => {
-      let url;
-      try { url = new URL(a.getAttribute('href')); } catch { return; }
-      if (url.hostname === 'wa.me') {
-        const texto = url.searchParams.get('text');
-        const mensaje = `${texto || 'Hola, quiero NextTap para mi empresa.'}${texto && !/[.!?]$/.test(texto) ? '.' : ''} Tengo el código de referido: ${codigo}`;
-        // %20 y no "+": WhatsApp a veces deja los "+" tal cual en el mensaje.
-        a.setAttribute('href', `https://wa.me${url.pathname}?text=${encodeURIComponent(mensaje)}`);
-        return;
-      } else if (url.hostname === 'next-tap.tech' || url.hostname.endsWith('instagram.com')) {
-        for (const [k, v] of Object.entries(UTM)) url.searchParams.set(k, v);
-        if (url.hostname === 'next-tap.tech') {
-          url.searchParams.set('utm_content', codigo);
-          if (aid) url.searchParams.set('a_aid', aid);
-        }
-      } else if (url.protocol === 'mailto:') {
-        a.setAttribute('href', `mailto:ventas@next-tap.tech?subject=${encodeURIComponent(`NextTap para mi empresa (código ${codigo})`)}`);
-        return;
-      }
-      a.setAttribute('href', url.href);
-    });
-    // Quien lo recibe le respondería al afiliado, no a nosotros.
-    raiz.querySelectorAll('div').forEach((d) => {
-      const primero = d.firstChild;
-      if (primero?.nodeType === 3 && primero.textContent.includes('o respondé este mail')) {
-        primero.textContent = 'o escribinos a ';
-        const mail = document.createElement('a');
-        mail.href = `mailto:ventas@next-tap.tech?subject=${encodeURIComponent(`NextTap para mi empresa (código ${codigo})`)}`;
-        mail.textContent = 'ventas@next-tap.tech';
-        mail.setAttribute('style', 'color:#7B5CFF; text-decoration:none;');
-        d.insertBefore(mail, primero.nextSibling);
-        mail.after(document.createTextNode(' · '));
-      }
-    });
-  }
-
   const contenedor = document.getElementById('mail');
   const estado = document.getElementById('estado');
   const avisar = (texto, mal = false) => { estado.textContent = texto; estado.classList.toggle('mal', mal); };
 
-  fetch('/mail/empresas/mail.html', { cache: 'no-cache' })
-    .then((r) => { if (!r.ok) throw new Error(r.status); return r.text(); })
+  armarMailAfiliado({ codigo, aid })
     .then((html) => {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      // El texto oculto de la bandeja (preheader) aparecería al pegar: afuera.
-      doc.body.querySelectorAll('div[style*="display:none"]').forEach((d) => d.remove());
-      personalizar(doc.body);
-      contenedor.innerHTML = doc.body.innerHTML;
+      contenedor.innerHTML = html;
       document.getElementById('vista').hidden = false;
     })
     .catch(() => avisar('No se pudo cargar el mail. Probá recargar la página.', true));
 
   // Lo que se copia: las líneas del afiliado (texto común) + el mail.
   function htmlParaCopiar() {
-    const intro = document.getElementById('intro').value.trim();
-    const parrafos = intro
-      ? intro.split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px; font-family:Arial,sans-serif; font-size:14px; line-height:21px; color:#222;">${p
-          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('') + '<br>'
-      : '';
-    return parrafos + contenedor.innerHTML;
-  }
-
-  async function copiarHtml(html, textoPlano) {
-    if (navigator.clipboard && window.ClipboardItem) {
-      try {
-        await navigator.clipboard.write([new ClipboardItem({
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([textoPlano], { type: 'text/plain' }),
-        })]);
-        return true;
-      } catch { /* sigue con el método viejo */ }
-    }
-    // Navegadores sin ClipboardItem: seleccionar un bloque con el HTML y copiar.
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    temp.style.cssText = 'position:fixed; left:-9999px; top:0;';
-    document.body.appendChild(temp);
-    const rango = document.createRange();
-    rango.selectNodeContents(temp);
-    const sel = getSelection();
-    sel.removeAllRanges(); sel.addRange(rango);
-    let ok = false;
-    try { ok = document.execCommand('copy'); } catch { ok = false; }
-    sel.removeAllRanges(); temp.remove();
-    return ok;
+    const intro = textoAHtml(document.getElementById('intro').value);
+    return (intro ? intro + '<br>' : '') + contenedor.innerHTML;
   }
 
   const botonCopiar = document.getElementById('copiar-mail');
