@@ -25,10 +25,22 @@
   .lead{color:var(--paper-dim); font-size:1.02rem; line-height:1.55; margin:0 0 28px; max-width:56ch;}
   .codigo-chip{display:inline-block; font-family:'JetBrains Mono',monospace; background:var(--surface-2); border:1px solid var(--line);
     padding:3px 10px; border-radius:8px; color:var(--paper);}
-  .pasos{list-style:none; padding:0; margin:0 0 28px; display:grid; gap:12px; grid-template-columns:repeat(3,1fr);}
-  .pasos li{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px;}
-  .pasos b{display:block; font-family:'JetBrains Mono',monospace; color:var(--violet); font-size:.8rem; font-weight:500; margin-bottom:6px;}
-  .pasos span{font-size:.92rem; line-height:1.45; color:var(--paper-dim);}
+  /* Los 3 pasos, con la misma facha que el flujo de arriba del panel de admin
+     (.admin-flow en src/styles.css): número en círculo violeta, título, texto y flechas. */
+  .flujo{display:flex; align-items:stretch; margin:0 0 30px;}
+  .flujo-paso{flex:1 1 0; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 14px;
+    display:flex; flex-direction:column; gap:6px; position:relative;}
+  .flujo-cabeza{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .flujo-num{width:24px; height:24px; border-radius:50%; background:var(--violet); color:var(--ink); font-family:'JetBrains Mono',monospace;
+    font-size:.75rem; font-weight:700; display:flex; align-items:center; justify-content:center;}
+  .flujo-icono{width:34px; height:34px; border-radius:9px; background:var(--surface-2); display:flex; align-items:center; justify-content:center; color:var(--paper);}
+  .flujo-icono svg{width:18px; height:18px;}
+  .flujo-paso h4{margin:0; font-family:'Space Grotesk',sans-serif; font-size:.95rem; font-weight:600; letter-spacing:-.01em;}
+  .flujo-paso p{margin:0; font-size:.8rem; color:var(--paper-dim); line-height:1.45;}
+  .flujo-paso kbd{font-family:'JetBrains Mono',monospace; font-size:.72rem; background:var(--ink); border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 5px; color:var(--paper);}
+  .flujo-flecha{flex:0 0 28px; display:flex; align-items:center; justify-content:center; color:var(--paper-dim); font-size:1.1rem;}
+  .flujo-paso.es-boton{border-color:var(--violet); box-shadow:0 0 0 1px var(--violet) inset;}
+  .flujo-paso.es-boton .flujo-icono{background:var(--violet); color:var(--ink);}
   .campo{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
   .campo label{display:block; font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;}
   .fila{display:flex; gap:10px; align-items:stretch;}
@@ -41,10 +53,29 @@
   .btn:hover{background:var(--violet-dim);}
   .btn-chico{background:var(--surface-2); color:var(--paper); border:1px solid var(--line); padding:0 16px; white-space:nowrap;}
   .btn-chico:hover{border-color:var(--paper-dim);}
-  .copiar{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:24px 0 10px;}
-  .copiar .btn{font-size:1.05rem; padding:16px 28px;}
-  .estado{font-family:'JetBrains Mono',monospace; font-size:.85rem; color:var(--ok); min-height:1.2em;}
-  .estado.mal{color:#FF6B6B;}
+  /* El bloque del botón: tarjeta violeta como la oferta de /empresas, para que
+     quede claro que es LO que hay que tocar y qué hace. */
+  .copiar{margin:26px 0 12px; border-radius:20px; padding:26px 26px 22px; color:var(--ink);
+    background:linear-gradient(135deg,#7B5CFF 0%,#9A7BFF 55%,#C3A8FF 100%); box-shadow:0 18px 40px -16px rgba(123,92,255,.75);
+    display:grid; grid-template-columns:1fr auto; gap:6px 22px; align-items:center;}
+  .copiar-tag{grid-column:1 / -1; justify-self:start; font-family:'JetBrains Mono',monospace; font-size:.7rem; letter-spacing:.08em; text-transform:uppercase;
+    background:var(--ink); color:var(--paper); padding:4px 10px; border-radius:999px; margin-bottom:6px;}
+  .copiar h3{margin:0; font-family:'Space Grotesk',sans-serif; font-size:1.5rem; line-height:1.15; letter-spacing:-.02em;}
+  .copiar ul{margin:8px 0 0; padding:0; list-style:none; font-size:.9rem; font-weight:500; line-height:1.7;}
+  .copiar ul li::before{content:'✓  ';}
+  .copiar .btn-copiar{grid-row:2 / span 2; grid-column:2; background:var(--ink); color:var(--paper); font-weight:700; font-size:1.1rem;
+    padding:20px 28px; border-radius:14px; display:flex; align-items:center; gap:10px; transition:transform .15s ease;}
+  .copiar .btn-copiar:hover{transform:translateY(-2px);}
+  .copiar .btn-copiar svg{width:20px; height:20px;}
+  .copiar .btn-copiar.listo{background:#0E5132;}
+  .estado{grid-column:1 / -1; font-family:'JetBrains Mono',monospace; font-size:.85rem; font-weight:500; color:var(--ink); min-height:1.2em; margin-top:6px;}
+  .estado.mal{color:#7A0E0E;}
+  /* Botón que sigue a la vista mientras se mira el mail de abajo. */
+  .barra-copiar{position:fixed; left:50%; bottom:18px; transform:translate(-50%, 140%); transition:transform .3s ease; z-index:10;
+    background:var(--violet); color:var(--paper); font-weight:700; padding:14px 22px; border-radius:999px; box-shadow:0 12px 30px -8px rgba(0,0,0,.7);
+    display:flex; align-items:center; gap:8px;}
+  .barra-copiar.visible{transform:translate(-50%, 0);}
+  .barra-copiar svg{width:18px; height:18px;}
   .respaldo{font-size:.9rem; color:var(--paper-dim); margin:0 0 36px;}
   .vista-titulo{font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px;}
   .vista{border:1px solid var(--line); border-radius:18px; overflow:hidden; background:#14171A;}
@@ -52,7 +83,11 @@
   .sin-codigo{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px; max-width:460px;}
   .sin-codigo form{display:flex; gap:10px; margin-top:12px;}
   [hidden]{display:none !important;}
-  @media (max-width:640px){ .pasos{grid-template-columns:1fr;} .fila{flex-direction:column;} .btn-chico{padding:12px 16px;} }
+  @media (max-width:640px){
+    .flujo{flex-direction:column;} .flujo-flecha{transform:rotate(90deg); flex-basis:22px;}
+    .fila{flex-direction:column;} .btn-chico{padding:12px 16px;}
+    .copiar{grid-template-columns:1fr;} .copiar .btn-copiar{grid-row:auto; grid-column:1; justify-content:center; margin-top:10px;}
+  }
   /* Modo "ver el mail en la web": solo el mail, sin la página alrededor. */
   body.solo-mail .wrap{max-width:none; padding:0;}
   body.solo-mail .marco{display:none;}
@@ -80,13 +115,30 @@
     <section id="con-codigo" hidden>
       <div class="kicker">Para afiliados</div>
       <h1>Mandalo como un mail tuyo.</h1>
-      <p class="lead">Este es el mail de NextTap para empresas, armado con tu código <span class="codigo-chip" data-codigo></span>. Cuando alguien toca “Quiero el combo” o “Hablemos por WhatsApp”, el mensaje ya sale con tu código.</p>
+      <p class="lead">Este es el mail de NextTap para empresas, armado con tu código <span style="white-space:nowrap;"><span class="codigo-chip" data-codigo></span>.</span> Cuando alguien toca “Quiero el combo” o “Hablemos por WhatsApp”, el mensaje ya sale con tu código.</p>
 
-      <ol class="pasos">
-        <li><b>01</b><span>Tocá <strong>Copiar mail</strong>.</span></li>
-        <li><b>02</b><span>Abrí un mail <strong>nuevo</strong> en Gmail u Outlook (no reenvíes).</span></li>
-        <li><b>03</b><span>Pegá con Ctrl+V, poné el asunto y a quién, y mandalo.</span></li>
-      </ol>
+      <div class="flujo" role="list">
+        <div class="flujo-paso es-boton" role="listitem">
+          <div class="flujo-cabeza"><span class="flujo-num">1</span>
+            <span class="flujo-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span></div>
+          <h4>Copiá el mail</h4>
+          <p>Con el botón violeta de abajo. Se copia con el diseño, los GIFs y tu código.</p>
+        </div>
+        <div class="flujo-flecha">→</div>
+        <div class="flujo-paso" role="listitem">
+          <div class="flujo-cabeza"><span class="flujo-num">2</span>
+            <span class="flujo-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span></div>
+          <h4>Abrí un mail nuevo</h4>
+          <p>En Gmail u Outlook. <strong>Nuevo</strong>, no reenviado: así llega como tuyo.</p>
+        </div>
+        <div class="flujo-flecha">→</div>
+        <div class="flujo-paso" role="listitem">
+          <div class="flujo-cabeza"><span class="flujo-num">3</span>
+            <span class="flujo-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></span></div>
+          <h4>Pegá y mandalo</h4>
+          <p>Pegá con <kbd>Ctrl</kbd>+<kbd>V</kbd>, poné el asunto y a quién.</p>
+        </div>
+      </div>
 
       <div class="campo">
         <label for="asunto">Asunto sugerido</label>
@@ -103,7 +155,17 @@
       </div>
 
       <div class="copiar">
-        <button type="button" class="btn" id="copiar-mail">Copiar mail</button>
+        <span class="copiar-tag">Paso 1</span>
+        <h3>Copiá el mail listo para mandar.</h3>
+        <ul>
+          <li>Con el diseño y los GIFs, igual que acá abajo</li>
+          <li>Con tu código <span data-codigo></span> en el combo y en WhatsApp</li>
+          <li>Con tus líneas arriba, si las escribiste</li>
+        </ul>
+        <button type="button" class="btn-copiar" id="copiar-mail">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span>Copiar mail</span>
+        </button>
         <span class="estado" id="estado" role="status"></span>
       </div>
       <p class="respaldo">¿Lo querés pasar por WhatsApp o LinkedIn? Compartí este link: <a id="link-web" href="#" target="_blank" rel="noopener"></a></p>
@@ -114,6 +176,10 @@
 
   <div class="vista" id="vista" hidden><div class="vista-mail" id="mail"></div></div>
 </div>
+<button type="button" class="barra-copiar" id="barra-copiar" aria-hidden="true" tabindex="-1">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+  Copiar mail
+</button>
 
 <script>
 (() => {
@@ -143,9 +209,26 @@
   aLinkWeb.href = linkWeb.href;
   aLinkWeb.textContent = linkWeb.href;
 
-  // Los links del mail, con el código del afiliado.
-  const UTM = { utm_source: 'afiliado', utm_medium: 'email', utm_campaign: 'empresas_fin_de_anio', utm_content: codigo };
+  // Los links del mail, con el código del afiliado. La campaña es siempre la del
+  // mail para pymes; el código va solo en los links al sitio (los lee GA), no en Instagram.
+  const UTM = { utm_source: 'afiliado', utm_medium: 'email', utm_campaign: 'mail_pymes' };
+  // Cartel con el código de descuento, para que quien recibe el mail lo vea escrito.
+  const cartelCodigo = (texto) => {
+    const t = document.createElement('table');
+    t.setAttribute('role', 'presentation'); t.setAttribute('cellpadding', '0'); t.setAttribute('cellspacing', '0'); t.setAttribute('border', '0');
+    t.innerHTML = `<tr><td bgcolor="#14171A" style="background:#14171A; border:1px dashed #EDEFE9; border-radius:10px; padding:10px 14px; font-family:'JetBrains Mono',Consolas,monospace; font-size:12px; line-height:18px; color:#C9CDC4;">${texto}<br><span style="font-size:20px; line-height:28px; font-weight:700; letter-spacing:2px; color:#EDEFE9;">${codigo}</span></td></tr>`;
+    return t;
+  };
   function personalizar(raiz) {
+    // En la tarjeta del combo, arriba del botón; y en el cierre, una línea más.
+    const botonCombo = [...raiz.querySelectorAll('a')].find((a) => a.textContent.includes('Quiero el combo'));
+    if (botonCombo) {
+      const cartel = cartelCodigo('Código de descuento');
+      cartel.style.marginBottom = '14px';
+      botonCombo.before(cartel);
+    }
+    const cierre = [...raiz.querySelectorAll('p')].find((p) => p.textContent.includes('te armamos una propuesta'));
+    if (cierre) cierre.innerHTML = `Contanos de tu equipo y te armamos una propuesta. Usá el código <strong style="color:#EDEFE9; font-family:'JetBrains Mono',Consolas,monospace; letter-spacing:1px;">${codigo}</strong> para tu descuento.`;
     raiz.querySelectorAll('a[href]').forEach((a) => {
       let url;
       try { url = new URL(a.getAttribute('href')); } catch { return; }
@@ -157,7 +240,10 @@
         return;
       } else if (url.hostname === 'next-tap.tech' || url.hostname.endsWith('instagram.com')) {
         for (const [k, v] of Object.entries(UTM)) url.searchParams.set(k, v);
-        if (aid && url.hostname === 'next-tap.tech') url.searchParams.set('a_aid', aid);
+        if (url.hostname === 'next-tap.tech') {
+          url.searchParams.set('utm_content', codigo);
+          if (aid) url.searchParams.set('a_aid', aid);
+        }
       } else if (url.protocol === 'mailto:') {
         a.setAttribute('href', `mailto:ventas@next-tap.tech?subject=${encodeURIComponent(`NextTap para mi empresa (código ${codigo})`)}`);
         return;
@@ -230,13 +316,32 @@
     return ok;
   }
 
-  document.getElementById('copiar-mail').addEventListener('click', async () => {
+  const botonCopiar = document.getElementById('copiar-mail');
+  const barraCopiar = document.getElementById('barra-copiar');
+  async function copiarMail() {
     if (!contenedor.innerHTML) return avisar('Esperá a que cargue el mail.', true);
     const html = htmlParaCopiar();
     const plano = `${document.getElementById('intro').value.trim()}\n\n${contenedor.innerText}`.trim();
     const ok = await copiarHtml(html, plano);
-    avisar(ok ? '✓ Copiado. Pegalo en un mail nuevo con Ctrl+V.' : 'No se pudo copiar. Seleccioná el mail de abajo y copialo a mano.', !ok);
-  });
+    avisar(ok ? '✓ Copiado. Ahora abrí un mail nuevo y pegalo con Ctrl+V.' : 'No se pudo copiar. Seleccioná el mail de abajo y copialo a mano.', !ok);
+    if (ok) {
+      const texto = botonCopiar.querySelector('span');
+      botonCopiar.classList.add('listo'); texto.textContent = '¡Copiado!';
+      barraCopiar.lastChild.textContent = ' ¡Copiado!';
+      setTimeout(() => { botonCopiar.classList.remove('listo'); texto.textContent = 'Copiar mail'; barraCopiar.lastChild.textContent = ' Copiar mail'; }, 3000);
+    }
+  }
+  botonCopiar.addEventListener('click', copiarMail);
+  barraCopiar.addEventListener('click', copiarMail);
+  // El botón flotante aparece cuando el principal ya no se ve (mirando el mail de abajo).
+  if (!soloMail && 'IntersectionObserver' in window) {
+    new IntersectionObserver(([e]) => {
+      const mostrar = !e.isIntersecting && e.boundingClientRect.top < 0;
+      barraCopiar.classList.toggle('visible', mostrar);
+      barraCopiar.setAttribute('aria-hidden', String(!mostrar));
+      barraCopiar.tabIndex = mostrar ? 0 : -1;
+    }).observe(botonCopiar);
+  }
 
   document.getElementById('copiar-asunto').addEventListener('click', async () => {
     const asunto = document.getElementById('asunto').value;
