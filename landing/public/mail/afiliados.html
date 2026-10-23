@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>NextTap — Mail para compartir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Página para afiliados: arma el mail de empresas (mail.html) con su código
+     de referido metido en los links y lo copia con diseño, para pegarlo en un
+     mail nuevo de Gmail u Outlook. Así nadie reenvía el original ("Fwd:").
+     Uso: /mail/afiliados.html?codigo=XXXX (opcional &a_aid=<id de PAP>). -->
+<style>
+  :root{--ink:#14171A; --surface:#1B1F23; --surface-2:#22272C; --paper:#EDEFE9; --paper-dim:#C9CDC4;
+    --violet:#7B5CFF; --violet-dim:#5B44C4; --line:rgba(237,239,233,.12); --ok:#25D366;}
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--ink); color:var(--paper); font-family:Inter,Arial,sans-serif;}
+  a{color:var(--violet);}
+  .wrap{max-width:760px; margin:0 auto; padding:32px 16px 64px;}
+  .logo{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1.3rem; letter-spacing:-.02em; text-decoration:none; color:var(--paper);}
+  .logo span{background:var(--violet); color:var(--ink); padding:2px 9px 3px; border-radius:7px; margin-left:3px;}
+  .kicker{font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--violet); letter-spacing:.08em; text-transform:uppercase; margin:36px 0 12px;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:clamp(1.9rem,5vw,2.6rem); line-height:1.08; letter-spacing:-.03em; margin:0 0 14px;}
+  .lead{color:var(--paper-dim); font-size:1.02rem; line-height:1.55; margin:0 0 28px; max-width:56ch;}
+  .codigo-chip{display:inline-block; font-family:'JetBrains Mono',monospace; background:var(--surface-2); border:1px solid var(--line);
+    padding:3px 10px; border-radius:8px; color:var(--paper);}
+  .pasos{list-style:none; padding:0; margin:0 0 28px; display:grid; gap:12px; grid-template-columns:repeat(3,1fr);}
+  .pasos li{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px;}
+  .pasos b{display:block; font-family:'JetBrains Mono',monospace; color:var(--violet); font-size:.8rem; font-weight:500; margin-bottom:6px;}
+  .pasos span{font-size:.92rem; line-height:1.45; color:var(--paper-dim);}
+  .campo{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .campo label{display:block; font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px;}
+  .fila{display:flex; gap:10px; align-items:stretch;}
+  input[type=text], textarea{width:100%; font:inherit; color:var(--paper); background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  textarea{resize:vertical; min-height:92px; line-height:1.5;}
+  input:focus, textarea:focus{outline:2px solid var(--violet); outline-offset:1px;}
+  .ayuda{font-size:.82rem; color:var(--paper-dim); margin:8px 0 0;}
+  button{font:inherit; cursor:pointer; border:0; border-radius:10px;}
+  .btn{background:var(--violet); color:var(--paper); font-weight:600; padding:14px 22px; white-space:nowrap;}
+  .btn:hover{background:var(--violet-dim);}
+  .btn-chico{background:var(--surface-2); color:var(--paper); border:1px solid var(--line); padding:0 16px; white-space:nowrap;}
+  .btn-chico:hover{border-color:var(--paper-dim);}
+  .copiar{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:24px 0 10px;}
+  .copiar .btn{font-size:1.05rem; padding:16px 28px;}
+  .estado{font-family:'JetBrains Mono',monospace; font-size:.85rem; color:var(--ok); min-height:1.2em;}
+  .estado.mal{color:#FF6B6B;}
+  .respaldo{font-size:.9rem; color:var(--paper-dim); margin:0 0 36px;}
+  .vista-titulo{font-family:'JetBrains Mono',monospace; font-size:.75rem; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px;}
+  .vista{border:1px solid var(--line); border-radius:18px; overflow:hidden; background:#14171A;}
+  .vista-mail{overflow-x:auto;}
+  .sin-codigo{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px; max-width:460px;}
+  .sin-codigo form{display:flex; gap:10px; margin-top:12px;}
+  [hidden]{display:none !important;}
+  @media (max-width:640px){ .pasos{grid-template-columns:1fr;} .fila{flex-direction:column;} .btn-chico{padding:12px 16px;} }
+  /* Modo "ver el mail en la web": solo el mail, sin la página alrededor. */
+  body.solo-mail .wrap{max-width:none; padding:0;}
+  body.solo-mail .marco{display:none;}
+  body.solo-mail .vista{border:0; border-radius:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="marco">
+    <a href="/" class="logo">Next<span>Tap</span></a>
+
+    <!-- Sin código: lo pide (la página no sirve sin él). -->
+    <section id="pedir-codigo" hidden>
+      <div class="kicker">Para afiliados</div>
+      <h1>El mail para tus contactos.</h1>
+      <div class="sin-codigo">
+        <p style="margin:0; color:var(--paper-dim);">Escribí tu código de referido para armar el mail con tu código adentro.</p>
+        <form id="form-codigo">
+          <input type="text" name="codigo" placeholder="Tu código" maxlength="40" autocomplete="off" required>
+          <button class="btn" type="submit">Armar</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="con-codigo" hidden>
+      <div class="kicker">Para afiliados</div>
+      <h1>Mandalo como un mail tuyo.</h1>
+      <p class="lead">Este es el mail de NextTap para empresas, armado con tu código <span class="codigo-chip" data-codigo></span>. Cuando alguien toca “Quiero el combo” o “Hablemos por WhatsApp”, el mensaje ya sale con tu código.</p>
+
+      <ol class="pasos">
+        <li><b>01</b><span>Tocá <strong>Copiar mail</strong>.</span></li>
+        <li><b>02</b><span>Abrí un mail <strong>nuevo</strong> en Gmail u Outlook (no reenvíes).</span></li>
+        <li><b>03</b><span>Pegá con Ctrl+V, poné el asunto y a quién, y mandalo.</span></li>
+      </ol>
+
+      <div class="campo">
+        <label for="asunto">Asunto sugerido</label>
+        <div class="fila">
+          <input type="text" id="asunto" value="El regalo de fin de año para tu equipo">
+          <button type="button" class="btn-chico" id="copiar-asunto">Copiar asunto</button>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="intro">Unas líneas tuyas arriba del mail (opcional)</label>
+        <textarea id="intro">Hola, ¿cómo estás? Te paso esto que me pareció ideal para el regalo de fin de año de tu equipo. Si te interesa, escribiles con mi código.</textarea>
+        <p class="ayuda">Van arriba del mail, como texto normal. Si lo dejás vacío, se copia solo el mail.</p>
+      </div>
+
+      <div class="copiar">
+        <button type="button" class="btn" id="copiar-mail">Copiar mail</button>
+        <span class="estado" id="estado" role="status"></span>
+      </div>
+      <p class="respaldo">¿Lo querés pasar por WhatsApp o LinkedIn? Compartí este link: <a id="link-web" href="#" target="_blank" rel="noopener"></a></p>
+
+      <p class="vista-titulo">Así lo va a recibir</p>
+    </section>
+  </div>
+
+  <div class="vista" id="vista" hidden><div class="vista-mail" id="mail"></div></div>
+</div>
+
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const limpiar = (v) => (v || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  const codigo = limpiar(q.get('codigo') || q.get('ref'));
+  const aid = limpiar(q.get('a_aid'));
+  const soloMail = q.get('ver') === 'mail';
+
+  if (!codigo) {
+    document.getElementById('pedir-codigo').hidden = false;
+    document.getElementById('form-codigo').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const c = limpiar(new FormData(e.target).get('codigo'));
+      if (c) { q.set('codigo', c); location.search = q.toString(); }
+    });
+    return;
+  }
+
+  if (soloMail) document.body.classList.add('solo-mail');
+  else document.getElementById('con-codigo').hidden = false;
+  document.querySelectorAll('[data-codigo]').forEach((el) => { el.textContent = codigo; });
+
+  const linkWeb = new URL(location.href);
+  linkWeb.search = new URLSearchParams({ codigo, ...(aid ? { a_aid: aid } : {}), ver: 'mail' }).toString();
+  const aLinkWeb = document.getElementById('link-web');
+  aLinkWeb.href = linkWeb.href;
+  aLinkWeb.textContent = linkWeb.href;
+
+  // Los links del mail, con el código del afiliado.
+  const UTM = { utm_source: 'afiliado', utm_medium: 'email', utm_campaign: 'empresas_fin_de_anio', utm_content: codigo };
+  function personalizar(raiz) {
+    raiz.querySelectorAll('a[href]').forEach((a) => {
+      let url;
+      try { url = new URL(a.getAttribute('href')); } catch { return; }
+      if (url.hostname === 'wa.me') {
+        const texto = url.searchParams.get('text');
+        const mensaje = `${texto || 'Hola, quiero NextTap para mi empresa.'}${texto && !/[.!?]$/.test(texto) ? '.' : ''} Tengo el código de referido: ${codigo}`;
+        // %20 y no "+": WhatsApp a veces deja los "+" tal cual en el mensaje.
+        a.setAttribute('href', `https://wa.me${url.pathname}?text=${encodeURIComponent(mensaje)}`);
+        return;
+      } else if (url.hostname === 'next-tap.tech' || url.hostname.endsWith('instagram.com')) {
+        for (const [k, v] of Object.entries(UTM)) url.searchParams.set(k, v);
+        if (aid && url.hostname === 'next-tap.tech') url.searchParams.set('a_aid', aid);
+      } else if (url.protocol === 'mailto:') {
+        a.setAttribute('href', `mailto:ventas@next-tap.tech?subject=${encodeURIComponent(`NextTap para mi empresa (código ${codigo})`)}`);
+        return;
+      }
+      a.setAttribute('href', url.href);
+    });
+    // Quien lo recibe le respondería al afiliado, no a nosotros.
+    raiz.querySelectorAll('div').forEach((d) => {
+      const primero = d.firstChild;
+      if (primero?.nodeType === 3 && primero.textContent.includes('o respondé este mail')) {
+        primero.textContent = 'o escribinos a ';
+        const mail = document.createElement('a');
+        mail.href = `mailto:ventas@next-tap.tech?subject=${encodeURIComponent(`NextTap para mi empresa (código ${codigo})`)}`;
+        mail.textContent = 'ventas@next-tap.tech';
+        mail.setAttribute('style', 'color:#7B5CFF; text-decoration:none;');
+        d.insertBefore(mail, primero.nextSibling);
+        mail.after(document.createTextNode(' · '));
+      }
+    });
+  }
+
+  const contenedor = document.getElementById('mail');
+  const estado = document.getElementById('estado');
+  const avisar = (texto, mal = false) => { estado.textContent = texto; estado.classList.toggle('mal', mal); };
+
+  fetch('/mail/empresas/mail.html', { cache: 'no-cache' })
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.text(); })
+    .then((html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      // El texto oculto de la bandeja (preheader) aparecería al pegar: afuera.
+      doc.body.querySelectorAll('div[style*="display:none"]').forEach((d) => d.remove());
+      personalizar(doc.body);
+      contenedor.innerHTML = doc.body.innerHTML;
+      document.getElementById('vista').hidden = false;
+    })
+    .catch(() => avisar('No se pudo cargar el mail. Probá recargar la página.', true));
+
+  // Lo que se copia: las líneas del afiliado (texto común) + el mail.
+  function htmlParaCopiar() {
+    const intro = document.getElementById('intro').value.trim();
+    const parrafos = intro
+      ? intro.split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px; font-family:Arial,sans-serif; font-size:14px; line-height:21px; color:#222;">${p
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('') + '<br>'
+      : '';
+    return parrafos + contenedor.innerHTML;
+  }
+
+  async function copiarHtml(html, textoPlano) {
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([textoPlano], { type: 'text/plain' }),
+        })]);
+        return true;
+      } catch { /* sigue con el método viejo */ }
+    }
+    // Navegadores sin ClipboardItem: seleccionar un bloque con el HTML y copiar.
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    temp.style.cssText = 'position:fixed; left:-9999px; top:0;';
+    document.body.appendChild(temp);
+    const rango = document.createRange();
+    rango.selectNodeContents(temp);
+    const sel = getSelection();
+    sel.removeAllRanges(); sel.addRange(rango);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    sel.removeAllRanges(); temp.remove();
+    return ok;
+  }
+
+  document.getElementById('copiar-mail').addEventListener('click', async () => {
+    if (!contenedor.innerHTML) return avisar('Esperá a que cargue el mail.', true);
+    const html = htmlParaCopiar();
+    const plano = `${document.getElementById('intro').value.trim()}\n\n${contenedor.innerText}`.trim();
+    const ok = await copiarHtml(html, plano);
+    avisar(ok ? '✓ Copiado. Pegalo en un mail nuevo con Ctrl+V.' : 'No se pudo copiar. Seleccioná el mail de abajo y copialo a mano.', !ok);
+  });
+
+  document.getElementById('copiar-asunto').addEventListener('click', async () => {
+    const asunto = document.getElementById('asunto').value;
+    try { await navigator.clipboard.writeText(asunto); avisar('✓ Asunto copiado.'); }
+    catch { avisar('No se pudo copiar el asunto.', true); }
+  });
+})();
+</script>
+</body>
+</html>
