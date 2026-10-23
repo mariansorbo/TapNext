@@ -33,7 +33,7 @@ import { enviarGaPurchase, ga4Disponible, esGaClientId, esGaSessionId } from './
 import { avisarAdmin, pesos, MIN_AVISO_SIN_PAGO } from './alertas-admin.js';
 import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId } from './tracking.js';
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
-import { crearPapAdminRouter } from './pap-admin.js';
+import { crearPapAdminRouter, crearAfiliadosPublicoRouter } from './pap-admin.js';
 import { crearContactoEmpresasRouter } from './contacto-empresas.js';
 import {
   crearOrganizacionesRouter,
@@ -170,6 +170,8 @@ app.use('/api/sorteo', crearSorteoRouter());
 
 // Formulario de contacto de empresas.html — ver server/contacto-empresas.js.
 app.use('/api', crearContactoEmpresasRouter());
+// Valida el código de agencia de /mail/afiliados.html (ver server/pap-admin.js).
+app.use('/api', crearAfiliadosPublicoRouter());
 
 // Organizaciones (cuenta de empresa): nombre + imagen de la pantalla del tap —
 // ver server/organizaciones.js.

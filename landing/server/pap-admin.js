@@ -200,6 +200,45 @@ function afiliadoPublico(a, local) {
   };
 }
 
+// Público (sin admin): GET /afiliados/codigo/:codigo → { valido, codigo } (codigo tal como está en PAP).
+// Lo usa /mail/afiliados.html para armar el mail solo con códigos de agencias
+// aprobadas en PAP. La lista se guarda 5 minutos para no consultar PAP en cada
+// visita; dar de alta una agencia la invalida al toque.
+const CACHE_CODIGOS_MS = 5 * 60 * 1000;
+let cacheCodigos = { hasta: 0, codigos: null };
+const olvidarCodigosAfiliados = () => {
+  cacheCodigos = { hasta: 0, codigos: null };
+};
+async function codigosAprobados() {
+  if (cacheCodigos.codigos && Date.now() < cacheCodigos.hasta) return cacheCodigos.codigos;
+  const afiliados = await papTodo('/affiliates');
+  // En mayúsculas → tal como está en PAP (el a_aid del link usa el original).
+  const codigos = new Map(
+    afiliados
+      .filter((a) => a.status === 'approved' && a.referral_id)
+      .map((a) => [String(a.referral_id).toUpperCase(), String(a.referral_id)])
+  );
+  cacheCodigos = { hasta: Date.now() + CACHE_CODIGOS_MS, codigos };
+  return codigos;
+}
+
+export function crearAfiliadosPublicoRouter() {
+  const r = express.Router();
+  r.get('/afiliados/codigo/:codigo', async (req, res) => {
+    const codigo = String(req.params.codigo || '').trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,40}$/.test(codigo)) return res.json({ valido: false });
+    if (!PAP_URL || !PAP_API_KEY) return res.status(503).json({ error: 'Post Affiliate Pro no está configurado.' });
+    try {
+      const original = (await codigosAprobados()).get(codigo);
+      res.json(original ? { valido: true, codigo: original } : { valido: false });
+    } catch (err) {
+      console.error('[PAP código]', err);
+      res.status(502).json({ error: 'No se pudo consultar Post Affiliate Pro.' });
+    }
+  });
+  return r;
+}
+
 export function crearPapAdminRouter() {
   const r = express.Router();
 
@@ -269,6 +308,7 @@ export function crearPapAdminRouter() {
          RETURNING pap_id`,
         [afiliado.id, agencia, alias]
       );
+      olvidarCodigosAfiliados(); // que su código ya sirva en /mail/afiliados.html
       res.status(201).json({ afiliado: afiliadoPublico(afiliado, { agencia, alias }) });
     })
   );

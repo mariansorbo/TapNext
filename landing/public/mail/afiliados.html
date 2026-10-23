@@ -105,6 +105,7 @@
       <h1>El mail para tus contactos.</h1>
       <div class="sin-codigo">
         <p style="margin:0; color:var(--paper-dim);">Escribí tu código de referido para armar el mail con tu código adentro.</p>
+        <p id="aviso-codigo" hidden style="margin:12px 0 0; color:#FF6B6B; font-size:.9rem;"></p>
         <form id="form-codigo">
           <input type="text" name="codigo" placeholder="Tu código" maxlength="40" autocomplete="off" required>
           <button class="btn" type="submit">Armar</button>
@@ -182,22 +183,42 @@
 </button>
 
 <script>
-(() => {
+(async () => {
   const q = new URLSearchParams(location.search);
   const limpiar = (v) => (v || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
-  const codigo = limpiar(q.get('codigo') || q.get('ref'));
-  const aid = limpiar(q.get('a_aid'));
+  // El código es el de la agencia en el admin (solapa Post Affiliate Pro), que
+  // también es su referral_id en PAP: por eso va como a_aid en los links al sitio.
+  const codigoEscrito = limpiar(q.get('codigo') || q.get('ref'));
+  let codigo = codigoEscrito.toUpperCase();
+  let aid = limpiar(q.get('a_aid'));
   const soloMail = q.get('ver') === 'mail';
+  const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? '' : 'https://tapnext.onrender.com';
 
-  if (!codigo) {
+  const pedirCodigo = (aviso) => {
     document.getElementById('pedir-codigo').hidden = false;
+    const p = document.getElementById('aviso-codigo');
+    if (aviso) { p.textContent = aviso; p.hidden = false; }
     document.getElementById('form-codigo').addEventListener('submit', (e) => {
       e.preventDefault();
       const c = limpiar(new FormData(e.target).get('codigo'));
-      if (c) { q.set('codigo', c); location.search = q.toString(); }
+      if (c) { q.set('codigo', c); q.delete('ref'); location.search = q.toString(); }
     });
-    return;
-  }
+  };
+  if (!codigoEscrito) return pedirCodigo();
+
+  // Solo códigos de agencias dadas de alta y aprobadas. Si el server no contesta
+  // (está dormido o caído), se arma igual: mejor un mail sin validar que ninguno.
+  let valido = true;
+  try {
+    const r = await fetch(`${API}/api/afiliados/codigo/${encodeURIComponent(codigo)}`, { signal: AbortSignal.timeout(15000) });
+    if (r.ok) {
+      const res = await r.json();
+      valido = res.valido === true;
+      if (valido && !aid) aid = res.codigo; // tal como está en PAP
+    }
+  } catch { /* sin respuesta: sigue */ }
+  if (!valido) return pedirCodigo(`El código ${codigo} no está registrado. Revisá que esté bien escrito o pedinos el tuyo.`);
+  aid = aid || codigoEscrito;
 
   if (soloMail) document.body.classList.add('solo-mail');
   else document.getElementById('con-codigo').hidden = false;

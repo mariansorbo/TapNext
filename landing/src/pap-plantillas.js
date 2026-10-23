@@ -33,8 +33,10 @@ NextTap · ventas@next-tap.tech`,
   };
 }
 
-export function plantillaBienvenida({ afiliado, panelAfiliados, comisionPct, precioCombo }) {
+export function plantillaBienvenida({ afiliado, panelAfiliados, comisionPct, precioCombo, landingUrl = 'https://next-tap.tech' }) {
   const comisionCombo = (precioCombo * comisionPct) / 100;
+  // Página con el mail para empresas ya armado con su código (public/mail/afiliados.html).
+  const mailArmado = `${landingUrl.replace(/\/+$/, '')}/mail/afiliados.html?codigo=${encodeURIComponent(afiliado.codigo)}`;
   return {
     asunto: 'Ya sos socio de NextTap: tu link y tu código',
     cuerpo: `Hola ${primerNombre(afiliado.contacto)}:
@@ -49,6 +51,8 @@ Cómo funciona:
 2. O pasales tu código. Muchas empresas prefieren escribirnos y pagar por transferencia. En ese caso, alcanza con que digan "venimos de parte de ${afiliado.codigo}" al hacer el pedido, y la venta queda a tu nombre igual.
 3. Por cada combo te corresponde el ${comisionPct}% del precio, sin contar el envío. Hoy el combo de dos llaveros sale ${pesos(precioCombo)}, así que son ${pesos(comisionCombo)} por combo.
 4. Cuando nos entra el pago de la empresa, tu comisión queda aprobada (en menos de un día). El día 10 de cada mes te transferimos las comisiones del mes anterior, con el detalle de cada venta.
+
+Un mail listo para mandarle a tus contactos: entrá a ${mailArmado}, tocá "Copiar mail" y pegalo en un mail nuevo de Gmail u Outlook. Ya va con tu código y con el diseño de NextTap; no hace falta reenviar nada.
 
 Dónde ver tus ventas: entrá a ${panelAfiliados} con tu mail (${afiliado.email}). La primera vez tocá "¿Olvidaste tu contraseña?" para elegir una. Ahí ves cada clic en tu link, cada venta y cuánto llevás ganado.
 
