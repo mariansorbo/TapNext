@@ -1398,6 +1398,11 @@ body.modal-open{overflow:hidden;}
 .pap-agencia-pie b{color:var(--paper);}
 .pap-pagado{color:#5FD08A;}
 @media (max-width:640px){.pap-form{grid-template-columns:1fr;}}
+.pap-variables{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 12px;}
+.pap-variables button{font-family:var(--mono); font-size:0.75rem; background:var(--surface-2); color:var(--paper); border:1px solid var(--line); border-radius:999px; padding:4px 10px; cursor:pointer;}
+.pap-variables button:hover{border-color:var(--violet);}
+.pap-bienvenida-cuerpo{width:100%; box-sizing:border-box; font:inherit; font-size:0.88rem; line-height:1.5; color:var(--paper); background:var(--ink); border:1px solid var(--line); border-radius:10px; padding:12px 14px; resize:vertical;}
+.pap-bienvenida-acciones{display:flex; gap:16px; align-items:center; margin-top:12px;}
 .admin-filter-toggle{display:flex; gap:8px; margin-bottom:14px;}
 .admin-filter-btn{
   font-family:var(--mono); font-size:0.72rem; padding:7px 14px; border:1px solid var(--line); border-radius:100px;

@@ -254,6 +254,30 @@
         <p class="section-lead pap-nota">Reglas que le prometimos a las agencias: 20% del combo sin envío · la cookie del link dura 60 días · si la empresa nombra a la agencia, la venta es suya aunque no haya entrado por el link · se paga el día 10 lo aprobado del mes anterior.</p>
       </div>
 
+      <!-- Bienvenida editable: se guarda en el server (pap_plantillas). Ver src/pap-admin.js -->
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Mensaje de bienvenida</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-bienvenida"><span class="add-icon">+</span> Editar</button>
+          </div>
+        </div>
+        <p class="section-lead pap-nota" id="pap-bienvenida-estado"></p>
+        <div class="admin-collapsible" id="pap-bienvenida-panel" hidden>
+          <div class="modal-form pap-form">
+            <label class="pap-form-ancho"><span>Asunto</span><input id="pap-bienvenida-asunto" maxlength="200"></label>
+          </div>
+          <p class="pap-nota pap-variables-ayuda">Tocá una variable para meterla donde está el cursor. Se completa sola con los datos de cada agencia:</p>
+          <div class="pap-variables" id="pap-bienvenida-variables"></div>
+          <textarea id="pap-bienvenida-cuerpo" class="pap-bienvenida-cuerpo" rows="22" maxlength="10000"></textarea>
+          <div class="pap-bienvenida-acciones">
+            <button type="button" class="btn-primary panel-btn" id="pap-bienvenida-guardar" style="width:auto;">Guardar</button>
+            <button type="button" class="btn-ghost" id="pap-bienvenida-original">Volver a la original</button>
+          </div>
+          <p class="modal-status" id="pap-bienvenida-status"></p>
+        </div>
+      </div>
+
       <div class="admin-section">
         <div class="admin-section-head">
           <h3>Agencias</h3>

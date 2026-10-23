@@ -15,6 +15,8 @@
 //   PATCH /pap/transacciones/:id           → { status: approved|declined|pending }
 //   POST  /pap/pagos                       → { afiliadoId, mes, monto }: marca el mes como pagado
 //   DELETE /pap/pagos/:afiliadoId/:mes     → deshace la marca
+//   PUT   /pap/plantillas/bienvenida       → { asunto, cuerpo }: guarda la bienvenida editada
+//   DELETE /pap/plantillas/bienvenida      → vuelve a la original (src/pap-plantillas.js)
 //
 // PAP no expone "pagado" por API, así que el pago mensual se registra acá
 // (tabla pap_pagos). La agencia (nombre comercial) y su alias también son
@@ -39,6 +41,12 @@ await db.executeMultiple(`
     agencia TEXT NOT NULL,
     alias TEXT,                            -- alias / CBU para transferirle
     creada_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS pap_plantillas (
+    clave TEXT PRIMARY KEY,                -- 'bienvenida'
+    asunto TEXT NOT NULL,
+    cuerpo TEXT NOT NULL,
+    editada_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE TABLE IF NOT EXISTS pap_pagos (
     pap_id TEXT NOT NULL,
@@ -265,7 +273,27 @@ export function crearPapAdminRouter() {
       comisionPct: COMISION_PCT,
       precioCombo: PRECIO_COMBO,
       precioSuelta: fila ? Number(fila.precio) : null,
+      // Bienvenida editada en el admin; null = la original de src/pap-plantillas.js.
+      bienvenida: (await q("SELECT asunto, cuerpo, editada_en FROM pap_plantillas WHERE clave = 'bienvenida'"))[0] || null,
     });
+  });
+
+  r.put('/pap/plantillas/bienvenida', async (req, res) => {
+    const asunto = String(req.body?.asunto || '').trim().slice(0, 200);
+    const cuerpo = String(req.body?.cuerpo || '').replace(/\r\n/g, '\n').trim().slice(0, 10000);
+    if (!asunto || !cuerpo) return res.status(400).json({ error: 'Completá el asunto y el texto.' });
+    const [fila] = await q(
+      `INSERT INTO pap_plantillas (clave, asunto, cuerpo) VALUES ('bienvenida', ?, ?)
+       ON CONFLICT (clave) DO UPDATE SET asunto = excluded.asunto, cuerpo = excluded.cuerpo, editada_en = NOW()
+       RETURNING asunto, cuerpo, editada_en`,
+      [asunto, cuerpo]
+    );
+    res.json({ bienvenida: fila });
+  });
+
+  r.delete('/pap/plantillas/bienvenida', async (req, res) => {
+    await q("DELETE FROM pap_plantillas WHERE clave = 'bienvenida' RETURNING clave");
+    res.json({ bienvenida: null });
   });
 
   r.get(

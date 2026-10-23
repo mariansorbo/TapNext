@@ -8,6 +8,8 @@ import {
   plantillaResumen,
   comoTexto,
   nombreMes,
+  BIENVENIDA_ORIGINAL,
+  VARIABLES_BIENVENIDA,
 } from './pap-plantillas.js';
 
 const esc = (s) =>
@@ -49,10 +51,50 @@ export function initPapAdmin({ api }) {
     el.textContent = texto;
   };
 
+  // --- Bienvenida editable (se guarda en el server; null = la original) ---
+  function renderBienvenida() {
+    const t = estado?.bienvenida || BIENVENIDA_ORIGINAL;
+    $('pap-bienvenida-asunto').value = t.asunto;
+    $('pap-bienvenida-cuerpo').value = t.cuerpo;
+    $('pap-bienvenida-estado').textContent = estado?.bienvenida
+      ? `Usás tu versión, editada el ${fecha(estado.bienvenida.editada_en)}. El botón ✉️ Bienvenida de cada agencia la copia completada con sus datos.`
+      : 'Usás la versión original. El botón ✉️ Bienvenida de cada agencia la copia completada con sus datos.';
+  }
+  $('pap-bienvenida-variables').innerHTML = Object.entries(VARIABLES_BIENVENIDA)
+    .map(([k, d]) => `<button type="button" data-variable="${k}" title="${esc(d)}">{${k}}</button>`)
+    .join('');
+  $('pap-bienvenida-variables').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-variable]');
+    if (!b) return;
+    const ta = $('pap-bienvenida-cuerpo');
+    const v = `{${b.dataset.variable}}`;
+    const i = ta.selectionStart ?? ta.value.length;
+    ta.value = ta.value.slice(0, i) + v + ta.value.slice(ta.selectionEnd ?? i);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = i + v.length;
+  });
+  async function guardarBienvenida(metodo) {
+    const status = $('pap-bienvenida-status');
+    try {
+      const body = metodo === 'PUT' ? JSON.stringify({ asunto: $('pap-bienvenida-asunto').value, cuerpo: $('pap-bienvenida-cuerpo').value }) : undefined;
+      const { bienvenida } = await api('/pap/plantillas/bienvenida', { method: metodo, body });
+      estado = { ...estado, bienvenida };
+      renderBienvenida();
+      setStatus(status, metodo === 'PUT' ? 'Guardada. Ya la usa el botón ✉️ Bienvenida.' : 'Listo: volviste a la original.');
+    } catch (err) {
+      setStatus(status, err.message, true);
+    }
+  }
+  $('pap-bienvenida-guardar').addEventListener('click', () => guardarBienvenida('PUT'));
+  $('pap-bienvenida-original').addEventListener('click', () => {
+    if (window.confirm('¿Volver a la bienvenida original? Se pierde tu versión.')) guardarBienvenida('DELETE');
+  });
+
   // --- Estado / configuración ---
   function renderEstado() {
     const banner = $('pap-estado');
     if (!estado) return;
+    renderBienvenida();
     $('pap-link-panel').href = estado.panelMerchant || '#';
     if (estado.configurado) {
       banner.hidden = true;
