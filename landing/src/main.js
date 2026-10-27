@@ -49,11 +49,34 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   addEventListener('resize', ajustar);
   document.fonts?.ready.then(ajustar);
 
+  // Variante con mensaje de empresas (data-hero-b en título y bajada): después
+  // de las tres palabras se muestra ese texto y vuelve a empezar.
+  const heroB = [...document.querySelectorAll('[data-hero-b]')];
+  const heroA = [...document.querySelectorAll('[data-hero-a]')];
+  if (heroB.length) PALABRAS_HERO.push({ alt: true, ms: 6000 });
+  const mostrar = (verB) => {
+    [...heroA, ...heroB].forEach((el) => {
+      const activo = heroB.includes(el) === verB;
+      el.dataset.activo = String(activo);
+      if (activo) {
+        el.classList.remove('cambia');
+        void el.offsetWidth;
+        el.classList.add('cambia');
+      }
+    });
+  };
+
   let n = 0;
   const siguiente = () => {
     setTimeout(() => {
       n = (n + 1) % PALABRAS_HERO.length;
       const p = PALABRAS_HERO[n];
+      if (p.alt) {
+        mostrar(true);
+        siguiente();
+        return;
+      }
+      if (heroB.length) mostrar(false);
       palabraHero.textContent = p.texto;
       ajustar();
       if (p.red) palabraHero.dataset.red = p.red;

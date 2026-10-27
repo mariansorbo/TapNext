@@ -84,9 +84,19 @@ h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 .hero p.lead{
   font-size:1.08rem; color:var(--paper-dim); max-width:46ch; margin-bottom:34px;
 }
-/* Tarjeta de oferta bajo el hero (variante /empresas-v2): sin la demo, centrada. */
-#empresas .empresas-combo-linea{max-width:440px;}
-#empresas .empresas-mas{margin-left:0;}
+/* Variante /empresas-v2: título y bajada alternan entre dos textos (src/main.js).
+   Van apilados en la misma celda, así la altura no salta al cambiar. */
+.rota-doble{display:grid;}
+.rota-doble > *{grid-area:1/1;}
+.rota-doble > [data-activo="false"]{visibility:hidden;}
+.rota-doble > .cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
+.hero-v2{padding-top:32px; padding-bottom:36px;}
+.hero-v2 p.lead{margin-bottom:0;}
+/* Tarjeta de oferta bajo el hero: sin línea divisoria y más pegada. */
+@media (max-width:600px){ .hero.hero-v2{min-height:0; padding:24px 20px 8px;} .hero-v2 h1{margin-bottom:16px;} }
+#empresas.empresas-v2{border-top:none; padding-top:20px;}
+#empresas.empresas-v2 .empresas-combo-linea{max-width:440px;}
+#empresas.empresas-v2 .empresas-mas{margin-left:0;}
 .cta-row{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
 .btn-primary{
   background:var(--violet); color:var(--paper); font-weight:600;
