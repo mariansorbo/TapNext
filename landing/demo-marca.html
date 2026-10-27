@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Demo con tu marca</title>
+<!--
+  Demo publicitaria para organizaciones. Igual que demo.html (se configura el
+  destino y se redirige a Instagram / WhatsApp / URL), pero en vez de dejar la
+  pantalla vacía muestra la pantalla real del tap: logo "Tu marca" + NextTap,
+  con la barra de espera. Los logos son variantes genéricas (public/images/
+  tu-marca-*.svg); el encuadre y el fondo se calculan igual que en la pantalla
+  real (src/encuadre.js + src/color-logo.js).
+-->
+<style>
+  :root{--violet:#7B5CFF;--bg:#0b0b0c;--panel:#1a1a1c;--border:#2a2a2c;--muted:#9a9a9a}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:var(--bg);color:#eee;
+    font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow:hidden}
+
+  #config{height:100%;width:100%;overflow-y:auto;
+    padding:calc(24px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));
+    max-width:520px;margin:0 auto}
+  h1{font-size:18px;margin-bottom:4px}
+  p.hint{font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:6px}
+  label{display:block;font-size:12px;color:#b7b7b7;margin:18px 0 6px}
+  select,input[type=text],input[type=number]{width:100%;padding:12px;border-radius:10px;
+    border:1px solid var(--border);background:var(--panel);color:#fff;font-size:15px;font-family:inherit}
+  #startBtn{width:100%;padding:15px;border:none;border-radius:12px;font-size:16px;font-weight:600;
+    margin-top:24px;cursor:pointer;background:var(--violet);color:#fff;font-family:inherit}
+  input[type=file]{width:100%;color:#b7b7b7;font-size:13px}
+  #preview{margin-top:10px;border-radius:12px;height:120px;background:var(--panel) center/cover no-repeat;border:1px solid var(--border)}
+  #clearBg{width:100%;padding:10px;border:none;border-radius:12px;font-size:13px;margin-top:10px;cursor:pointer;
+    background:var(--panel);color:#ccc;font-family:inherit}
+  .foot{margin-top:22px;font-size:11px;color:#555;text-align:center}
+
+  /* Selector de logo */
+  .logos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .logos button{aspect-ratio:1;border:2px solid transparent;border-radius:14px;padding:0;cursor:pointer;
+    overflow:hidden;background:var(--panel);position:relative}
+  .logos button img{display:block;width:100%;height:100%;object-fit:cover}
+  .logos button[aria-pressed=true]{border-color:var(--violet);box-shadow:0 0 0 2px rgba(123,92,255,.35)}
+
+  /* Pantalla del tap (mismo CSS que prueba-redireccionamiento-custom.html) */
+  #stage{position:fixed;inset:0;display:none}
+  #stage.active{display:block}
+  #screenshot{position:absolute;inset:0;background:#111 center/cover no-repeat;display:none}
+  #stage.fase-shot #screenshot{display:block}
+  #stage.fase-shot #slide{display:none}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:22px;padding:24px;background:var(--fondo,#14171A);color:var(--texto,#EDEFE9)}
+  .org-img{width:min(72vw,320px,40svh);aspect-ratio:1;border-radius:clamp(16px,6vw,26px);overflow:hidden;
+    background:var(--pista);box-shadow:var(--sombra);opacity:0;transform:scale(.96);
+    transition:opacity .25s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
+  .org-img img{display:block;width:100%;height:100%;object-fit:cover}
+  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(2.3rem,12.5vw,3.7rem);
+    letter-spacing:-.03em;opacity:0;transform:translateY(8px) scale(.97)}
+  .mark .tap{background:var(--acento);color:var(--acento-texto);padding:.06em .26em .12em;border-radius:.16em;
+    clip-path:inset(0 100% 0 0)}
+  .bar{width:min(150px,40vw);height:2px;border-radius:2px;background:var(--pista);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--acento);transform:translateX(-100%)}
+  .slide.run .org-img{opacity:1;transform:none}
+  .slide.run .mark{animation:rise .22s cubic-bezier(.2,.7,.2,1) forwards}
+  .slide.run .mark .tap{animation:wipe .28s .05s cubic-bezier(.4,0,.1,1) forwards}
+  .slide.run .bar i{animation:fill var(--espera,2s) linear forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @keyframes wipe{to{clip-path:inset(0 0 0 0)}}
+  @keyframes fill{to{transform:translateX(0)}}
+  @media (prefers-reduced-motion:reduce){.mark,.mark .tap{animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div id="config">
+  <h1>Demo con tu marca — NextTap</h1>
+  <p class="hint">Elegí el logo, el destino y los tiempos. Al tocar "Iniciar" se muestra tu screenshot, después la pantalla del tap con el logo elegido y, al cumplirse su tiempo, abre el destino. Tocá 3 veces la pantalla para volver acá.</p>
+
+  <label>Logo "Tu marca"</label>
+  <div class="logos" id="logos"></div>
+
+  <label for="destType">Destino</label>
+  <select id="destType">
+    <option value="instagram">Instagram (usuario)</option>
+    <option value="whatsapp">WhatsApp (número)</option>
+    <option value="url">URL / link directo</option>
+  </select>
+
+  <label id="destLabel" for="destValue">Usuario de Instagram (sin @)</label>
+  <input type="text" id="destValue" placeholder="nexttap.oficial" autocapitalize="off" autocorrect="off">
+
+  <label for="bgImage">Screenshot de tu home real (opcional)</label>
+  <input type="file" id="bgImage" accept="image/*">
+  <div id="preview"></div>
+  <button type="button" id="clearBg">Quitar screenshot</button>
+
+  <label for="delayShot">Tiempo del screenshot (segundos)</label>
+  <input type="number" id="delayShot" min="0" step="0.1" value="1.5">
+
+  <label for="delay">Tiempo de la pantalla con tu marca (segundos)</label>
+  <input type="number" id="delay" min="0" step="0.1" value="2">
+
+  <button id="startBtn">Iniciar</button>
+  <div class="foot">La configuración queda guardada solo en este navegador/dispositivo.</div>
+</div>
+
+<div id="stage">
+  <div id="screenshot"></div>
+  <section class="slide" id="slide">
+    <div class="org-img"><img alt="Tu marca" id="slideImg"></div>
+    <div class="mark">Next<span class="tap">Tap</span></div>
+    <div class="bar"><i></i></div>
+  </section>
+</div>
+
+<script type="module">
+  import { colorMayoritario, paletaPantalla } from '/src/color-logo.js';
+  import { encuadreAutomatico, colorDeBordes } from '/src/encuadre.js';
+
+  // Variantes genéricas de "Tu marca": cuadradas, apaisadas y vertical.
+  const LOGOS = [1, 2, 3, 4, 5, 6].map((n) => `/images/tu-marca-${n}.svg`);
+
+  const $ = (id) => document.getElementById(id);
+  const destType = $('destType'), destValue = $('destValue'), destLabel = $('destLabel');
+  const delayInput = $('delay'), delayShot = $('delayShot'), bgImage = $('bgImage'), preview = $('preview'),
+    clearBg = $('clearBg'), screenshot = $('screenshot'), logosEl = $('logos'), startBtn = $('startBtn');
+  const config = $('config'), stage = $('stage'), slide = $('slide');
+
+  const LABELS = {
+    instagram: 'Usuario de Instagram (sin @)',
+    whatsapp: 'Número de WhatsApp (con código país, sin +)',
+    url: 'URL completa (https://...)',
+  };
+  const PLACEHOLDERS = { instagram: 'nexttap.oficial', whatsapp: '5491122334455', url: 'https://ejemplo.com' };
+  const KEY = 'demoMarcaConfig';
+
+  const safe = (fn) => { try { return fn(); } catch { return null; } };
+  const leer = () => safe(() => JSON.parse(localStorage.getItem(KEY) || '{}')) || {};
+
+  let logoActual = 0;
+  const params = new URLSearchParams(location.search);
+
+  function guardar() {
+    safe(() => localStorage.setItem(KEY, JSON.stringify({
+      destType: destType.value, destValue: destValue.value,
+      delay: parseFloat(delayInput.value) || 0, delayShot: parseFloat(delayShot.value) || 0, logo: logoActual,
+    })));
+  }
+
+  function actualizarEtiqueta() {
+    destLabel.textContent = LABELS[destType.value];
+    destValue.placeholder = PLACEHOLDERS[destType.value];
+  }
+
+  // Selector de logos
+  const botones = LOGOS.map((src, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', `Logo ${i + 1}`);
+    b.innerHTML = `<img src="${src}" alt="">`;
+    b.addEventListener('click', () => elegir(i));
+    logosEl.appendChild(b);
+    return b;
+  });
+  function elegir(i) {
+    logoActual = i;
+    botones.forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)));
+    guardar();
+  }
+
+  const s = leer();
+  destType.value = s.destType || 'instagram';
+  destValue.value = s.destValue || '';
+  delayInput.value = s.delay != null ? s.delay : 2;
+  delayShot.value = s.delayShot != null ? s.delayShot : 1.5;
+  const pedido = parseInt(params.get('logo'), 10);
+  elegir(pedido >= 1 && pedido <= LOGOS.length ? pedido - 1 : Math.min(s.logo || 0, LOGOS.length - 1));
+  actualizarEtiqueta();
+
+  destType.addEventListener('change', () => { actualizarEtiqueta(); guardar(); });
+  destValue.addEventListener('input', guardar);
+  delayInput.addEventListener('input', guardar);
+  delayShot.addEventListener('input', guardar);
+
+  // El screenshot vive en memoria (en iPhone la foto original no entra en localStorage);
+  // se achica a tamaño de pantalla, igual que en demo.html.
+  let fondo = null;
+  function achicar(file, listo) {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      listo(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      const r = new FileReader();
+      r.onload = () => listo(r.result);
+      r.readAsDataURL(file);
+    };
+    img.src = url;
+  }
+  function ponerFondo(d) {
+    fondo = d;
+    preview.style.backgroundImage = d ? `url("${d}")` : '';
+    safe(() => localStorage.setItem(KEY + 'Bg', d || ''));
+  }
+  ponerFondo(safe(() => localStorage.getItem(KEY + 'Bg')) || null);
+  bgImage.addEventListener('change', () => {
+    const f = bgImage.files && bgImage.files[0];
+    if (f) achicar(f, ponerFondo);
+  });
+  clearBg.addEventListener('click', () => { bgImage.value = ''; ponerFondo(null); });
+
+  // Encuadre + paleta calculados como en la pantalla real (cacheados por logo).
+  const cache = {};
+  function cargar(src) {
+    return new Promise((ok, mal) => {
+      const img = new Image();
+      img.onload = () => ok(img);
+      img.onerror = mal;
+      img.src = src;
+    });
+  }
+  function preparar(i) {
+    return cache[i] || (cache[i] = cargar(LOGOS[i]).then((img) => {
+      const cuadro = encuadreAutomatico(img);
+      const c = document.createElement('canvas');
+      c.width = c.height = 128;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(cuadro.canvas, 0, 0, 128, 128);
+      const color = colorMayoritario(ctx.getImageData(0, 0, 128, 128).data);
+      return { url: cuadro.canvas.toDataURL('image/png'), pal: paletaPantalla(color, colorDeBordes(cuadro.canvas)) };
+    }));
+  }
+  // Las miniaturas muestran lo que saldrá en pantalla (logo ya encuadrado).
+  LOGOS.forEach((_, i) => preparar(i).then((p) => { botones[i].querySelector('img').src = p.url; }));
+
+  // Destinos (igual que demo.html)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isAndroid = /Android/.test(navigator.userAgent);
+
+  function destino() {
+    const type = destType.value;
+    let value = (destValue.value || '').trim();
+    if (!value) return null;
+    if (type === 'instagram') {
+      value = value.replace(/^@/, '');
+      const fb = 'https://instagram.com/' + value;
+      if (isAndroid) return 'intent://instagram.com/_u/' + encodeURIComponent(value) +
+        '#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=' + encodeURIComponent(fb) + ';end';
+      if (isIOS) return 'instagram://user?username=' + encodeURIComponent(value);
+      return fb;
+    }
+    if (type === 'whatsapp') {
+      value = value.replace(/\D/g, '');
+      const fb = 'https://wa.me/' + value;
+      if (isAndroid) return 'intent://send?phone=' + value +
+        '#Intent;package=com.whatsapp;scheme=whatsapp;S.browser_fallback_url=' + encodeURIComponent(fb) + ';end';
+      if (isIOS) return 'whatsapp://send?phone=' + value;
+      return fb;
+    }
+    return /^https?:\/\//i.test(value) ? value : 'https://' + value;
+  }
+
+  let timer = null, taps = 0, tapTimer = null;
+
+  function volver() {
+    clearTimeout(timer);
+    slide.classList.remove('run');
+    stage.classList.remove('active');
+    config.style.display = 'block';
+    if (document.fullscreenElement) safe(() => document.exitFullscreen());
+  }
+  stage.addEventListener('click', () => {
+    taps++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { taps = 0; }, 800);
+    if (taps >= 3) { taps = 0; volver(); }
+  });
+
+  startBtn.addEventListener('click', async () => {
+    guardar();
+    const url = destino();
+    if (!url) { alert('Falta completar el destino.'); return; }
+    const tShot = fondo ? Math.max(0, parseFloat(delayShot.value) || 0) : 0;
+    const tMarca = Math.max(0, parseFloat(delayInput.value) || 0);
+
+    // Se prepara el logo antes de mostrar nada: la cuenta empieza ya con todo listo.
+    const p = await preparar(logoActual);
+    $('slideImg').src = p.url;
+    for (const [k, v] of Object.entries({
+      fondo: p.pal.fondo, texto: p.pal.texto, texto2: p.pal.texto2, pista: p.pal.pista,
+      acento: p.pal.acento, 'acento-texto': p.pal.acentoTexto, sombra: p.pal.sombra,
+    })) slide.style.setProperty('--' + k, v);
+    slide.style.setProperty('--espera', tMarca + 's');
+    screenshot.style.backgroundImage = fondo ? `url("${fondo}")` : '';
+
+    config.style.display = 'none';
+    stage.classList.add('active');
+    if (document.documentElement.requestFullscreen) safe(() => document.documentElement.requestFullscreen());
+
+    function mostrarMarca() {
+      stage.classList.remove('fase-shot');
+      slide.classList.remove('run');
+      void slide.offsetWidth;
+      slide.classList.add('run');
+      timer = setTimeout(() => { window.location.href = url; }, tMarca * 1000);
+    }
+    clearTimeout(timer);
+    slide.classList.remove('run');
+    if (tShot > 0) {
+      stage.classList.add('fase-shot');
+      timer = setTimeout(mostrarMarca, tShot * 1000);
+    } else mostrarMarca();
+  });
+</script>
+</body>
+</html>

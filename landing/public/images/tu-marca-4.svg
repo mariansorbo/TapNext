@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080">
+  <!-- Logo genérico de la demo publicitaria (variante 4): fondo azul noche, monograma hexagonal. -->
+  <rect width="1080" height="1080" fill="#14213D"/>
+  <polygon points="540,170 710,268 710,452 540,550 370,452 370,268" fill="none" stroke="#FCA311" stroke-width="30" stroke-linejoin="round"/>
+  <text x="540" y="428" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="150" font-weight="700" fill="#FCA311">T</text>
+  <text x="540" y="780" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="128" font-weight="800" fill="#FFFFFF" letter-spacing="14">TU MARCA</text>
+  <rect x="330" y="840" width="420" height="10" fill="#FCA311"/>
+</svg>

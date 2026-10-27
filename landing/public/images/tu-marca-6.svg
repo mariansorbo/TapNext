@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" width="1600" height="500">
+  <!-- Logo genérico de la demo publicitaria (variante 6): apaisado, fondo transparente, trazo cursivo. -->
+  <text x="800" y="290" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="260" font-style="italic" font-weight="700" fill="#C92A2A">Tu Marca</text>
+  <path d="M270 360 C600 420 1000 420 1330 340" fill="none" stroke="#C92A2A" stroke-width="22" stroke-linecap="round"/>
+</svg>

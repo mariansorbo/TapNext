@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" width="800" height="1200">
+  <!-- Logo genérico de la demo publicitaria (variante 5): vertical, fondo blanco, ícono apilado. -->
+  <rect width="800" height="1200" fill="#ffffff"/>
+  <circle cx="400" cy="400" r="260" fill="#D6336C"/>
+  <path d="M400 560 C250 450 270 300 340 290 C380 285 400 320 400 340 C400 320 420 285 460 290 C530 300 550 450 400 560 Z" fill="#ffffff"/>
+  <text x="400" y="860" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="150" font-weight="800" fill="#D6336C" letter-spacing="-4">Tu marca</text>
+  <text x="400" y="950" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="46" fill="#6b6b6b" letter-spacing="10">TU SLOGAN ACÁ</text>
+</svg>
