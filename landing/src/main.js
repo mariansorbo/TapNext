@@ -55,7 +55,10 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const heroB = [...document.querySelectorAll('[data-hero-b]')];
   const heroA = [...document.querySelectorAll('[data-hero-a]')];
   if (heroB.length) PALABRAS_HERO.push({ alt: true, ms: 6000 });
+  let viendoB = false;
   const mostrar = (verB) => {
+    if (verB === viendoB) return; // la bajada cambia una vez por vuelta, no con cada palabra
+    viendoB = verB;
     [...heroA, ...heroB].forEach((el) => {
       const activo = heroB.includes(el) === verB;
       el.dataset.activo = String(activo);
