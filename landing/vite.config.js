@@ -42,7 +42,6 @@ export default defineConfig({
         faqs: resolve(root, 'faqs.html'),
         quienesSomos: resolve(root, 'quienes-somos.html'),
         empresas: resolve(root, 'empresas.html'),
-        indexEmpresas: resolve(root, 'index-empresas.html'),
         admin: resolve(root, 'admin.html'),
         vendedor: resolve(root, 'vendedor.html'),
         demo: resolve(root, 'demo.html'),

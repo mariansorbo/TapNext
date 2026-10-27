@@ -29,41 +29,61 @@
     <div class="bg-video-overlay"></div>
   </div>
 
-  <div class="hero">
+  <div class="hero hero-v2">
     <div>
       <div class="eyebrow">Tecnología NFC</div>
-      <h1>Compartí <em data-palabra-rota>distinto</em>.<br>Compartí al toque.</h1>
-      <p class="lead">Con un tap compartís fácilmente WhatsApp, Instagram, web, menú, alias, reseñas y más. Sin cámaras, sin apps.</p>
-      <div class="cta-row">
-        <a href="/pedido.html?iniciar=1" class="btn-primary">Comprar</a>
-      </div>
+      <h1 class="rota-doble">
+        <span data-hero-a>Compartí <em data-palabra-rota>distinto</em>.<br>Compartí al toque.</span>
+        <span data-hero-b data-activo="false">Conocé NextTap para empresas.</span>
+      </h1>
+      <p class="lead rota-doble">
+        <span data-hero-a>Con un tap compartís fácilmente WhatsApp, Instagram. Sin cámaras, sin apps.</span>
+        <span data-hero-b data-activo="false">Entre el tap y su contacto, ya sea su WhatsApp o su Instagram, hay un espacio publicitario. Y es de tu empresa.</span>
+      </p>
     </div>
   </div>
 
-  <section id="funciona">
+  <section id="empresas" class="empresas-v2">
     <div class="wrap">
-      <div class="kicker">Por qué NFC</div>
-      <div class="steps steps-big">
-        <div class="step">
-          <div class="step-num">01</div>
-          <h3>La evolución del QR</h3>
-          <p>Ya no hace falta abrir la cámara ni encuadrar un código: acercás el celular y listo.</p>
-        </div>
-        <div class="step">
-          <div class="step-num">02</div>
-          <h3>Conectá fácilmente</h3>
-          <p>Funciona con cualquier celular moderno, sin instalar apps ni crear cuentas.</p>
-        </div>
-        <div class="step">
-          <div class="step-num">03</div>
-          <h3>Sin fricción</h3>
-          <p>Tu cliente toca y ya está: la venta, el seguimiento o la reseña, sin pasos de más.</p>
-        </div>
-      </div>
+      <h2>El regalo de fin de año para tu equipo.</h2>
+      <a href="/empresas.html#combo" class="emp-oferta empresas-combo-linea">
+        <span class="emp-oferta-tag">🎁 Oferta fin de año</span>
+        <span class="emp-oferta-precio">$30.000 <small>por persona</small></span>
+        <span class="emp-oferta-detalle">Llavero de WhatsApp + llavero de Instagram,<br>con tu marca en cada tap</span>
+        <span class="emp-oferta-ir">Ver el combo →</span>
+      </a>
+      <a href="/empresas.html" class="btn-primary empresas-mas">Conocé NextTap para empresas →</a>
     </div>
   </section>
 </div>
 
+<section id="como-se-ve">
+  <a href="/empresas.html" class="empresas-demo-link wrap">
+    <div class="kicker">NextTap para empresas</div>
+    <h2>Un segundo que es de tu marca.</h2>
+    <div class="emp-recorrido" data-fase="acerca">
+    <figure class="empresas-demo emp-demo-fondo" data-empresas-demo data-espera-tap="450" data-espera-tap-media="(min-width:900px)" aria-hidden="true"></figure>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Acerca el llavero.</h3>
+        <p class="solo-compu">Alguien hace tap en el llavero de tu empleado.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Aparece tu empresa.</h3>
+        <p><span class="solo-compu">Antes de cualquier otra cosa, en la pantalla de la otra persona se ve tu marca, con un fondo que toma sus colores.</span><span class="solo-celu">Tu marca, con sus colores.</span></p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Se abre su <span class="emp-destino" data-destino-paso>contacto</span>.</h3>
+        <p>Al instante, listo para <span data-destino-accion>escribirle o seguirlo</span>.</p>
+      </div>
+    </div>
+    </div>
+    <p class="emp-nota">Funciona en iPhone y en Android. Sin apps, sin escanear nada.</p>
+  </a>
+</section>
 <section id="formatos">
   <div class="wrap">
     <div class="kicker">Formatos</div>
@@ -75,25 +95,26 @@
   </div>
 </section>
 
-<section id="empresas">
+<section id="funciona">
   <div class="wrap">
-    <div class="empresas-top">
-      <div>
-        <div class="kicker">Para empresas</div>
-        <h2>El regalo de fin de año para tu equipo.</h2>
-        <p class="section-lead">Tu equipo se presenta como parte de tu empresa. En todos lados.</p>
-        <a href="/empresas.html#combo" class="emp-oferta empresas-combo-linea">
-          <span class="emp-oferta-tag">🎁 Oferta fin de año</span>
-          <span class="emp-oferta-precio">$30.000 <small>por persona</small></span>
-          <span class="emp-oferta-detalle">Llavero de WhatsApp + llavero de Instagram,<br>con tu marca en cada tap</span>
-          <span class="emp-oferta-ir">Ver el combo →</span>
-        </a>
+    <div class="kicker">Por qué NFC</div>
+    <div class="steps steps-big">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>La evolución del QR</h3>
+        <p>Ya no hace falta abrir la cámara ni encuadrar un código: acercás el celular y listo.</p>
       </div>
-      <a href="/empresas.html" class="empresas-demo-link" aria-label="Conocé NextTap para empresas">
-        <figure class="empresas-demo" data-empresas-demo></figure>
-      </a>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Conectá fácilmente</h3>
+        <p>Funciona con cualquier celular moderno, sin instalar apps ni crear cuentas.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Sin fricción</h3>
+        <p>Tu cliente toca y ya está: la venta, el seguimiento o la reseña, sin pasos de más.</p>
+      </div>
     </div>
-    <a href="/empresas.html" class="btn-primary empresas-mas">Conocé NextTap para empresas →</a>
   </div>
 </section>
 
