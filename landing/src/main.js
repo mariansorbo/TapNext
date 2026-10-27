@@ -5,6 +5,7 @@ import './visita.js';
 import './nav-sesion.js';
 import './sorteo.js';
 import './empresas-demo.js';
+import './empresas-recorrido.js';
 import { applyBrand } from './brand.js';
 import { initFaqAccordion } from './faq.js';
 
