@@ -420,6 +420,11 @@ h2{
 .emp-h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,6vw,3.2rem); letter-spacing:-0.025em;
   line-height:1.05; margin-bottom:22px; max-width:16ch;}
 .emp-hero .section-lead{margin-top:0;}
+/* Variante de landing empresa-first (index-empresas.html). */
+.emp-sub{font-family:var(--display); font-weight:600; font-size:clamp(1.3rem,4.6vw,1.8rem); letter-spacing:-0.02em; line-height:1.2; margin:-6px 0 14px;}
+@media (max-width:899px){ .emp-hero-grid.emp-cta-primero{grid-template-areas:"texto" "cta" "demo";} }
+.emp-hero-grid.emp-cta-primero .section-lead{margin-bottom:22px;}
+.emp-condiciones{margin-top:14px; font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim);}
 /* "Después, su WhatsApp / su Instagram": cambia con la demo (empresas.js). */
 .emp-destino{display:inline-block; white-space:nowrap;}
 .emp-destino[data-destino="wa"]{color:#25D366;}
