@@ -84,6 +84,24 @@ h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 .hero p.lead{
   font-size:1.08rem; color:var(--paper-dim); max-width:46ch; margin-bottom:34px;
 }
+/* Hero empresa-first (index.html): oferta, botón y demo en la primera pantalla. */
+.hero-empresas h1{max-width:14ch;}
+.hero-empresas .emp-oferta{margin:0 0 14px; max-width:420px;}
+.hero-condiciones{font-family:var(--mono); font-size:0.75rem; color:var(--paper-dim); margin-bottom:24px;}
+.hero-ghost{color:var(--paper);}
+.hero-vos{margin-top:22px; font-size:0.9rem; color:var(--paper-dim);}
+.hero-vos a{color:var(--paper); text-decoration:underline; text-underline-offset:3px;}
+.hero-demo{justify-self:center;}
+@media (max-width:600px){
+  .hero-empresas .hero-demo{margin-top:8px;}
+  .hero.hero-empresas{min-height:0; gap:28px; padding-top:22px;}
+  .hero.hero-empresas h1{font-size:clamp(2rem,9vw,2.5rem); margin-bottom:14px;}
+  .hero.hero-empresas p.lead{font-size:1rem; line-height:1.45; margin-bottom:20px;}
+  .hero.hero-empresas .eyebrow{margin-bottom:14px;}
+  .hero.hero-empresas .emp-oferta{margin-bottom:10px;}
+  .hero.hero-empresas .hero-condiciones{margin-bottom:16px;}
+  .hero.hero-empresas .cta-row{margin-top:0;}
+}
 .cta-row{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
 .btn-primary{
   background:var(--violet); color:var(--paper); font-weight:600;
