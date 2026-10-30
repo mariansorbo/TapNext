@@ -208,6 +208,7 @@ loginButton.addEventListener('click', async () => {
 logoutButton.addEventListener('click', async () => {
   try {
     await api('/session', { method: 'DELETE' });
+    await fetch('/privado/sesion/vendedor', { method: 'DELETE' });
   } catch {
     // sigue el logout local aunque falle el pedido al server
   }

@@ -15,6 +15,7 @@ import { validarPassword, crearLimitador } from './password.js';
 import { enviarCorreo, correoDisponible, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
+import { efemerideDe } from './efemerides.js';
 import { montarConsolaSticker } from './consola-sticker.js';
 import { montarEdicionForzada } from './edicion-forzada.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
@@ -35,6 +36,7 @@ import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
 import { crearPapAdminRouter, crearAfiliadosPublicoRouter } from './pap-admin.js';
 import { crearContactoEmpresasRouter } from './contacto-empresas.js';
+import { crearPrivadoRouter } from './privado.js';
 import {
   crearOrganizacionesRouter,
   crearOrganizacionesAdminRouter,
@@ -172,6 +174,9 @@ app.use('/api/sorteo', crearSorteoRouter());
 app.use('/api', crearContactoEmpresasRouter());
 // Valida el código de agencia de /mail/afiliados.html (ver server/pap-admin.js).
 app.use('/api', crearAfiliadosPublicoRouter());
+
+// Paneles admin y vendedor: el HTML/JS solo se entrega con sesión (server/privado.js).
+app.use('/privado', crearPrivadoRouter({ get, hashValue, puerto: process.env.PORT || 3001 }));
 
 // Organizaciones (cuenta de empresa): nombre + imagen de la pantalla del tap —
 // ver server/organizaciones.js.
@@ -3413,7 +3418,12 @@ function linkMarca(tipo) {
 // corra con la imagen ya visible.
 const ORG_ESPERA_MAX = 1200;
 function orgBloque(org) {
-  if (!org) return { titulo: 'NextTap', css: '', marca: '', imagen: '', js: 'function listo(cb){cb()}' };
+  // Sin organización: pantalla de NextTap, con la efeméride del día si hay una
+  // (va en el slot de la imagen, arriba de la marca).
+  if (!org) {
+    const ef = efemerideBloque(org);
+    return { titulo: 'NextTap', css: ef.css, marca: '', imagen: ef.html, js: 'function listo(cb){cb()}' };
+  }
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   // Fondo = color mayoritario del logo (lo calcula el editor de Mi panel), con
@@ -3448,6 +3458,26 @@ function orgBloque(org) {
       img.onerror=function(){ fin(false) };
       setTimeout(fin,${ORG_ESPERA_MAX});
     }`,
+  };
+}
+
+// Efeméride del día (server/efemerides.js) para la pantalla de marca: una línea
+// chica arriba de "NextTap" y el acento (bloque "Tap" + barra) teñido del color de
+// la fecha. Solo en la pantalla de NextTap: con organización la pantalla es de
+// su marca y no se toca. Sin efeméride, todo vacío y la pantalla queda igual.
+function efemerideBloque(org, ahora = new Date()) {
+  const e = org ? null : efemerideDe(ahora);
+  if (!e) return { css: '', html: '' };
+  const esc = (v) =>
+    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const color = e.color ? `:root{--violet:${e.color}}` : '';
+  return {
+    css: `
+  ${color}
+  .efe{max-width:min(88vw,420px);text-align:center;font-size:clamp(.82rem,3.6vw,1rem);font-weight:500;
+    letter-spacing:.01em;color:var(--paper);opacity:0;animation:show .25s .05s forwards}
+  .efe span{margin-right:.4em}`,
+    html: `<div class="efe">${e.emoji ? `<span>${esc(e.emoji)}</span>` : ''}${esc(e.texto)}</div>`,
   };
 }
 

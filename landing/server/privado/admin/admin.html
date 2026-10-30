@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/privado/admin/a/admin-CdJmjMNL.js"></script>
+  <link rel="stylesheet" crossorigin href="/privado/admin/a/admin-B7jZKmF2.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo" data-brand-logo></a>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero" id="admin-login-view">
+  <div class="wrap">
+    <div class="kicker">Admin</div>
+    <h2>Panel de administración.</h2>
+    <p class="lead">Inventario, vendedores, ventas y comisiones.</p>
+
+    <div class="modal-form" style="max-width:360px;">
+      <label>
+        <span>Contraseña</span>
+        <input type="password" id="admin-password" placeholder="••••••••">
+      </label>
+    </div>
+    <button type="button" class="btn-primary panel-btn" id="admin-login-button">Entrar</button>
+    <p class="modal-status" id="admin-login-status"></p>
+  </div>
+</section>
+
+<section class="buy-hero" id="admin-dashboard-view" hidden>
+  <div class="wrap">
+    <div class="kicker">Admin</div>
+    <h2>Panel de administración.</h2>
+    <button type="button" class="btn-ghost" id="admin-logout-button">Cerrar sesión</button>
+
+    <div class="admin-tabs" role="tablist">
+      <button type="button" class="admin-tab is-active" role="tab" data-admin-tab="panel-tab">Panel</button>
+      <button type="button" class="admin-tab" role="tab" data-admin-tab="pap-tab">Post Affiliate Pro</button>
+    </div>
+
+    <div id="panel-tab">
+
+    
+    <div class="admin-flow" id="admin-flow"></div>
+
+    
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>NFC crudos</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="open-grabar-button" title="Programar chips NFC en tanda desde el celular (Chrome Android). El registro se crea al leer y grabar cada chip.">
+            <span class="add-icon">🔧</span> Grabar chips NFC
+          </button>
+          <button type="button" class="admin-add-btn" id="open-despacho-button" title="Entrega presencial: dejá el lector escaneando, tapeá cualquier llavero del combo y el panel te dice a quién entregárselo (código de retiro). Chrome en Android.">
+            <span class="add-icon">🚚</span> Entrega
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-lote-especial" title="Stickers ya impresos sin candado ni ID: se activan pagando y sin verificar el mail. Devuelve los links para grabar en cada chip.">
+            <span class="add-icon">+</span> Lote especial
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-liberada-pago" title="Activación liberada: el que tiene el producto lo activa PAGANDO, sin OTP (como un lote especial pero sobre un chip cualquiera). Con reescritura maestra.">
+            <span class="add-icon">🔓</span> Activación liberada
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-liberada-gratis" title="Activación gratis: el que tiene el producto lo activa SIN pagar, solo con su email. Con reescritura maestra.">
+            <span class="add-icon">🎁</span> Activación gratis
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-consola-sticker" title="Editar sticker: cargá un código, mirá su estado en el ciclo y corregí vendedor / función / modelo en tanda. Para cuando tenés un pedazo de stock en la mano.">
+            <span class="add-icon">✏️</span> Editar sticker
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-edicion-forzada" title="Edición forzada (pruebas): cambiá la función y el valor del destino de cualquier chip, en cualquier estado. Queda en la bitácora.">
+            <span class="add-icon">🧪</span> Edición forzada
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-precios" title="Precio por modelo, mismo para cualquier función.">
+            <span class="add-icon">$</span> Precios
+          </button>
+        </div>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;">Todavía sin función y/o modelo — asigná los dos para que pase a "Productos".</p>
+      <div class="admin-table admin-table--scroll" id="crudos-table"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Productos</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Ya tienen función y modelo, listos para imprimir. Asignales un vendedor para que pasen a "Productos asignados".</p>
+      <div class="admin-table admin-table--scroll" id="productos-table"></div>
+
+      <div class="admin-bulk-assign" id="bulk-assign-bar" hidden>
+        <span id="bulk-assign-count"></span>
+        <select id="bulk-assign-vendedor"><option value="">Elegí vendedor…</option></select>
+        <button type="button" class="btn-primary" id="bulk-assign-button" style="width:auto;">Asignar seleccionados</button>
+        <p class="modal-status" id="bulk-assign-status"></p>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Productos asignados</h3>
+      <p class="section-lead" style="margin:0 0 16px;">En poder de un vendedor, todavía sin vender.</p>
+      <div class="admin-table admin-table--scroll" id="asignados-table"></div>
+    </div>
+
+    
+    <div class="admin-section">
+      <h3>Activaciones liberadas</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Permisos de activación gratis. El que tiene el producto lo activa con su email, sin pagar.</p>
+      <div class="admin-table admin-table--scroll" id="liberadas-table"></div>
+    </div>
+
+    
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Vendedores</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="toggle-add-vendedor"><span class="add-icon">+</span> Agregar vendedor</button>
+        </div>
+      </div>
+      <div class="admin-table" id="vendedores-table"></div>
+
+      <div class="admin-collapsible" id="add-vendedor-panel" hidden>
+        <div class="modal-form" style="margin-top:16px;">
+          <label>
+            <span>Nombre</span>
+            <input type="text" id="new-vendedor-nombre" placeholder="Nacho">
+          </label>
+          <label>
+            <span>Código de referencia (para identificarlo en el panel, no se usa en su link público)</span>
+            <input type="text" id="new-vendedor-ref" placeholder="nacho">
+          </label>
+          <label>
+            <span>Comisión (%)</span>
+            <input type="number" id="new-vendedor-comision" value="50" min="0" max="100">
+          </label>
+          <label>
+            <span>Email (opcional — para que pueda entrar a su panel)</span>
+            <input type="email" id="new-vendedor-email" placeholder="vendedor@ejemplo.com">
+          </label>
+          <label>
+            <span>WhatsApp (opcional — alternativa al email para entrar a su panel)</span>
+            <input type="tel" id="new-vendedor-whatsapp" placeholder="+54 9 11 1234 5678">
+          </label>
+          <label>
+            <span>Alias o CVU de Mercado Pago (para liquidarle la comisión)</span>
+            <input type="text" id="new-vendedor-alias" placeholder="nacho.mp o CVU">
+          </label>
+          <label>
+            <span>Contraseña (si cargaste email o WhatsApp)</span>
+            <input type="password" id="new-vendedor-password" placeholder="Contraseña de su panel">
+          </label>
+        </div>
+        <button type="button" class="btn-primary modal-submit" id="create-vendedor-button">Crear vendedor</button>
+        <p class="modal-status" id="vendedor-status"></p>
+      </div>
+    </div>
+
+    
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Organizaciones</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="toggle-add-org"><span class="add-icon">+</span> Agregar organización</button>
+        </div>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;">Cuentas de empresa: todos sus productos muestran su imagen al tapear. La imagen la cargan ellos desde Mi panel.</p>
+      <div class="admin-table admin-table--scroll" id="organizaciones-table"></div>
+
+      <div class="admin-collapsible" id="add-org-panel" hidden>
+        <div class="modal-form" style="margin-top:16px;">
+          <label>
+            <span>Mail de la cuenta (si no existe, se crea; entra a Mi panel con código)</span>
+            <input type="email" id="new-org-email" placeholder="compras@empresa.com">
+          </label>
+          <label>
+            <span>Nombre de la organización</span>
+            <input type="text" id="new-org-nombre" maxlength="40" placeholder="Acme S.A.">
+          </label>
+        </div>
+        <button type="button" class="btn-primary modal-submit" id="create-org-button">Convertir en organización</button>
+        <p class="modal-status" id="org-admin-status"></p>
+      </div>
+    </div>
+
+    
+    <div class="admin-section">
+      <h3>Ventas</h3>
+      <div class="admin-table admin-table--scroll" id="ventas-table"></div>
+    </div>
+
+    
+    <div class="admin-section" id="envios-section" hidden>
+      <h3>Envíos a domicilio</h3>
+      <p class="section-lead" style="margin:0 0 16px;">Compras online con envío por Correo Argentino. Imprimí la etiqueta y marcá el despacho cuando lo llevás al correo.</p>
+      <div class="admin-table admin-table--scroll" id="envios-table"></div>
+    </div>
+
+    
+    <div class="admin-section" id="sorteo-section">
+      <div class="admin-section-head">
+        <h3>Sorteo Instagram</h3>
+        <div class="admin-head-actions">
+          <button type="button" class="admin-add-btn" id="sorteo-csv-btn"><span class="add-icon">⬇</span> CSV</button>
+          <button type="button" class="admin-add-btn" id="sorteo-sortear-btn"><span class="add-icon">🎲</span> Sortear</button>
+        </div>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;" id="sorteo-resumen"></p>
+      <div class="sorteo-ruleta" id="sorteo-ruleta" hidden></div>
+
+      <div class="sorteo-marcar">
+        <p class="section-lead" style="margin:0 0 8px;">Sumar chances en bloque: pegá el texto de las notificaciones o DMs de Instagram ("@juan te mencionó en su historia"), o la lista de seguidores copiada. Se marcan los @ que estén anotados.</p>
+        <div class="sorteo-marcar-fila">
+          <select id="sorteo-marcar-campo">
+            <option value="historia">Subieron historia (x2)</option>
+            <option value="sigue">Siguen la cuenta</option>
+          </select>
+          <button type="button" class="btn-primary" id="sorteo-marcar-btn" style="width:auto;">Marcar</button>
+        </div>
+        <textarea id="sorteo-marcar-texto" rows="4" placeholder="@juan.perez te mencionó en su historia&#10;@maru_g te mencionó en su historia"></textarea>
+        <p class="modal-status" id="sorteo-marcar-status"></p>
+      </div>
+
+      <div class="admin-table admin-table--scroll" id="sorteo-table"></div>
+    </div>
+
+    
+    <div class="admin-section">
+      <h3>Comisiones</h3>
+      <div class="comision-banner" id="comisiones-banner"></div>
+      <div class="admin-table" id="comisiones-table"></div>
+    </div>
+    </div>
+
+    
+    <div id="pap-tab" hidden>
+      <div class="pap-estado" id="pap-estado" hidden></div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Cómo funciona</h3>
+          <div class="admin-head-actions">
+            <a class="admin-add-btn" id="pap-link-panel" href="#" target="_blank" rel="noopener"><span class="add-icon">↗</span> Abrir PAP</a>
+          </div>
+        </div>
+        <ol class="pap-pasos">
+          <li><b>Primer toque.</b> Le mandás a la consultora o agencia el primer mail. <button type="button" class="row-btn" id="pap-copiar-primer">✉️ Copiar primer toque</button>
+            <span>Completá [Nombre] y [Agencia] antes de mandarlo.</span></li>
+          <li><b>Si dice que sí, la das de alta</b> en "Agencias" (abajo): agencia, persona de contacto, mail y un código corto (ej. <code>LOPEZ</code>). Queda aprobada en PAP con su link.</li>
+          <li><b>Bienvenida.</b> En su fila tocá <b>✉️ Bienvenida</b>: copia el mail ya completado con su link y su código y, abajo, el mail para pymes armado con su código (con diseño). Pegalo en un mail nuevo de Gmail, poné el asunto que aparece arriba de la tabla y mandalo.</li>
+          <li><b>Ventas por la web:</b> son automáticas. Si la empresa entra por el link y paga con Mercado Pago, la venta aparece sola en "Comisiones del mes" como <b>Pendiente</b>: aprobala cuando la compra quede firme.</li>
+          <li><b>Ventas por transferencia:</b> cuando te llega la plata y la empresa nombró a una agencia (por su código o su nombre), cargala en "Venta por transferencia". Queda aprobada al toque. <b>Preguntá siempre "¿quién te pasó nuestro contacto?"</b></li>
+          <li><b>Día 10 de cada mes:</b> en "Comisiones del mes" (viene puesto el mes anterior), por cada agencia: copiá alias y monto → transferí desde el banco → tocá <b>Ya transferí ✓</b> → <b>✉️ Copiar resumen</b> y mandáselo.</li>
+          <li><b>Si una empresa devuelve o no paga:</b> tocá <b>✕ Anular</b> en esa venta antes de pagar. Si ya le pagaste, descontalo del mes siguiente.</li>
+        </ol>
+        <p class="section-lead pap-nota">Reglas que le prometimos a las agencias: 20% del combo sin envío · la cookie del link dura 60 días · si la empresa nombra a la agencia, la venta es suya aunque no haya entrado por el link · se paga el día 10 lo aprobado del mes anterior.</p>
+      </div>
+
+      
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Mensaje de primer toque</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-primer"><span class="add-icon">+</span> Editar</button>
+          </div>
+        </div>
+        <p class="section-lead pap-nota" id="pap-primer-estado"></p>
+        <div class="admin-collapsible" id="pap-primer-panel" hidden>
+          <div class="modal-form pap-form">
+            <label class="pap-form-ancho"><span>Asunto</span><input id="pap-primer-asunto" maxlength="200"></label>
+          </div>
+          <p class="pap-nota pap-variables-ayuda">Tocá una variable para meterla donde está el cursor. Se completa sola al copiar:</p>
+          <div class="pap-variables" id="pap-primer-variables"></div>
+          <textarea id="pap-primer-cuerpo" class="pap-primer-cuerpo" rows="22" maxlength="10000"></textarea>
+          <div class="pap-bienvenida-acciones">
+            <button type="button" class="btn-primary panel-btn" id="pap-primer-guardar" style="width:auto;">Guardar</button>
+            <button type="button" class="btn-ghost" id="pap-primer-original">Volver a la original</button>
+          </div>
+          <p class="modal-status" id="pap-primer-status"></p>
+        </div>
+      </div>
+
+      
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Mensaje de bienvenida</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-bienvenida"><span class="add-icon">+</span> Editar</button>
+          </div>
+        </div>
+        <p class="section-lead pap-nota" id="pap-bienvenida-estado"></p>
+        <div class="admin-collapsible" id="pap-bienvenida-panel" hidden>
+          <div class="modal-form pap-form">
+            <label class="pap-form-ancho"><span>Asunto</span><input id="pap-bienvenida-asunto" maxlength="200"></label>
+          </div>
+          <p class="pap-nota pap-variables-ayuda">Tocá una variable para meterla donde está el cursor. Se completa sola con los datos de cada agencia:</p>
+          <div class="pap-variables" id="pap-bienvenida-variables"></div>
+          <textarea id="pap-bienvenida-cuerpo" class="pap-bienvenida-cuerpo" rows="22" maxlength="10000"></textarea>
+          <div class="pap-bienvenida-acciones">
+            <button type="button" class="btn-primary panel-btn" id="pap-bienvenida-guardar" style="width:auto;">Guardar</button>
+            <button type="button" class="btn-ghost" id="pap-bienvenida-original">Volver a la original</button>
+          </div>
+          <p class="modal-status" id="pap-bienvenida-status"></p>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Agencias</h3>
+          <div class="admin-head-actions">
+            <button type="button" class="admin-add-btn" id="toggle-pap-nuevo"><span class="add-icon">+</span> Nueva agencia</button>
+          </div>
+        </div>
+        <div class="admin-collapsible" id="pap-nuevo-panel" hidden>
+          <div class="modal-form pap-form">
+            <label><span>Agencia</span><input id="pap-nuevo-agencia" placeholder="Consultora López RRHH"></label>
+            <label><span>Persona de contacto</span><input id="pap-nuevo-contacto" placeholder="Juana López"></label>
+            <label><span>Mail</span><input id="pap-nuevo-email" type="email" placeholder="juana@lopezrrhh.com.ar"></label>
+            <label><span>Código (link y transferencias)</span><input id="pap-nuevo-codigo" placeholder="LOPEZ" maxlength="20"></label>
+            <label><span>Alias o CBU para pagarle (opcional)</span><input id="pap-nuevo-alias" placeholder="lopez.rrhh.mp"></label>
+          </div>
+          <button type="button" class="btn-primary panel-btn" id="pap-nuevo-btn" style="width:auto;">Crear agencia</button>
+          <p class="modal-status" id="pap-nuevo-status"></p>
+        </div>
+        <div class="admin-table" id="pap-afiliados-table"></div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Venta por transferencia</h3>
+        <p class="section-lead pap-nota">Solo cuando ya te entró la plata. Todo sin envío. La agencia ve en su panel qué se llevó la empresa (ej. "20 combos + 10 sueltas"), el total y su comisión.</p>
+        <div class="modal-form pap-form">
+          <label><span>Agencia</span><select id="pap-venta-afiliado"><option value="">Elegí la agencia…</option></select></label>
+          <label><span>Empresa que compró</span><input id="pap-venta-empresa" placeholder="Distribuidora Sur SRL"></label>
+          <label><span>N° de pedido (opcional)</span><input id="pap-venta-pedido" placeholder="se genera solo"></label>
+        </div>
+        <div class="modal-form pap-form">
+          <label><span>Combos</span><input id="pap-venta-combos" type="number" min="0" value="1"></label>
+          <label><span>Precio por combo</span><input id="pap-venta-precio-combo" type="number" min="0" step="100"></label>
+          <label><span>Unidades sueltas</span><input id="pap-venta-sueltas" type="number" min="0" value="0"></label>
+          <label><span>Precio por suelta</span><input id="pap-venta-precio-suelta" type="number" min="0" step="100"></label>
+        </div>
+        <label class="pap-check"><input type="checkbox" id="pap-venta-sueltas-comision" checked> Las unidades sueltas también suman comisión</label>
+        <div class="modal-form pap-form">
+          <label class="pap-form-ancho"><span>Nota para la agencia (opcional, la ve en su panel)</span><input id="pap-venta-nota" maxlength="200" placeholder="Regalo de fin de año para el equipo comercial"></label>
+        </div>
+        <p class="pap-preview" id="pap-venta-preview"></p>
+        <button type="button" class="btn-primary panel-btn" id="pap-venta-btn" style="width:auto;">Cargar venta</button>
+        <p class="modal-status" id="pap-venta-status"></p>
+      </div>
+
+      <div class="admin-section">
+        <div class="admin-section-head">
+          <h3>Comisiones del mes</h3>
+          <div class="admin-head-actions"><input type="month" class="precio-input" id="pap-mes" style="width:auto;"></div>
+        </div>
+        <div id="pap-comisiones"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<div class="modal-overlay" id="batch-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="batch-modal-close">✕</button>
+    <h3>Dar de alta un lote</h3>
+    <p class="modal-sub">Crea varios NFC de una, todos con el mismo modelo.</p>
+    <div class="modal-form">
+      <label>
+        <span>Cantidad</span>
+        <input type="number" id="batch-cantidad" value="5" min="1" max="100">
+      </label>
+      <label>
+        <span>Función (opcional)</span>
+        <select id="batch-funcion">
+          <option value="">Sin definir</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="menu">Menú</option>
+          <option value="review">Reseña</option>
+          <option value="web">Web propia</option>
+          <option value="agenda">Agenda</option>
+          <option value="alias">Datos de transferencia</option>
+        </select>
+      </label>
+      <label>
+        <span>Modelo</span>
+        <select id="batch-modelo">
+          <option value="llavero">Llavero</option>
+          <option value="tarjeta">Stand</option>
+          <option value="placa">Placa</option>
+        </select>
+      </label>
+      <label>
+        <span>Asignar a vendedor (opcional)</span>
+        <select id="batch-vendedor"><option value="">Sin asignar</option></select>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="create-batch-button">Crear lote</button>
+    <p class="modal-status" id="batch-status"></p>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="especial-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="especial-modal-close">✕</button>
+    <h3>Crear lote especial</h3>
+    <p class="modal-sub">Cada sticker se marca como lote especial (activación con pago, sin verificar el mail). Definí uno por uno el modelo y a qué red apunta. Al crear te devuelve el link para grabar en cada chip.</p>
+    <div class="modal-form">
+      <label>
+        <span>Nombre del lote (opcional)</span>
+        <input type="text" id="especial-nombre" placeholder="ESPECIAL — feria noviembre">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="especial-sobrescribir">
+        <span>Sobrescribir: si ya existe un lote con este nombre, agregarle los stickers en vez de crear uno nuevo</span>
+      </label>
+    </div>
+    <div id="especial-rows"></div>
+    <button type="button" class="btn-ghost" id="especial-add-row" style="margin:12px 0;">+ Agregar sticker</button>
+    <button type="button" class="btn-primary modal-submit" id="create-especial-button">Crear lote especial</button>
+    <p class="modal-status" id="especial-status"></p>
+    <div class="wizard-summary" id="especial-result" hidden></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="individual-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="individual-modal-close">✕</button>
+    <h3>Registrar NFC crudo</h3>
+    <p class="modal-sub">Para cuando programás un chip físico de verdad: pegás el UID que leíste del chip, y te devuelve la clave de escritura derivada para cargar en tu software de programación — no se guarda en ningún lado, copiala ahora. Modelo y vendedor quedan sin asignar por defecto — los podés completar después, por separado, desde la tabla de inventario (no siempre pasa todo en el mismo momento).</p>
+    <div class="modal-form">
+      <label>
+        <span>UID del chip (leído del taller)</span>
+        <input type="text" id="individual-uid" placeholder="04a2b3c4d5e6">
+      </label>
+      <label>
+        <span>Función</span>
+        <select id="individual-funcion">
+          <option value="" selected>Sin asignar</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="menu">Menú</option>
+          <option value="review">Reseña</option>
+          <option value="web">Web propia</option>
+          <option value="agenda">Agenda</option>
+          <option value="alias">Datos de transferencia</option>
+        </select>
+      </label>
+      <label>
+        <span>Modelo</span>
+        <select id="individual-modelo">
+          <option value="" selected>Sin asignar</option>
+          <option value="llavero">Llavero</option>
+          <option value="tarjeta">Stand</option>
+          <option value="placa">Placa</option>
+        </select>
+      </label>
+      <label>
+        <span>Vendedor</span>
+        <select id="individual-vendedor"><option value="" selected>Sin asignar</option></select>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="individual-sobrescribir">
+        <span>Sobrescribir si el UID ya está registrado (re-aplica función / modelo / vendedor; conserva activación y dueño)</span>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="create-individual-button">Registrar NFC</button>
+    <p class="modal-status" id="individual-status"></p>
+    <div class="wizard-summary" id="individual-result" hidden></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="liberada-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="liberada-modal-close">✕</button>
+    <h3 id="liberada-modal-title">Activación liberada</h3>
+    <p class="modal-sub" id="liberada-modal-sub"></p>
+    <div class="modal-form">
+      <label>
+        <span>Código público o UID del chip</span>
+        <input type="text" id="liberada-codigo" placeholder="abc123 o 04a2b3c4d5e6">
+      </label>
+      <button type="button" class="btn-ghost" id="liberada-scan" style="margin:-4px 0 8px;">📡 Escanear chip (Chrome Android)</button>
+      <label>
+        <span>Motivo (opcional)</span>
+        <input type="text" id="liberada-motivo" placeholder="regalo / demo / garantía / prueba">
+      </label>
+      <label>
+        <span>Vence en (días — opcional, vacío = no vence)</span>
+        <input type="number" id="liberada-expira" min="1" placeholder="30">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="liberada-reescribir">
+        <span>Reescribir el chip: re-aplicar función / modelo / vendedor y grabar la URL</span>
+      </label>
+      <div id="liberada-reescribir-campos" hidden>
+        <label>
+          <span>Función</span>
+          <select id="liberada-funcion"><option value="">Sin cambiar</option></select>
+        </label>
+        <label>
+          <span>Modelo</span>
+          <select id="liberada-modelo"><option value="">Sin cambiar</option></select>
+        </label>
+        <label>
+          <span>Vendedor (a quién se atribuye la activación)</span>
+          <select id="liberada-vendedor"><option value="">Vendedor por defecto</option></select>
+        </label>
+      </div>
+      <label>
+        <span>Destino pre-cargado (opcional — si lo dejás vacío, lo elige el que activa)</span>
+        <input type="text" id="liberada-destino-valor" placeholder="Ej. instagram.com/minegocio">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="liberada-forzar">
+        <span><b>Reescritura maestra</b>: forzar aunque el producto ya esté activo o con dueño. Anula la venta anterior y huérfana al comprador.</span>
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="liberada-submit">Crear activación liberada</button>
+    <p class="modal-status" id="liberada-status"></p>
+    <div class="wizard-summary" id="liberada-result" hidden></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="historial-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="historial-modal-close">✕</button>
+    <h3 id="historial-modal-title">Historial</h3>
+    <p class="modal-sub" id="historial-modal-sub"></p>
+    <div class="admin-table" id="historial-modal-table"></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="consola-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="consola-modal-close">✕</button>
+    <h3>Editar sticker</h3>
+    <p class="modal-sub">Cargá un código, corregí lo que haga falta y guardá. El foco vuelve al código para seguir con el siguiente chip.</p>
+    <div class="modal-form">
+      <label>
+        <span>Código / UID / URL</span>
+        <input type="text" id="consola-q" placeholder="abc123, 04a2b3c4… o link pegado" autocomplete="off">
+      </label>
+    </div>
+    <button type="button" class="btn-ghost" id="consola-scan" style="margin:4px 0 8px;">📡 Escanear chip (Chrome Android)</button>
+    <p class="modal-status" id="consola-status"></p>
+    <div id="consola-panel" hidden>
+      <div class="wizard-summary" id="consola-estado"></div>
+      <div class="modal-form">
+        <label>
+          <span>Vendedor</span>
+          <select id="consola-vendedor"></select>
+        </label>
+        <label>
+          <span>Función</span>
+          <select id="consola-funcion"></select>
+        </label>
+        <label>
+          <span>Modelo</span>
+          <select id="consola-modelo"></select>
+        </label>
+        <label>
+          <span>Motivo del cambio</span>
+          <input type="text" id="consola-motivo" placeholder="asigno stock a Ana / corrijo función mal cargada" autocomplete="off">
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="consola-guardar">Guardar cambios</button>
+    </div>
+    <div class="admin-table" id="consola-log"></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="forzada-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="forzada-modal-close">✕</button>
+    <h3>🧪 Edición forzada</h3>
+    <p class="modal-sub">Para pruebas: cambiá la función y el valor del destino de cualquier chip, sin importar su estado. Queda anotado en la bitácora.</p>
+    <div class="modal-form">
+      <label>
+        <span>Código / UID / URL</span>
+        <input type="text" id="forzada-q" placeholder="abc123, 04a2b3c4… o link pegado" autocomplete="off">
+      </label>
+    </div>
+    <p class="modal-status" id="forzada-status"></p>
+    <div id="forzada-panel" hidden>
+      <div class="wizard-summary" id="forzada-estado"></div>
+      <div class="modal-form">
+        <label>
+          <span>Función</span>
+          <select id="forzada-funcion"></select>
+        </label>
+        <label>
+          <span id="forzada-valor-label">Valor</span>
+          <input type="text" id="forzada-valor" autocomplete="off">
+          <small class="admin-muted" id="forzada-valor-ayuda"></small>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;">
+          <input type="checkbox" id="forzada-sin-validar" style="width:auto;">
+          <span>Guardar sin validar (tal cual lo escribí)</span>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;" id="forzada-activo-row">
+          <input type="checkbox" id="forzada-activo" style="width:auto;">
+          <span>Forzar estado a activo (para que el tap siga el destino)</span>
+        </label>
+        <label>
+          <span>Motivo (opcional)</span>
+          <input type="text" id="forzada-motivo" placeholder="prueba forzada" autocomplete="off">
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="forzada-guardar">Forzar cambios</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="precios-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="precios-modal-close">✕</button>
+    <h3>Precios por modelo</h3>
+    <p class="modal-sub">Mismo precio para cualquier función.</p>
+    <div class="modal-form" id="precios-form"></div>
+    <p class="modal-status" id="precios-status"></p>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="liquidar-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="liquidar-modal-close">✕</button>
+    <h3>Liquidar comisión</h3>
+    <p class="modal-sub" id="liquidar-modal-sub"></p>
+    <div class="liquidar-grid">
+      <div>
+        <span class="liquidar-label">Alias / CVU</span>
+        <div class="liquidar-value" id="liquidar-alias"></div>
+        <button type="button" class="btn-ghost" id="liquidar-copy-alias" style="margin-top:6px;">Copiar alias</button>
+      </div>
+      <div>
+        <span class="liquidar-label">Monto a transferir</span>
+        <div class="liquidar-value" id="liquidar-monto"></div>
+        <button type="button" class="btn-ghost" id="liquidar-copy-monto" style="margin-top:6px;">Copiar monto</button>
+      </div>
+    </div>
+    <button type="button" class="btn-ghost" id="liquidar-open-mp" style="width:100%; margin:14px 0;">Abrir Mercado Pago →</button>
+    <p class="modal-sub" style="margin:0 0 4px;">Después de transferir, pegá acá el número de operación que te da Mercado Pago:</p>
+    <div class="modal-form">
+      <label>
+        <span>Número de operación</span>
+        <input type="text" id="liquidar-ref" placeholder="Ej. 123456789012">
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="liquidar-confirm">Confirmar liquidación</button>
+    <p class="modal-status" id="liquidar-status"></p>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="comision-modal-overlay">
+  <div class="modal modal--wide">
+    <button type="button" class="modal-close" id="comision-modal-close">✕</button>
+    <h3 id="comision-modal-title">Comisión</h3>
+    <p class="modal-sub" id="comision-modal-sub"></p>
+
+    <h4 class="comision-h4">Desglose por día</h4>
+    <div class="admin-table admin-table--scroll" id="comision-desglose"></div>
+
+    <h4 class="comision-h4">Marcar día justificado</h4>
+    <div class="modal-form comision-ausencia-form">
+      <label><span>Fecha</span><input type="date" id="comision-ausencia-fecha"></label>
+      <label><span>Nota (opcional)</span><input type="text" id="comision-ausencia-nota" placeholder="Aviso previo / certificado"></label>
+    </div>
+    <button type="button" class="btn-ghost" id="comision-ausencia-add">Agregar</button>
+    <div id="comision-ausencias-list" class="comision-ausencias-list"></div>
+
+    <h4 class="comision-h4">Escala de este vendedor</h4>
+    <div id="comision-tramos-editor"></div>
+    <div class="modal-form">
+      <label><span>Bono fin de semana (fracción, ej. 0.10)</span><input type="number" step="0.01" id="comision-bono-finde"></label>
+      <label><span>Deuda si falta 1 día (unidades)</span><input type="number" id="comision-deuda-1d"></label>
+      <label><span>Deuda si falta 2 días</span><input type="number" id="comision-deuda-2d"></label>
+      <label><span>Deuda si falta 3+ días</span><input type="number" id="comision-deuda-3d"></label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="comision-config-save">Guardar escala</button>
+    <p class="modal-status" id="comision-modal-status"></p>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="stock-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="stock-modal-close">✕</button>
+    <h3 id="stock-modal-title">Stock asignado</h3>
+    <p class="modal-sub" id="stock-modal-sub"></p>
+    <div class="admin-table" id="stock-modal-table"></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="links-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="links-modal-close">✕</button>
+    <h3 id="links-modal-title">Links de venta</h3>
+    <p class="modal-sub">Cada cara del llavero del vendedor apunta a uno de estos. Los de promo aplican el descuento de a pares.</p>
+    <div id="links-modal-list" style="display:flex; flex-direction:column; gap:18px; margin:6px 0 4px;"></div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="despacho-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="despacho-modal-close">✕</button>
+    <h3>Entrega</h3>
+    <p class="modal-sub">Dejá el lector escaneando y tapeá cualquier llavero del combo que te pidieron. El panel te muestra a quién le toca (código de retiro) — se lo pedís, lo confirma, y tocás "Entregar". Chrome en Android con NFC.</p>
+    <button type="button" class="btn-primary modal-submit" id="despacho-start">Empezar a escanear</button>
+    <p class="modal-status" id="despacho-status"></p>
+    <div class="despacho-card" id="despacho-card" hidden></div>
+    <p class="modal-status is-error" id="despacho-outbox" hidden></p>
+    <div class="despacho-manual">
+      <input type="text" id="despacho-manual-codigo" placeholder="o ingresá el código del chip a mano">
+      <button type="button" class="btn-ghost" id="despacho-manual-btn">Buscar</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="grabar-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="grabar-modal-close">✕</button>
+
+    <div class="grabar-step" id="grabar-config">
+      <h3>Grabar chips NFC</h3>
+      <p class="modal-sub">Programá los chips uno por uno desde el teléfono: acercás el chip, se registra y se le graba la URL, y pasás al siguiente. El candado se hace después con NFC Tools. Necesitás Chrome en Android con NFC activado.</p>
+      <div class="modal-form">
+        <label>
+          <span>Cuántos vas a grabar (para la barra de progreso)</span>
+          <input type="number" id="grabar-objetivo" value="10" min="1" max="200">
+        </label>
+        <label>
+          <span>Lote</span>
+          <select id="grabar-lote"><option value="new">Lote nuevo</option></select>
+        </label>
+        <label id="grabar-lote-tipo-label">
+          <span>Tipo de lote (etiqueta, opcional)</span>
+          <input type="text" id="grabar-lote-tipo" placeholder="Activación Bloqueada">
+        </label>
+        <label>
+          <span>Función (opcional — se aplica a todos)</span>
+          <select id="grabar-funcion"></select>
+        </label>
+        <label>
+          <span>Modelo (opcional — se aplica a todos)</span>
+          <select id="grabar-modelo"></select>
+        </label>
+        <label>
+          <span>Vendedor (opcional — se aplica a todos)</span>
+          <select id="grabar-vendedor"><option value="">Sin asignar</option></select>
+        </label>
+        <label class="modal-check">
+          <input type="checkbox" id="grabar-sobrescribir">
+          <span>Sobrescribir si el UID ya está registrado (re-aplica función / modelo / vendedor / lote; conserva activación y dueño)</span>
+        </label>
+      </div>
+      <button type="button" class="btn-primary modal-submit" id="grabar-start">Empezar</button>
+      <p class="modal-status" id="grabar-config-status"></p>
+    </div>
+
+    <div class="grabar-step" id="grabar-run" hidden>
+      <div class="wizard-topbar">
+        <div class="wizard-progress" id="grabar-progress"></div>
+      </div>
+      <div class="grabar-lote-label" id="grabar-lote-label"></div>
+      <div class="grabar-count" id="grabar-count">0 / 10</div>
+      <div class="grabar-stage" id="grabar-stage"></div>
+      <p class="modal-status" id="grabar-status"></p>
+      <div class="wizard-nav">
+        <button type="button" class="btn-ghost" id="grabar-skip">Saltear este</button>
+        <button type="button" class="btn-primary" id="grabar-next" disabled>Siguiente chip</button>
+      </div>
+      <button type="button" class="btn-ghost" id="grabar-finish" style="margin-top:14px; width:100%;">Terminar</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span><span data-brand>tap</span> — stickers NFC con impresión 3D</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tap — Panel de vendedor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/privado/vendedor/a/vendedor-49aKsURc.js"></script>
+  <link rel="stylesheet" crossorigin href="/privado/vendedor/a/vendedor-B7jZKmF2.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo" data-brand-logo></a>
+  <a href="/" class="nav-cta">Volver al inicio</a>
+</nav>
+
+<section class="buy-hero" id="login-view">
+  <div class="wrap">
+    <div class="kicker">Panel de vendedor</div>
+    <h2>Entrá con tu email o WhatsApp y contraseña.</h2>
+    <p class="lead">Acá vas a ver qué productos vendidos todavía te falta entregar.</p>
+
+    <div class="modal-form panel-login-form">
+      <label>
+        <span>Tu email o WhatsApp</span>
+        <input type="text" id="login-whatsapp" placeholder="vendedor@ejemplo.com">
+      </label>
+      <label>
+        <span>Contraseña</span>
+        <input type="password" id="login-password" placeholder="Contraseña">
+      </label>
+    </div>
+    <button type="button" class="btn-primary panel-btn" id="login-button">Ingresar</button>
+    <p class="modal-status" id="login-status"></p>
+  </div>
+</section>
+
+<section class="buy-hero" id="dashboard-view" hidden>
+  <div class="wrap">
+    <div class="kicker">Panel de vendedor</div>
+    <h2 id="dashboard-title">Tu stock y tus ventas</h2>
+    <p class="lead">Cuando entra una venta, el pedido aparece acá con su código de retiro. Se actualiza solo.</p>
+    <button type="button" class="btn-ghost" id="logout-button">Cerrar sesión</button>
+
+    <div class="comision-card" id="comision-card" hidden></div>
+
+    <div class="admin-section-head">
+      <h3 class="sticker-list-title">¿Qué entrego?</h3>
+      <button type="button" class="admin-add-btn" id="open-despacho-button" title="Dejá el lector escaneando y tapeá cualquier llavero del combo: el panel te dice a quién entregárselo (código de retiro). Chrome en Android con NFC.">
+        <span class="add-icon">🚚</span> Entrega
+      </button>
+    </div>
+    <p class="section-lead">Por combo, quién está esperando (la #1 va primero). Agarrás cualquier unidad del combo y la confirmás con el código de retiro que te muestra el comprador — abrí "Entrega" y escaneá.</p>
+    <div class="sticker-list" id="stock-list"></div>
+
+    <h3 class="sticker-list-title">Ventas confirmadas</h3>
+    <div class="sticker-list" id="ventas-list"></div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — Tecnología NFC</span>
+  <span>Buenos Aires, Argentina</span>
+</footer>
+
+
+<div class="modal-overlay" id="despacho-modal-overlay">
+  <div class="modal wizard-modal">
+    <button type="button" class="modal-close" id="despacho-modal-close">✕</button>
+    <h3>Entrega</h3>
+    <p class="modal-sub">Dejá el lector escaneando y tapeá cualquier llavero del combo que te pidieron. El panel te muestra a quién le toca (código de retiro) — se lo pedís, lo confirma, y tocás "Entregar". Chrome en Android con NFC.</p>
+    <button type="button" class="btn-primary modal-submit" id="despacho-start">Empezar a escanear</button>
+    <p class="modal-status" id="despacho-status"></p>
+    <div class="despacho-card" id="despacho-card" hidden></div>
+    <p class="modal-status is-error" id="despacho-outbox" hidden></p>
+    <div class="despacho-manual">
+      <input type="text" id="despacho-manual-codigo" placeholder="o ingresá el código del chip a mano">
+      <button type="button" class="btn-ghost" id="despacho-manual-btn">Buscar</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

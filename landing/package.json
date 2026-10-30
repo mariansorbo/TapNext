@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:privado": "cross-env PRIVADO=admin vite build -c vite.privado.config.js && cross-env PRIVADO=vendedor vite build -c vite.privado.config.js",
+    "build:todo": "npm run build && npm run build:privado",
     "preview": "vite preview",
     "server": "cross-env PORT=3001 node --env-file-if-exists=.env server/index.js",
     "seed": "node server/seed.js",

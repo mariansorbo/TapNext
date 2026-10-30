@@ -15,7 +15,7 @@
   -->
   <script>
   (function () {
-    // Router público del backend (Render). Los chips nuevos ya se graban así.
+    // Router público del backend. Los chips nuevos ya se graban así.
     var ROUTER_BASE = 'https://tapnext.onrender.com';
     var path = location.pathname.match(/\/activacion\/([^/?#]+)/);
     var codigo = path ? decodeURIComponent(path[1]) : new URLSearchParams(location.search).get('c');
