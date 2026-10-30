@@ -15,7 +15,7 @@ import { validarPassword, crearLimitador } from './password.js';
 import { enviarCorreo, correoDisponible, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
-import { efemerideDe } from './efemerides.js';
+import { efemerideBloque } from './efemerides.js';
 import { montarConsolaSticker } from './consola-sticker.js';
 import { montarEdicionForzada } from './edicion-forzada.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
@@ -3458,26 +3458,6 @@ function orgBloque(org) {
       img.onerror=function(){ fin(false) };
       setTimeout(fin,${ORG_ESPERA_MAX});
     }`,
-  };
-}
-
-// Efeméride del día (server/efemerides.js) para la pantalla de marca: una línea
-// chica arriba de "NextTap" y el acento (bloque "Tap" + barra) teñido del color de
-// la fecha. Solo en la pantalla de NextTap: con organización la pantalla es de
-// su marca y no se toca. Sin efeméride, todo vacío y la pantalla queda igual.
-function efemerideBloque(org, ahora = new Date()) {
-  const e = org ? null : efemerideDe(ahora);
-  if (!e) return { css: '', html: '' };
-  const esc = (v) =>
-    String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const color = e.color ? `:root{--violet:${e.color}}` : '';
-  return {
-    css: `
-  ${color}
-  .efe{max-width:min(88vw,420px);text-align:center;font-size:clamp(.82rem,3.6vw,1rem);font-weight:500;
-    letter-spacing:.01em;color:var(--paper);opacity:0;animation:show .25s .05s forwards}
-  .efe span{margin-right:.4em}`,
-    html: `<div class="efe">${e.emoji ? `<span>${esc(e.emoji)}</span>` : ''}${esc(e.texto)}</div>`,
   };
 }
 
