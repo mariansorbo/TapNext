@@ -42,6 +42,8 @@ export default defineConfig({
         faqs: resolve(root, 'faqs.html'),
         quienesSomos: resolve(root, 'quienes-somos.html'),
         empresas: resolve(root, 'empresas.html'),
+        // Demo de efemerides de la pantalla del tap (para mostrar); noindex.
+        efemerides: resolve(root, 'efemerides.html'),
         // admin y vendedor tienen su propio build (vite.privado.config.js) y los
         // entrega el backend con sesión. demo*, "Demo Escena 2" y
         // prueba-redireccionamiento son material interno: andan con `vite dev`
