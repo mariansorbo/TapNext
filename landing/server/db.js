@@ -210,6 +210,18 @@ await db.executeMultiple(`
     creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  -- Links de "Activar mi cuenta" que van en el primer mail al comprador: un
+  -- solo uso, vencen. Abrirlos prueba que el mail es suyo (entra a Mi panel
+  -- sin pedir código). Se guarda el hash, nunca el token.
+  CREATE TABLE IF NOT EXISTS enlaces_acceso (
+    id SERIAL PRIMARY KEY,
+    comprador_id INTEGER NOT NULL REFERENCES compradores(id),
+    token_hash TEXT NOT NULL UNIQUE,
+    expira TIMESTAMPTZ NOT NULL,
+    usado_en TIMESTAMPTZ,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
   CREATE TABLE IF NOT EXISTS admin_sesiones (
     id SERIAL PRIMARY KEY,
     token_hash TEXT NOT NULL UNIQUE,

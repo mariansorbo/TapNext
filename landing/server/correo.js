@@ -60,11 +60,24 @@ function nombreModelo(modelo) {
   return modelo.charAt(0).toUpperCase() + modelo.slice(1);
 }
 
+// Bloque "Activar mi cuenta" del primer mail: el link entra directo a Mi panel
+// (un solo uso, vence) y ahí se ofrece crear una contraseña. Sin accesoUrl
+// (cuenta que ya existía o ya tiene contraseña) no se agrega nada.
+function bloqueAcceso(accesoUrl) {
+  if (!accesoUrl) return { text: '', html: '' };
+  return {
+    text: `\n\nActivá tu cuenta y entrá directo a tu panel, sin código — ahí también podés crear una contraseña si querés (el link sirve una sola vez y vence en 7 días):\n${accesoUrl}`,
+    html: `<p style="margin:24px 0"><a href="${esc(accesoUrl)}" style="background:#7B5CFF;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:999px;display:inline-block">Activar mi cuenta</a></p>
+<p style="color:#666;font-size:13px">Entrás directo a tu panel, sin código, y ahí podés crear una contraseña si querés. El link sirve una sola vez y vence en 7 días.</p>`,
+  };
+}
+
 /**
  * Arma el mail para el COMPRADOR: qué ID(s) de producto va a recibir.
- * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string }} data
+ * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string, accesoUrl?: string|null }} data
  */
-export function mailCompraComprador({ items, panelUrl }) {
+export function mailCompraComprador({ items, panelUrl, accesoUrl = null }) {
+  const acceso = bloqueAcceso(accesoUrl);
   const lineasText = items.map((it) => `  • ${nombreModelo(it.modelo)} — ID: ${it.codigoPublico}`).join('\n');
   const lineasHtml = items
     .map(
@@ -85,12 +98,12 @@ ${lineasText}
 Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID que va impreso en tu'} producto — verificá que coincida con el que te entrega quien te lo vende.
 
 Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu NextTap'} desde tu panel:
-${panelUrl}`;
+${panelUrl}${acceso.text}`;
   const html = `<p>¡Gracias por tu compra en <strong>NextTap</strong>!</p>
 <p>Tu pago fue confirmado. ${plural ? 'Los productos que vas a recibir son' : 'El producto que vas a recibir es'}:</p>
 <ul>${lineasHtml}</ul>
 <p>Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID que va impreso en tu'} producto — verificá que coincida con el que te entrega quien te lo vende.</p>
-<p>Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu NextTap'} desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
+<p>Podés configurar a dónde apunta ${plural ? 'cada uno' : 'tu NextTap'} desde <a href="${esc(panelUrl)}">tu panel</a>.</p>${acceso.html}`;
   return { subject, text, html };
 }
 
@@ -139,9 +152,10 @@ Ver tus ventas: ${panelUrl}`;
  * Venta presencial con cola de entrega (late binding): el comprador NO recibe un
  * ID de unidad para cotejar — recibe un código de retiro que le muestra al
  * vendedor. Ver "Cola de entrega y botón de despacho" en el vault.
- * @param {{ codigoRetiro: string, panelUrl: string }} data
+ * @param {{ codigoRetiro: string, panelUrl: string, accesoUrl?: string|null }} data
  */
-export function mailRetiroComprador({ codigoRetiro, panelUrl }) {
+export function mailRetiroComprador({ codigoRetiro, panelUrl, accesoUrl = null }) {
+  const acceso = bloqueAcceso(accesoUrl);
   const subject = `Tu compra en NextTap — código de retiro ${codigoRetiro}`;
   const text = `¡Gracias por tu compra en NextTap!
 
@@ -150,11 +164,11 @@ Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vended
   ${codigoRetiro}
 
 Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde tu panel:
-${panelUrl}`;
+${panelUrl}${acceso.text}`;
   const html = `<p>¡Gracias por tu compra en <strong>NextTap</strong>!</p>
 <p>Tu pago fue confirmado. Para retirar tu llavero, mostrale este código al vendedor:</p>
 <p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:16px 0">${esc(codigoRetiro)}</p>
-<p>Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde <a href="${esc(panelUrl)}">tu panel</a>.</p>`;
+<p>Él te va a llamar y entregar tu unidad. Después configurás a dónde apunta desde <a href="${esc(panelUrl)}">tu panel</a>.</p>${acceso.html}`;
   return { subject, text, html };
 }
 
@@ -189,9 +203,10 @@ Ver tus ventas: ${panelUrl}`;
 /**
  * Arma el mail para el COMPRADOR de una ACTIVACIÓN GRATIS (no pagó nada).
  * `cuentaNueva`: true si la cuenta se creó con este mail recién; false si ya existía.
- * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string, cuentaNueva: boolean }} data
+ * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, panelUrl: string, cuentaNueva: boolean, accesoUrl?: string|null }} data
  */
-export function mailActivacionGratis({ items, panelUrl, cuentaNueva }) {
+export function mailActivacionGratis({ items, panelUrl, cuentaNueva, accesoUrl = null }) {
+  const acceso = bloqueAcceso(accesoUrl);
   const lineasText = items.map((it) => `  • ${nombreModelo(it.modelo)} — ID: ${it.codigoPublico}`).join('\n');
   const lineasHtml = items
     .map(
@@ -205,10 +220,14 @@ export function mailActivacionGratis({ items, panelUrl, cuentaNueva }) {
     : `Tu NextTap ya está activo — ID ${items[0].codigoPublico}`;
 
   const cuentaText = cuentaNueva
-    ? 'Te creamos una cuenta con este mail. La primera vez que entres a tu panel te pedimos un código de verificación que te llega por mail.'
+    ? accesoUrl
+      ? 'Te creamos una cuenta con este mail. Para entrar la primera vez usá el link de arriba; después, si querés entrar por tu cuenta, te pedimos un código que te llega por mail.'
+      : 'Te creamos una cuenta con este mail. La primera vez que entres a tu panel te pedimos un código de verificación que te llega por mail.'
     : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá con el mismo mail de siempre.`;
   const cuentaHtml = cuentaNueva
-    ? `Te creamos una cuenta con este mail. La primera vez que entres a <a href="${esc(panelUrl)}">tu panel</a> te pedimos un código de verificación que te llega por mail.`
+    ? accesoUrl
+      ? 'Te creamos una cuenta con este mail. Para entrar la primera vez usá el botón de arriba; después, si querés entrar por tu cuenta, te pedimos un código que te llega por mail.'
+      : `Te creamos una cuenta con este mail. La primera vez que entres a <a href="${esc(panelUrl)}">tu panel</a> te pedimos un código de verificación que te llega por mail.`
     : `Ya tenías una cuenta con este mail: sumamos ${plural ? 'estos NextTap' : 'este NextTap'} ahí. Entrá a <a href="${esc(panelUrl)}">tu panel</a> con el mismo mail de siempre.`;
   const ojoText = cuentaNueva
     ? 'Si no activaste ningún NextTap, ignorá este mensaje.'
@@ -223,7 +242,7 @@ ${lineasText}
 Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID impreso en tu'} producto.
 
 Para elegir a dónde lleva cuando alguien lo apoya en el teléfono, entrá a tu panel:
-${panelUrl}
+${panelUrl}${acceso.text}
 
 ${cuentaText}
 
@@ -233,7 +252,7 @@ ${ojoText}`;
 <p>${plural ? 'Tus productos' : 'Tu producto'}:</p>
 <ul>${lineasHtml}</ul>
 <p>Ese ${plural ? 'es el ID que va impreso en cada' : 'es el ID impreso en tu'} producto.</p>
-<p>Para elegir a dónde lleva, entrá a <a href="${esc(panelUrl)}">tu panel</a>.</p>
+<p>Para elegir a dónde lleva, entrá a <a href="${esc(panelUrl)}">tu panel</a>.</p>${acceso.html}
 <p>${cuentaHtml}</p>
 <p style="color:#666;font-size:13px">${ojoText}</p>`;
   return { subject, text, html };

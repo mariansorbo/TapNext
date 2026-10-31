@@ -60,6 +60,71 @@ async function cargarDestinoConfig() {
     /* reintenta en la próxima apertura del formulario */
   }
 }
+// Textos del panel según la función del producto (la fija el admin):
+//   que    → bajada del panel ("Acá ves ___ tu producto")
+//   apunta → título del valor guardado en la tarjeta
+//   falta  → aviso cuando todavía no cargó el valor
+const FUNCION_TEXTOS = {
+  instagram: {
+    que: 'a qué usuario de Instagram apunta',
+    apunta: 'Apunta al Instagram:',
+    falta: 'Falta cargar tu usuario de Instagram. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  whatsapp: {
+    que: 'a qué número de WhatsApp apunta',
+    apunta: 'Abre el chat de WhatsApp con el número:',
+    falta: 'Falta cargar tu número de WhatsApp. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  pago: {
+    que: 'a qué link de pago apunta',
+    apunta: 'Apunta al link de pago:',
+    falta: 'Falta cargar tu link de pago. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  menu: {
+    que: 'a qué menú apunta',
+    apunta: 'Apunta al menú:',
+    falta: 'Falta cargar el link de tu menú. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  review: {
+    que: 'a qué link de reseñas apunta',
+    apunta: 'Apunta al link de reseñas:',
+    falta: 'Falta cargar el link de reseñas de tu negocio. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  web: {
+    que: 'a qué sitio web apunta',
+    apunta: 'Apunta a la web:',
+    falta: 'Falta cargar el link de tu web. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  agenda: {
+    que: 'a qué agenda apunta',
+    apunta: 'Apunta a la agenda:',
+    falta: 'Falta cargar el link de tu agenda. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  linktree: {
+    que: 'a qué usuario de Linktree apunta',
+    apunta: 'Apunta al Linktree:',
+    falta: 'Falta cargar tu usuario de Linktree. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+  },
+  alias: {
+    que: 'qué datos de transferencia muestra',
+    apunta: 'Muestra los datos de transferencia:',
+    falta: 'Faltan cargar tus datos de transferencia. Hasta que los cargues, al apoyarlo en el celular no muestra nada.',
+  },
+};
+const TEXTO_FALTA_GENERICO = 'Todavía no cargaste a dónde lleva. Hasta que lo cargues, al apoyarlo en el celular no abre nada.';
+
+// Bajada del panel: si todos los productos tienen la misma función, la nombra
+// ("a qué usuario de Instagram apunta"); si hay mezcla, queda genérica.
+function actualizarBajada(stickers) {
+  const lead = document.getElementById('dashboard-lead');
+  if (!lead) return;
+  const funciones = new Set(stickers.map((s) => s.funcion || s.destino?.tipo).filter(Boolean));
+  const una = funciones.size === 1 && stickers.every((s) => s.funcion || s.destino?.tipo) ? FUNCION_TEXTOS[[...funciones][0]] : null;
+  lead.textContent = una
+    ? `Acá ves ${una.que} ${stickers.length > 1 ? 'cada producto' : 'tu producto'}. Lo podés cambiar cuando quieras.`
+    : 'Acá ves qué abre cada producto cuando alguien lo apoya con el celular. Lo podés cambiar cuando quieras.';
+}
+
 const ESTADO_LABELS = {
   activo: 'Activo',
   vendido_pendiente: 'Pago en proceso',
@@ -93,6 +158,7 @@ const passwordLoginUsername = document.getElementById('password-login-username')
 const loginPasswordInput = document.getElementById('login-password');
 const toCodeLink = document.getElementById('to-code');
 const passwordSugerencia = document.getElementById('password-sugerencia');
+const sugerenciaTexto = document.getElementById('sugerencia-texto');
 const sugerenciaCrear = document.getElementById('sugerencia-crear');
 const sugerenciaCerrar = document.getElementById('sugerencia-cerrar');
 const accountBox = document.getElementById('account-box');
@@ -216,7 +282,7 @@ function showLogin() {
 
 // sugerirPassword: recién entró por código y quizás no tiene contraseña →
 // después de mostrarle sus productos, le ofrecemos crearla (opcional).
-async function showDashboard({ sugerirPassword = false } = {}) {
+async function showDashboard({ sugerirPassword = false, desdeEnlace = false } = {}) {
   loginView.hidden = true;
   dashboardView.hidden = false;
   passwordSugerencia.hidden = true;
@@ -226,19 +292,26 @@ async function showDashboard({ sugerirPassword = false } = {}) {
   // muestra el mail, que recién ahora seguro está.
   if (stickerList.querySelector('.sticker-vacio')) renderVacio();
   sugerenciaPendiente = sugerirPassword;
+  // Llegó con el link "Activar mi cuenta" del mail: la contraseña se ofrece
+  // arriba de todo aunque tenga productos por configurar, con otro texto.
+  sugerenciaDesdeEnlace = desdeEnlace;
+  sugerenciaTexto.innerHTML = desdeEnlace
+    ? '<b>Tu cuenta está activa.</b> ¿Querés crear una contraseña? Así la próxima vez entrás sin pedir código.'
+    : '<b>¿Querés entrar más rápido la próxima vez?</b> Creá una contraseña y no vas a necesitar el código.';
   mostrarSugerenciaPassword();
 }
 
 // La sugerencia de contraseña no compite con "Configurar ahora": si hay algún
 // producto sin destino, espera a que lo guarde. Sin productos, no se muestra.
 let sugerenciaPendiente = false;
+let sugerenciaDesdeEnlace = false;
 function mostrarSugerenciaPassword() {
   const mostrar =
     sugerenciaPendiente &&
     cuenta?.email &&
     !cuenta.tienePassword &&
     stickerList.querySelector('.sticker-card:not(.sticker-vacio)') &&
-    !stickerList.querySelector('.is-pendiente');
+    (sugerenciaDesdeEnlace || !stickerList.querySelector('.is-pendiente'));
   passwordSugerencia.hidden = !mostrar;
 }
 
@@ -641,6 +714,7 @@ function renderStickers(stickers) {
     renderVacio();
     return;
   }
+  actualizarBajada(stickers);
   const sinConfigurar = stickers.filter((s) => s.estado === 'activo' && !s.destino);
   stickers.forEach((sticker) => {
     const card = crearTarjeta(sticker);
@@ -667,15 +741,23 @@ function crearTarjeta(sticker) {
     ? '<span class="sticker-pill is-falta">Falta configurar</span>'
     : `<span class="sticker-pill${activo ? ' is-ok' : ''}">${ESTADO_LABELS[sticker.estado] || sticker.estado}</span>`;
 
+  const textos = FUNCION_TEXTOS[funcionIcono] || null;
   let cuerpo;
   if (sticker.destino) {
-    cuerpo = `
+    const valorLegible = escaparHtml(destinoLegible(sticker.destino.tipo, sticker.destino.valor));
+    cuerpo = textos
+      ? `
       <div class="sticker-destino">
-        <span class="sticker-destino-label">Cuando lo tocan con el celular, abre:</span>
-        <span class="sticker-destino-valor"><b>${escaparHtml(destinoTipo ? destinoTipo.label : sticker.destino.tipo)}</b> · ${escaparHtml(destinoLegible(sticker.destino.tipo, sticker.destino.valor))}</span>
+        <span class="sticker-destino-label">${textos.apunta}</span>
+        <span class="sticker-destino-valor"><b>${valorLegible}</b></span>
+      </div>`
+      : `
+      <div class="sticker-destino">
+        <span class="sticker-destino-label">Cuando lo apoyan con el celular, abre:</span>
+        <span class="sticker-destino-valor"><b>${escaparHtml(destinoTipo ? destinoTipo.label : sticker.destino.tipo)}</b> · ${valorLegible}</span>
       </div>`;
   } else if (activo) {
-    cuerpo = `<div class="sticker-destino sticker-destino-empty">Todavía no le dijiste a dónde llevar. Configuralo y queda listo para usar.</div>`;
+    cuerpo = `<div class="sticker-destino sticker-destino-empty">${textos ? textos.falta : TEXTO_FALTA_GENERICO}</div>`;
   } else if (sticker.estado === 'vendido_pendiente') {
     cuerpo = `<div class="sticker-destino sticker-destino-empty">Estamos confirmando el pago. En unos minutos vas a poder configurarlo desde acá.</div>`;
   } else {
@@ -873,8 +955,24 @@ googleButton.addEventListener('click', () => {
 const params = new URLSearchParams(window.location.search);
 const googleToken = params.get('token');
 const googleError = params.get('google_error');
-if (googleToken || googleError) {
+const accesoToken = params.get('acceso');
+if (googleToken || googleError || accesoToken) {
   window.history.replaceState({}, '', window.location.pathname);
+}
+
+// Link "Activar mi cuenta" del primer mail: se canjea por una sesión y entra
+// directo al panel, ya verificado. Si venció o ya se usó, cae al login normal.
+async function canjearEnlaceAcceso(token) {
+  try {
+    const data = await api('/auth/enlace', { method: 'POST', body: JSON.stringify({ token }) });
+    await entrarAlPanel(data, { sugerirPassword: true, desdeEnlace: true });
+    resetLogin();
+  } catch (err) {
+    clearToken();
+    resetLogin();
+    showLogin();
+    setStatus(loginStatus, 'is-error', err.message);
+  }
 }
 if (googleToken) {
   setToken(googleToken);
@@ -891,7 +989,9 @@ if (googleToken) {
 checkGoogleLogin();
 
 // Si ya había una sesión activa o Google / la activación nos acaba de loguear, entramos directo.
-if (getToken()) {
+if (accesoToken) {
+  canjearEnlaceAcceso(accesoToken);
+} else if (getToken()) {
   showDashboard({ sugerirPassword: Boolean(googleToken) }).catch(() => showLogin());
 } else {
   resetLogin();

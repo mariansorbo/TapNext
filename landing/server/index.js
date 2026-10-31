@@ -481,6 +481,54 @@ app.post('/api/auth/otp/verify', async (req, res) => {
   });
 });
 
+// Link "Activar mi cuenta" del primer mail al comprador. Solo se genera si la
+// cuenta tiene mail y todavía no tiene contraseña (cuenta nueva): para quien ya
+// la tiene el mail no lleva un login directo. Un solo uso; vence a los 7 días.
+const ENLACE_ACCESO_MINUTES = 7 * 24 * 60;
+async function crearEnlaceAcceso(compradorId) {
+  const c = await get('SELECT email, password_hash FROM compradores WHERE id = ?', [compradorId]);
+  if (!c?.email || c.password_hash) return null;
+  const token = generateToken();
+  await run('INSERT INTO enlaces_acceso (comprador_id, token_hash, expira) VALUES (?, ?, ?)', [
+    compradorId,
+    hashValue(token),
+    isoInMinutes(ENLACE_ACCESO_MINUTES),
+  ]);
+  return `${FRONTEND_URL}/mi-panel.html?acceso=${token}`;
+}
+
+// Canje del link: abre una sesión "fuerte" (como un código) y marca el mail
+// como verificado, porque el link solo llegó a esa casilla. El UPDATE es el
+// que lo consume, así dos pedidos a la vez no lo usan dos veces.
+app.post('/api/auth/enlace', async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const ip = req.ip || 'unknown';
+  if (!loginFallosPorIp.permitido(ip)) return res.status(429).json({ error: DEMASIADOS_INTENTOS });
+  const invalido = () => {
+    loginFallosPorIp.registrarFallo(ip);
+    return res.status(401).json({ error: 'Este link ya se usó o venció. Entrá con tu mail y te mandamos un código.' });
+  };
+  if (!/^[a-f0-9]{64}$/.test(token)) return invalido();
+
+  const consumido = await run(
+    'UPDATE enlaces_acceso SET usado_en = NOW() WHERE token_hash = ? AND usado_en IS NULL AND expira > NOW()',
+    [hashValue(token)]
+  );
+  if (!consumido.rowsAffected) return invalido();
+
+  const enlace = await get('SELECT comprador_id FROM enlaces_acceso WHERE token_hash = ?', [hashValue(token)]);
+  const comprador = await get('SELECT * FROM compradores WHERE id = ?', [enlace.comprador_id]);
+  if (!comprador) return invalido();
+  if (comprador.email) {
+    await run('UPDATE compradores SET email_verificado_en = COALESCE(email_verificado_en, NOW()) WHERE id = ?', [comprador.id]);
+  }
+  const sesionToken = await crearSesionComprador(comprador.id, 'otp');
+  res.json({
+    token: sesionToken,
+    comprador: { id: comprador.id, whatsapp: comprador.whatsapp, nombre: comprador.nombre, email: comprador.email },
+  });
+});
+
 // Login con contraseña (opcional — solo para quien la creó desde Mi panel). El
 // código por mail sigue funcionando siempre y es también el "me olvidé la
 // contraseña": no hay flujo de reseteo aparte.
@@ -1349,9 +1397,10 @@ async function notificarVentaConfirmada(ventaId) {
       ? await get('SELECT nombre, whatsapp, email FROM compradores WHERE id = ?', [venta.comprador_id])
       : null;
     if (comprador?.email) {
+      const accesoUrl = await crearEnlaceAcceso(venta.comprador_id);
       const { subject, text, html } = conCola
-        ? mailRetiroComprador({ codigoRetiro: venta.codigo_retiro, panelUrl: panelComprador })
-        : mailCompraComprador({ items: itemsMail, panelUrl: panelComprador });
+        ? mailRetiroComprador({ codigoRetiro: venta.codigo_retiro, panelUrl: panelComprador, accesoUrl })
+        : mailCompraComprador({ items: itemsMail, panelUrl: panelComprador, accesoUrl });
       r.comprador = estadoCorreo(await enviarCorreo({ to: comprador.email, subject, text, html }));
     } else {
       console.log(`[correo] Venta ${ventaId}: el comprador no tiene mail cargado — no se le avisa.`);
@@ -1419,10 +1468,14 @@ async function notificarActivacionGratis(ventaId) {
       [venta.comprador_id, 'activo']
     );
     const cuentaNueva = Number(activos?.n || 0) <= items.length;
+    // Solo la cuenta nueva recibe el "Activar mi cuenta": los mails 2 y 3 de
+    // quien activa varios llaveros seguidos ya van sin link (y sin contraseña
+    // que ofrecer, si la creó con el primero).
     const { subject, text, html } = mailActivacionGratis({
       items: items.map((r) => ({ codigoPublico: r.codigo_publico, modelo: r.modelo })),
       panelUrl: `${FRONTEND_URL}/mi-panel.html`,
       cuentaNueva,
+      accesoUrl: cuentaNueva ? await crearEnlaceAcceso(venta.comprador_id) : null,
     });
     await enviarCorreo({ to: comprador.email, subject, text, html });
   } catch (err) {
