@@ -22,8 +22,7 @@ const PALABRAS_HERO = [
 const palabraHero = document.querySelector('[data-palabra-rota]');
 if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   // Las tres palabras van al mismo tamaño de letra. Para que ninguna corra el
-  // texto: la palabra ocupa siempre el ancho de la más larga, y el título se
-  // ensancha (hasta donde da la pantalla) para que "Compartí <palabra>." entre
+  // texto: el título se ensancha (hasta donde da la pantalla) para que "Compartí <palabra>." entre
   // en un renglón. Así el título queda igual con cualquiera de las tres.
   const titulo = palabraHero.closest('h1');
   const medidor = document.createElement('span');
@@ -36,7 +35,9 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   };
   const ajustar = () => {
     const palabra = Math.max(...PALABRAS_HERO.map((p) => ancho(`<em>${p.texto}</em>`)));
-    palabraHero.style.width = `${palabra}px`;
+    // La palabra mide lo suyo (el punto queda pegado); el renglón sigue reservando
+    // el ancho de la más larga con el min-width del título, así no se corre nada.
+    palabraHero.style.width = `${ancho(`<em>${palabraHero.textContent}</em>`)}px`;
     // La frase entera, con la palabra ya en su ancho fijo: medir "Compartí " suelto
     // pierde el espacio del final y el punto terminaba en el renglón de abajo.
     const linea =
