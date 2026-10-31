@@ -54,6 +54,12 @@ nav{
   transition:border-color .2s ease, background .2s ease;
 }
 .nav-cta:hover{border-color:var(--violet); background:rgba(123,92,255,0.08);}
+.nav-comprar{
+  font-family:var(--mono); font-size:0.78rem; font-weight:500; letter-spacing:0.02em; white-space:nowrap;
+  background:var(--violet); color:var(--paper); padding:10px 18px; border-radius:100px;
+  transition:background .2s ease, transform .2s ease;
+}
+.nav-comprar:hover{background:var(--violet-dim); transform:translateY(-1px);}
 .nav-ig{display:flex; align-items:center; color:var(--paper-dim); transition:color .2s ease;}
 .nav-ig:hover{color:var(--paper);}
 
@@ -1536,8 +1542,11 @@ details[open] .add-icon{transform:rotate(45deg);}
   nav{padding:16px 16px;}
   .logo{font-size:1.1rem;}
   .logo .brand-emphasis{padding:1px 7px 2px; border-radius:6px;}
-  .nav-actions{gap:10px;}
-  .nav-link{font-size:0.7rem;}
+  .nav-actions{gap:9px;}
+  .nav-actions .nav-ig{display:none;}
+  .nav-link{font-size:0.66rem; white-space:nowrap;}
+  .nav-comprar{font-size:0.66rem; padding:7px 9px;}
+  .nav-actions .nav-link[href^="/quienes-somos"]{display:none;}
   .nav-cta{display:none;}
   section{padding:60px 0;}
   /* El hero ocupa justo la primera pantalla: texto arriba, botón abajo */
