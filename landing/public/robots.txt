@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /privado/
+Disallow: /admin.html
+Disallow: /vendedor.html
+Disallow: /mi-panel
+Disallow: /activacion/
+Disallow: /v/
+Disallow: /t/
+
+Sitemap: https://next-tap.tech/sitemap.xml
