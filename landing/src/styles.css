@@ -91,10 +91,12 @@ h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
   font-size:1.08rem; color:var(--paper-dim); max-width:46ch; margin-bottom:34px;
 }
 /* Variante /empresas-v2: título y bajada alternan entre dos textos (src/main.js).
-   Solo se ve el activo: el otro no reserva alto, así no queda un hueco bajo el título. */
+   Van apilados en la misma celda, así la altura no salta al cambiar. */
 .rota-doble{display:grid;}
 .rota-doble > *{grid-area:1/1;}
-.rota-doble > [data-activo="false"]{display:none;}
+.rota-doble > [data-activo="false"]{visibility:hidden;}
+.rota-doble > [data-hero-a]{line-height:var(--interlineado-a, inherit);}
+.rota-doble > [data-hero-b]{line-height:var(--interlineado-b, inherit);}
 .rota-doble > .cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 .hero-v2{padding-top:32px; padding-bottom:36px;}
 .hero-v2 p.lead{margin-bottom:0;}
@@ -103,6 +105,15 @@ h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 #empresas.empresas-v2{border-top:none; padding-top:20px;}
 #empresas.empresas-v2 .empresas-combo-linea{max-width:440px;}
 #empresas.empresas-v2 .empresas-mas{margin-left:0;}
+/* "Quiero el mío": compra directa, el botón más fuerte de la sección */
+.btn-quiero{
+  display:inline-block; margin-top:14px; background:var(--paper); color:var(--ink);
+  font-weight:700; font-size:1.05rem; padding:15px 34px; border-radius:100px;
+  box-shadow:0 0 0 3px rgba(123,92,255,0.45), 0 10px 30px rgba(123,92,255,0.45);
+  transition:transform .2s ease, box-shadow .2s ease;
+}
+.btn-quiero:hover{transform:translateY(-2px); box-shadow:0 0 0 4px rgba(123,92,255,0.6), 0 14px 36px rgba(123,92,255,0.55);}
+@media (max-width:600px){ .btn-quiero{display:block; text-align:center; margin-top:12px;} }
 .cta-row{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
 .btn-primary{
   background:var(--violet); color:var(--paper); font-weight:600;
@@ -492,7 +503,7 @@ h2{
 .emp-oferta-detalle{font-size:0.92rem; font-weight:500; line-height:1.35;}
 .emp-oferta-items{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
 .emp-oferta-item{font-size:0.84rem; font-weight:600; line-height:1.3; padding:5px 11px; border-radius:100px; background:rgba(255,255,255,0.18);}
-.emp-oferta-item-largo{flex:1 1 100%; border-radius:14px; font-weight:500; padding:8px 12px;}
+.emp-oferta-minimo{font-family:var(--mono); font-size:0.74rem; font-weight:500; opacity:0.9;}
 .emp-oferta-ir{margin-top:8px; font-weight:700; font-size:0.9rem; text-decoration:underline; text-underline-offset:3px;}
 @keyframes emp-oferta-pulso{0%,100%{transform:scale(1);} 50%{transform:scale(1.015);}}
 @keyframes emp-oferta-brillo{0%,55%{transform:translateX(-100%);} 85%,100%{transform:translateX(100%);}}

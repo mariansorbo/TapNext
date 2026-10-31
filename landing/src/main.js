@@ -47,9 +47,42 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const disponible = hero.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     titulo.style.minWidth = linea <= disponible ? `${linea}px` : '';
   };
-  ajustar();
-  addEventListener('resize', ajustar);
-  document.fonts?.ready.then(ajustar);
+  // El título A ("Compartí distinto…") suele tener más renglones que el B
+  // ("Conocé NextTap para empresas."). Como van apilados, el hero ocupa el alto del
+  // más alto y lo de abajo se movía al alternar: se le aprieta el interlineado al A
+  // (hasta un mínimo legible) y se le abre un poco al B hasta que midan lo mismo.
+  const igualarAlto = () => {
+    const a = titulo.querySelector('[data-hero-a]');
+    const b = titulo.querySelector('[data-hero-b]');
+    if (!a || !b) return;
+    titulo.style.removeProperty('--interlineado-a');
+    titulo.style.removeProperty('--interlineado-b');
+    const alto = (el) => {
+      el.style.alignSelf = 'start';
+      const h = el.getBoundingClientRect().height;
+      el.style.removeProperty('align-self');
+      return h;
+    };
+    const cs = getComputedStyle(titulo);
+    const base = parseFloat(cs.lineHeight) / parseFloat(cs.fontSize);
+    let hA = alto(a);
+    const hB = alto(b);
+    if (hA > hB && hB > 0) {
+      const lhA = Math.max(0.9, (base * hB) / hA);
+      titulo.style.setProperty('--interlineado-a', lhA.toFixed(3));
+      hA = alto(a);
+    }
+    if (hB > 0 && hA > hB) {
+      titulo.style.setProperty('--interlineado-b', ((base * hA) / hB).toFixed(3));
+    }
+  };
+  const ajustarTodo = () => {
+    ajustar();
+    igualarAlto();
+  };
+  ajustarTodo();
+  addEventListener('resize', ajustarTodo);
+  document.fonts?.ready.then(ajustarTodo);
 
   // Variante con mensaje de empresas (data-hero-b en título y bajada): después
   // de las tres palabras se muestra ese texto y vuelve a empezar.
