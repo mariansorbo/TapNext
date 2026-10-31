@@ -91,17 +91,22 @@ h1 em.cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
   font-size:1.08rem; color:var(--paper-dim); max-width:46ch; margin-bottom:34px;
 }
 /* Variante /empresas-v2: título y bajada alternan entre dos textos (src/main.js).
-   Van apilados en la misma celda, así la altura no salta al cambiar. */
-.rota-doble{display:grid;}
-.rota-doble > *{grid-area:1/1;}
-.rota-doble > [data-activo="false"]{visibility:hidden;}
-.rota-doble > [data-hero-a]{line-height:var(--interlineado-a, inherit);}
-.rota-doble > [data-hero-b]{line-height:var(--interlineado-b, inherit);}
-.rota-doble > .cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
+   Cada grupo (título + bajada) va apilado en la misma celda, así la altura no salta al cambiar. */
+.rota-grupos{display:grid;}
+.rota-grupos > *{grid-area:1/1;}
+.rota-grupos > [data-activo="false"]{visibility:hidden;}
+.rota-grupos h1{line-height:var(--interlineado, 1);}
+.rota-grupos > .cambia{animation:emp-destino-entra .45s cubic-bezier(.2,.7,.3,1);}
 .hero-v2{padding-top:32px; padding-bottom:36px;}
 .hero-v2 p.lead{margin-bottom:0;}
 /* Tarjeta de oferta bajo el hero: sin línea divisoria y más pegada. */
-@media (max-width:600px){ .hero.hero-v2{min-height:0; padding:24px 20px 8px;} .hero-v2 h1{margin-bottom:16px;} }
+@media (max-width:600px){
+  .hero.hero-v2{min-height:0; padding:10px 20px 0;}
+  .hero-v2 .eyebrow{margin-bottom:8px; font-size:0.7rem;}
+  .hero-v2 h1{margin-bottom:10px;}
+  .hero.hero-v2 p.lead{line-height:1.42; font-size:1.05rem;}
+  #empresas.empresas-v2{padding-top:14px;}
+}
 #empresas.empresas-v2{border-top:none; padding-top:20px;}
 #empresas.empresas-v2 .empresas-combo-linea{max-width:440px;}
 #empresas.empresas-v2 .empresas-mas{margin-left:0;}
@@ -502,7 +507,9 @@ h2{
 .emp-oferta-precio small{font-size:0.95rem; font-weight:600; letter-spacing:0;}
 .emp-oferta-detalle{font-size:0.92rem; font-weight:500; line-height:1.35;}
 .emp-oferta-items{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
-.emp-oferta-item{font-size:0.84rem; font-weight:600; line-height:1.3; padding:5px 11px; border-radius:100px; background:rgba(255,255,255,0.18);}
+.emp-oferta-item{font-size:0.84rem; font-weight:600; line-height:1.3; padding:5px 11px; border-radius:100px; background:rgba(20,23,26,0.62); color:var(--paper);}
+.emp-oferta-item .marca-wa{color:#25D366;}
+.emp-oferta-item .marca-ig{background:linear-gradient(90deg,#F58529,#DD2A7B 45%,#B66BE0); -webkit-background-clip:text; background-clip:text; color:transparent;}
 .emp-oferta-minimo{font-family:var(--mono); font-size:0.74rem; font-weight:500; opacity:0.9;}
 .emp-oferta-ir{margin-top:8px; font-weight:700; font-size:0.9rem; text-decoration:underline; text-underline-offset:3px;}
 @keyframes emp-oferta-pulso{0%,100%{transform:scale(1);} 50%{transform:scale(1.015);}}

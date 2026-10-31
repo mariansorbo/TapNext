@@ -47,33 +47,28 @@ if (palabraHero && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const disponible = hero.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     titulo.style.minWidth = linea <= disponible ? `${linea}px` : '';
   };
-  // El título A ("Compartí distinto…") suele tener más renglones que el B
-  // ("Conocé NextTap para empresas."). Como van apilados, el hero ocupa el alto del
-  // más alto y lo de abajo se movía al alternar: se le aprieta el interlineado al A
-  // (hasta un mínimo legible) y se le abre un poco al B hasta que midan lo mismo.
+  // Cada grupo (título + bajada) va apilado con el otro en la misma celda, así que el
+  // hero ocupa el alto del más alto y lo de abajo se movía al alternar. Los dos
+  // arrancan con interlineado 1; al más bajo se le abre el del título (hasta un
+  // tope) para que midan lo mismo. Si sobra, el resto queda al pie del grupo.
   const igualarAlto = () => {
-    const a = titulo.querySelector('[data-hero-a]');
-    const b = titulo.querySelector('[data-hero-b]');
-    if (!a || !b) return;
-    titulo.style.removeProperty('--interlineado-a');
-    titulo.style.removeProperty('--interlineado-b');
+    const grupos = [...document.querySelectorAll('.rota-grupos > .rota-grupo')];
+    if (grupos.length !== 2) return;
+    grupos.forEach((g) => g.style.removeProperty('--interlineado'));
     const alto = (el) => {
       el.style.alignSelf = 'start';
       const h = el.getBoundingClientRect().height;
       el.style.removeProperty('align-self');
       return h;
     };
-    const cs = getComputedStyle(titulo);
-    const base = parseFloat(cs.lineHeight) / parseFloat(cs.fontSize);
-    let hA = alto(a);
-    const hB = alto(b);
-    if (hA > hB && hB > 0) {
-      const lhA = Math.max(0.9, (base * hB) / hA);
-      titulo.style.setProperty('--interlineado-a', lhA.toFixed(3));
-      hA = alto(a);
-    }
-    if (hB > 0 && hA > hB) {
-      titulo.style.setProperty('--interlineado-b', ((base * hA) / hB).toFixed(3));
+    const [g0, g1] = grupos;
+    const [h0, h1g] = [alto(g0), alto(g1)];
+    const [bajo, hBajo, hAlto] = h0 <= h1g ? [g0, h0, h1g] : [g1, h1g, h0];
+    const h1 = bajo.querySelector('h1');
+    const lineas = h1.getBoundingClientRect().height;
+    if (hBajo > 0 && hAlto > hBajo && lineas > 0) {
+      const lh = Math.min(1.1, 1 + (hAlto - hBajo) / lineas);
+      bajo.style.setProperty('--interlineado', lh.toFixed(3));
     }
   };
   const ajustarTodo = () => {
