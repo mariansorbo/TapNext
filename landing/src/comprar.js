@@ -900,11 +900,23 @@ async function checkReturnFromMercadoPago() {
   wizardNav.hidden = true;
   showStep('success');
 
+  // El título y el check del paso son los de "compra lista"; si el pago no
+  // salió, no tienen que decir que el producto ya es suyo.
+  const successTitle = successSummary.parentElement.querySelector('h3');
+  const successCheck = successSummary.parentElement.querySelector('.wizard-check');
+  const marcarFallo = (titulo) => {
+    successTitle.textContent = titulo;
+    successCheck.textContent = '✕';
+  };
+
   if (pago === 'error') {
+    marcarFallo('El pago no se completó');
     successSummary.textContent = 'El pago no se pudo completar. No te cobramos nada — podés intentar de nuevo.';
     return;
   }
 
+  marcarFallo('Confirmando tu pago');
+  successCheck.textContent = '…';
   successSummary.textContent = 'Confirmando tu pago con Mercado Pago...';
   // El webhook puede tardar unos segundos más que el redirect del usuario — reintentamos brevemente.
   for (let i = 0; i < 6; i++) {
@@ -914,6 +926,8 @@ async function checkReturnFromMercadoPago() {
       if (!token) break;
       const venta = await api(`/ventas/${ventaId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (venta.estadoPago === 'confirmado') {
+        successTitle.textContent = '¡Listo! Tu producto ya es tuyo.';
+        successCheck.textContent = '✓';
         // event_id = mismo id que usa el webhook server-side (CAPI) para este
         // pago, así Meta fusiona ambos envíos del mismo Purchase en vez de
         // contarlo dos veces. sessionStorage evita reenviarlo si el usuario
@@ -972,6 +986,7 @@ async function checkReturnFromMercadoPago() {
         return;
       }
       if (venta.estadoPago === 'rechazado') {
+        marcarFallo('El pago no se completó');
         successSummary.textContent = 'El pago fue rechazado. No te cobramos nada — podés intentar de nuevo.';
         return;
       }
@@ -979,6 +994,8 @@ async function checkReturnFromMercadoPago() {
       break;
     }
   }
+  marcarFallo('Pago en revisión');
+  successCheck.textContent = '…';
   successSummary.textContent = 'Tu pago está en revisión. Te avisamos por mail apenas se confirme.';
 }
 checkReturnFromMercadoPago();
