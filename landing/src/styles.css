@@ -1782,3 +1782,13 @@ details[open] .add-icon{transform:rotate(45deg);}
 .sorteo-aviso b{color:var(--amber);}
 .sorteo-extra p{margin-top:6px; color:var(--paper-dim); line-height:1.45;}
 .sorteo-extra p b{color:var(--paper);}
+
+/* Marcas: registro de las variantes del logo. Oculto; se muestra con /#marca. */
+.marca-oculta{display:none; padding:56px 0;}
+.marca-oculta:target{display:block;}
+.marca-oculta h2{font-family:var(--display); font-size:1.4rem; margin-bottom:8px;}
+.marca-oculta p{color:var(--paper-dim); max-width:620px; margin-bottom:28px;}
+.marca-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px;}
+.marca-grid figure{margin:0;}
+.marca-grid svg{display:block; width:100%; height:auto; border-radius:14px; border:1px solid var(--line);}
+.marca-grid figcaption{margin-top:8px; font-family:var(--mono); font-size:0.78rem; color:var(--paper-dim);}
