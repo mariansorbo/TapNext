@@ -9,6 +9,8 @@
     { "source": "/admin.html", "destination": "https://tapnext.onrender.com/privado/admin" },
     { "source": "/vendedor.html", "destination": "https://tapnext.onrender.com/privado/vendedor" },
     { "source": "/privado/:path*", "destination": "https://tapnext.onrender.com/privado/:path*" },
+    { "source": "/api/admin/:path*", "destination": "https://tapnext.onrender.com/api/admin/:path*" },
+    { "source": "/api/vendedor/:path*", "destination": "https://tapnext.onrender.com/api/vendedor/:path*" },
     { "source": "/v/:codigo", "destination": "https://tapnext.onrender.com/v/:codigo" },
     { "source": "/t/visita", "destination": "https://tapnext.onrender.com/api/visitas" },
     { "source": "/t/evento", "destination": "https://tapnext.onrender.com/api/eventos" }
