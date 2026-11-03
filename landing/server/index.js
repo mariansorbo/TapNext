@@ -782,7 +782,9 @@ app.post('/api/me/password', requireAuth, async (req, res) => {
 
 app.get('/api/me/stickers', requireAuth, async (req, res) => {
   const rows = await all(
-    `SELECT s.id, s.codigo_publico, s.estado, s.modelo, s.funcion, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en
+    `SELECT s.id, s.codigo_publico, s.estado, s.modelo, s.funcion, d.tipo AS destino_tipo, d.valor AS destino_valor, d.actualizado_en AS destino_actualizado_en,
+            EXISTS (SELECT 1 FROM organizacion_stickers os WHERE os.sticker_id = s.id) AS de_empresa,
+            EXISTS (SELECT 1 FROM stickers_bloqueados sb WHERE sb.sticker_id = s.id AND sb.comprador_id = s.comprador_id) AS bloqueado
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
        WHERE s.comprador_id = ?
@@ -799,6 +801,10 @@ app.get('/api/me/stickers', requireAuth, async (req, res) => {
       // Función asignada por el admin (fija, no la elige el comprador). Si está
       // seteada, Mi panel solo deja editar el valor del destino, no el tipo.
       funcion: r.funcion || null,
+      // Llavero de una empresa: lo resetea la empresa, no la persona.
+      deEmpresa: Boolean(r.de_empresa),
+      // Bloqueado por su dueño: el tap no abre nada hasta que lo desbloquee.
+      bloqueado: Boolean(r.bloqueado),
       destino: r.destino_tipo ? { tipo: r.destino_tipo, valor: r.destino_valor, actualizadoEn: r.destino_actualizado_en } : null,
     }))
   );
@@ -848,6 +854,95 @@ app.patch('/api/stickers/:id/destino', requireAuth, async (req, res) => {
 
   const actualizado = await get('SELECT * FROM destinos WHERE sticker_id = ?', [stickerId]);
   res.json({ tipo: actualizado.tipo, valor: actualizado.valor, actualizadoEn: actualizado.actualizado_en });
+});
+
+// El comprador suelta su llavero (para regalarlo): borra su destino, lo deja sin
+// dueño y activable gratis por quien lo tenga en la mano. A diferencia de la
+// reescritura maestra del admin, la venta que pagó se conserva (conservarVenta).
+app.post('/api/me/stickers/:id/resetear', requireAuth, async (req, res) => {
+  if (req.body?.confirmar !== true) return res.status(400).json({ error: 'Falta confirmar el reseteo.' });
+
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [
+    Number(req.params.id),
+    req.comprador.id,
+  ]);
+  if (!sticker) return res.status(404).json({ error: 'Sticker no encontrado.' });
+  if (sticker.estado !== 'activo') return res.status(400).json({ error: 'Este producto todavía no está activado.' });
+
+  // Los llaveros de una empresa los resetea la empresa, no la persona.
+  const deEmpresa = await get('SELECT 1 FROM organizacion_stickers WHERE sticker_id = ?', [sticker.id]);
+  if (deEmpresa) return res.status(403).json({ error: 'Este llavero lo administra tu empresa.' });
+
+  const anterior = await get('SELECT tipo, valor FROM destinos WHERE sticker_id = ?', [sticker.id]);
+  const { status, body } = await crearLiberacion(MODO_DEPS, {
+    sticker,
+    gratis: true,
+    motivo: 'Reseteado por el comprador (regalo)',
+    forzar: true,
+    conservarVenta: true,
+  });
+  if (status >= 400) return res.status(status).json(body);
+
+  // Quien lo reciba lo activa limpio: el bloqueo del dueño anterior no pasa con el llavero.
+  await run('DELETE FROM stickers_bloqueados WHERE sticker_id = ?', [sticker.id]);
+  await run(
+    `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
+     VALUES (?, ?, 'reset', ?, NULL)`,
+    [sticker.id, req.comprador.id, anterior ? `${anterior.tipo}:${anterior.valor}` : null]
+  );
+  res.json({ ok: true });
+});
+
+// Bloquear / desbloquear: el dueño apaga su llavero (se perdió, se lo robaron)
+// sin borrar nada — el destino queda guardado y el tap vuelve a andar al desbloquear.
+async function stickerBloqueable(req, res) {
+  const sticker = await get('SELECT * FROM stickers_actual WHERE id = ? AND comprador_id = ?', [
+    Number(req.params.id),
+    req.comprador.id,
+  ]);
+  if (!sticker) {
+    res.status(404).json({ error: 'Sticker no encontrado.' });
+    return null;
+  }
+  if (sticker.estado !== 'activo') {
+    res.status(400).json({ error: 'Este producto todavía no está activado.' });
+    return null;
+  }
+  // Los llaveros de una empresa los administra la empresa (los desactiva ella).
+  const deEmpresa = await get('SELECT 1 FROM organizacion_stickers WHERE sticker_id = ?', [sticker.id]);
+  if (deEmpresa) {
+    res.status(403).json({ error: 'Este llavero lo administra tu empresa.' });
+    return null;
+  }
+  return sticker;
+}
+
+app.post('/api/me/stickers/:id/bloquear', requireAuth, async (req, res) => {
+  const sticker = await stickerBloqueable(req, res);
+  if (!sticker) return;
+  await db.execute({
+    sql: `INSERT INTO stickers_bloqueados (sticker_id, comprador_id) VALUES (?, ?)
+          ON CONFLICT(sticker_id) DO UPDATE SET comprador_id = excluded.comprador_id, bloqueado_en = NOW()`,
+    args: [sticker.id, req.comprador.id],
+  });
+  await run(
+    `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
+     VALUES (?, ?, 'bloqueo', NULL, 'bloqueado')`,
+    [sticker.id, req.comprador.id]
+  );
+  res.json({ ok: true, bloqueado: true });
+});
+
+app.post('/api/me/stickers/:id/desbloquear', requireAuth, async (req, res) => {
+  const sticker = await stickerBloqueable(req, res);
+  if (!sticker) return;
+  await run('DELETE FROM stickers_bloqueados WHERE sticker_id = ?', [sticker.id]);
+  await run(
+    `INSERT INTO historial_cambios (sticker_id, comprador_id, campo_modificado, valor_anterior, valor_nuevo)
+     VALUES (?, ?, 'bloqueo', 'bloqueado', NULL)`,
+    [sticker.id, req.comprador.id]
+  );
+  res.json({ ok: true, bloqueado: false });
 });
 
 // --- Ventas y pagos (wizard de compra → Mercado Pago Checkout Pro) ---
@@ -3700,7 +3795,7 @@ ${o.color ? `<meta name="theme-color" content="${o.color}">
 // solo un link de texto a la marca. HTML autónomo, mismo criterio que
 // pantallaRedireccion (un request, sin bundle).
 // Llavero que la empresa desactivó (ver server/organizaciones.js).
-function pantallaDesactivado(orgNombre) {
+function pantallaDesactivado(orgNombre, { titulo = 'Este llavero está desactivado.', texto } = {}) {
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const quien = orgNombre ? esc(orgNombre) : 'la empresa';
@@ -3726,8 +3821,8 @@ function pantallaDesactivado(orgNombre) {
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
-  <h1>Este llavero está desactivado.</h1>
-  <p>Lo desactivó ${quien}. Por ahora no lleva a ningún contacto.</p>
+  <h1>${titulo}</h1>
+  <p>${texto ?? `Lo desactivó ${quien}. Por ahora no lleva a ningún contacto.`}</p>
   <a href="${FRONTEND_URL}">Conocé NextTap &rarr;</a>
 </body>
 </html>`;
@@ -3935,9 +4030,11 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // la del dueño (cuenta de empresa). os.desactivado_en = la empresa lo apagó.
   const sticker = await get(
     `SELECT s.*, d.tipo AS destino_tipo, d.valor AS destino_valor, os.desactivado_en AS org_desactivado,
+            sb.bloqueado_en AS bloqueado_en,
             o.nombre AS org_nombre, o.imagen_ver AS org_imagen_ver, o.color_fondo AS org_color, o.color_borde AS org_borde
        FROM stickers_actual s
        LEFT JOIN destinos d ON d.sticker_id = s.id
+       LEFT JOIN stickers_bloqueados sb ON sb.sticker_id = s.id AND sb.comprador_id = s.comprador_id
        LEFT JOIN organizacion_stickers os ON os.sticker_id = s.id
        LEFT JOIN organizaciones o ON o.comprador_id = COALESCE(os.organizacion_id, s.comprador_id)
       WHERE s.codigo_publico = ?`,
@@ -3948,6 +4045,14 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
   if (sticker && sticker.org_desactivado) {
     registrarTap(req, res, { stickerId: sticker.id, resultado: 'desactivado' });
     return res.type('html').send(pantallaDesactivado(sticker.org_nombre));
+  }
+
+  // Bloqueado por su dueño (Mi panel): tampoco abre nada.
+  if (sticker && sticker.estado === 'activo' && sticker.bloqueado_en) {
+    registrarTap(req, res, { stickerId: sticker.id, resultado: 'bloqueado' });
+    return res
+      .type('html')
+      .send(pantallaDesactivado(null, { titulo: 'Este llavero está bloqueado.', texto: 'Su dueño lo bloqueó. Por ahora no abre nada.' }));
   }
 
   if (sticker && sticker.estado === 'activo') {

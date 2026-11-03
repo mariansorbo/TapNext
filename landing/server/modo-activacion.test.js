@@ -109,6 +109,45 @@ test('activo → bloqueada: 409 (no se puede desactivar acá)', async () => {
   assert.equal(res.statusCode, 409);
 });
 
+// --- Reset del comprador: conserva la venta; el del admin la anula -----------
+
+async function resetearActivo(conservarVenta) {
+  const updates = [];
+  const { deps, state } = mockDeps({
+    get: async (sql) => {
+      if (/FROM ventas v JOIN venta_items/.test(sql)) return { id: 55, comision_liquidada: false };
+      if (/stickers_actual/.test(sql)) return { id: 1, estado: 'activo', funcion: 'instagram', modelo: 'llavero' };
+      return null;
+    },
+    run: async (sql, args) => {
+      updates.push(sql);
+      if (/INSERT INTO activaciones_liberadas/.test(sql)) return { lastInsertRowid: 99 };
+      return {};
+    },
+  });
+  const { crearLiberacion } = await import('./modo-activacion.js');
+  const r = await crearLiberacion(deps, {
+    sticker: { id: 1, codigo_publico: 'abc123', uid_nfc: 'deadbeef' },
+    gratis: true, forzar: true, conservarVenta,
+  });
+  return { r, updates, state };
+}
+
+test('reset del comprador (conservarVenta): no anula ninguna venta y deja el chip activable gratis', async () => {
+  const { r, updates } = await resetearActivo(true);
+  assert.equal(r.status, 201);
+  assert.equal(r.body.gratis, true);
+  assert.equal(r.body.ventaAnuladaId, null);
+  assert.ok(!updates.some((s) => /UPDATE ventas/.test(s)));
+  assert.ok(updates.some((s) => /DELETE FROM destinos/.test(s)));
+});
+
+test('reescritura maestra del admin: sigue anulando la venta', async () => {
+  const { r, updates } = await resetearActivo(false);
+  assert.equal(r.body.ventaAnuladaId, 55);
+  assert.ok(updates.some((s) => /UPDATE ventas/.test(s)));
+});
+
 test('modo inválido → 400', async () => {
   const { deps } = mockDeps();
   const res = await callModo(deps, { modo: 'cualquiera' });

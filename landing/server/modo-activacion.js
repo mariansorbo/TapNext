@@ -46,6 +46,9 @@ export async function crearLiberacion(deps, params) {
   const {
     sticker, gratis, motivo = null, funcion = '', modelo = '', vendedorId = null,
     destinoTipo = null, destinoValorRaw = '', expiraDias = 0, forzar = false,
+    // Reset hecho por el propio comprador (regalo): la venta que pagó sigue
+    // siendo válida, no se anula ni se le saca la comisión al vendedor.
+    conservarVenta = false,
   } = params;
 
   // Destino pre-cargado (opcional): se normaliza ya.
@@ -71,12 +74,14 @@ export async function crearLiberacion(deps, params) {
     const antes = await snapshotSticker(sticker.id);
 
     // Anular la venta confirmada vigente de este sticker (si la hay).
-    const ventaVieja = await get(
-      `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
-        WHERE vi.sticker_id = ? AND v.estado_pago = 'confirmado' AND v.anulada_en IS NULL
-        ORDER BY v.id DESC LIMIT 1`,
-      [sticker.id]
-    );
+    const ventaVieja = conservarVenta
+      ? null
+      : await get(
+          `SELECT v.* FROM ventas v JOIN venta_items vi ON vi.venta_id = v.id
+            WHERE vi.sticker_id = ? AND v.estado_pago = 'confirmado' AND v.anulada_en IS NULL
+            ORDER BY v.id DESC LIMIT 1`,
+          [sticker.id]
+        );
     if (ventaVieja) {
       // Si la comisión seguía pendiente, la sacamos del cálculo (estado_pago ->
       // 'anulado'). Si ya estaba liquidada, se deja 'confirmado': la plata ya se
@@ -90,12 +95,14 @@ export async function crearLiberacion(deps, params) {
     }
 
     // Ventas pendientes (pago sin terminar) de este sticker: quedarían huérfanas.
-    await run(
-      `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra', estado_pago = 'anulado'
-        WHERE estado_pago = 'pendiente' AND anulada_en IS NULL
-          AND id IN (SELECT venta_id FROM venta_items WHERE sticker_id = ?)`,
-      [sticker.id]
-    );
+    if (!conservarVenta) {
+      await run(
+        `UPDATE ventas SET anulada_en = NOW(), anulada_motivo = 'reescritura_maestra', estado_pago = 'anulado'
+          WHERE estado_pago = 'pendiente' AND anulada_en IS NULL
+            AND id IN (SELECT venta_id FROM venta_items WHERE sticker_id = ?)`,
+        [sticker.id]
+      );
+    }
 
     await run('DELETE FROM destinos WHERE sticker_id = ?', [sticker.id]);
     await transicionarSticker(sticker.id, { estado: 'en_stock', comprador_id: null });

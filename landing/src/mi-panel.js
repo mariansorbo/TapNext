@@ -64,54 +64,73 @@ async function cargarDestinoConfig() {
 //   que    → bajada del panel ("Acá ves ___ tu producto")
 //   apunta → título del valor guardado en la tarjeta
 //   falta  → aviso cuando todavía no cargó el valor
+//   editar → botón cuando ya hay valor; cargar → botón cuando todavía falta
 const FUNCION_TEXTOS = {
   instagram: {
     que: 'a qué usuario de Instagram apunta',
     apunta: 'Apunta al Instagram:',
-    falta: 'Falta cargar tu usuario de Instagram. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar tu usuario de Instagram. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar mi usuario de Instagram',
+    cargar: 'Cargar mi usuario de Instagram',
   },
   whatsapp: {
     que: 'a qué número de WhatsApp apunta',
     apunta: 'Abre el chat de WhatsApp con el número:',
-    falta: 'Falta cargar tu número de WhatsApp. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar tu número de WhatsApp. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar mi número de WhatsApp',
+    cargar: 'Cargar mi número de WhatsApp',
   },
   pago: {
     que: 'a qué link de pago apunta',
     apunta: 'Apunta al link de pago:',
-    falta: 'Falta cargar tu link de pago. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar tu link de pago. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar mi link de pago',
+    cargar: 'Cargar mi link de pago',
   },
   menu: {
     que: 'a qué menú apunta',
     apunta: 'Apunta al menú:',
-    falta: 'Falta cargar el link de tu menú. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar el link de tu menú. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar el link de mi menú',
+    cargar: 'Cargar el link de mi menú',
   },
   review: {
     que: 'a qué link de reseñas apunta',
     apunta: 'Apunta al link de reseñas:',
-    falta: 'Falta cargar el link de reseñas de tu negocio. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar el link de reseñas de tu negocio. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar el link de reseñas',
+    cargar: 'Cargar el link de reseñas',
   },
   web: {
     que: 'a qué sitio web apunta',
     apunta: 'Apunta a la web:',
-    falta: 'Falta cargar el link de tu web. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar el link de tu web. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar el link de mi web',
+    cargar: 'Cargar el link de mi web',
   },
   agenda: {
     que: 'a qué agenda apunta',
     apunta: 'Apunta a la agenda:',
-    falta: 'Falta cargar el link de tu agenda. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar el link de tu agenda. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar el link de mi agenda',
+    cargar: 'Cargar el link de mi agenda',
   },
   linktree: {
     que: 'a qué usuario de Linktree apunta',
     apunta: 'Apunta al Linktree:',
-    falta: 'Falta cargar tu usuario de Linktree. Hasta que lo cargues, al apoyarlo en el celular no abre nada.',
+    falta: 'Falta cargar tu usuario de Linktree. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
+    editar: 'Cambiar mi usuario de Linktree',
+    cargar: 'Cargar mi usuario de Linktree',
   },
   alias: {
     que: 'qué datos de transferencia muestra',
     apunta: 'Muestra los datos de transferencia:',
-    falta: 'Faltan cargar tus datos de transferencia. Hasta que los cargues, al apoyarlo en el celular no muestra nada.',
+    falta: 'Faltan cargar tus datos de transferencia. Hasta que los cargues, al acercarlo a un celular no muestra nada.',
+    editar: 'Cambiar mis datos de transferencia',
+    cargar: 'Cargar mis datos de transferencia',
   },
 };
-const TEXTO_FALTA_GENERICO = 'Todavía no cargaste a dónde lleva. Hasta que lo cargues, al apoyarlo en el celular no abre nada.';
+const TEXTO_FALTA_GENERICO = 'Todavía no cargaste a dónde lleva. Hasta que lo cargues, al acercarlo a un celular no abre nada.';
 
 // Bajada del panel: si todos los productos tienen la misma función, la nombra
 // ("a qué usuario de Instagram apunta"); si hay mezcla, queda genérica.
@@ -122,7 +141,7 @@ function actualizarBajada(stickers) {
   const una = funciones.size === 1 && stickers.every((s) => s.funcion || s.destino?.tipo) ? FUNCION_TEXTOS[[...funciones][0]] : null;
   lead.textContent = una
     ? `Acá ves ${una.que} ${stickers.length > 1 ? 'cada producto' : 'tu producto'}. Lo podés cambiar cuando quieras.`
-    : 'Acá ves qué abre cada producto cuando alguien lo apoya con el celular. Lo podés cambiar cuando quieras.';
+    : 'Acá ves qué abre cada producto cada vez que acercás tu llavero a un celular. Lo podés cambiar cuando quieras.';
 }
 
 const ESTADO_LABELS = {
@@ -716,8 +735,8 @@ function renderStickers(stickers) {
   }
   actualizarBajada(stickers);
   const sinConfigurar = stickers.filter((s) => s.estado === 'activo' && !s.destino);
-  stickers.forEach((sticker) => {
-    const card = crearTarjeta(sticker);
+  stickers.forEach((sticker, i) => {
+    const card = crearTarjeta({ ...sticker, numero: i + 1 });
     stickerList.appendChild(card);
   });
   // Un solo producto sin destino: abrimos el formulario directo, es lo único
@@ -732,18 +751,24 @@ function crearTarjeta(sticker) {
   const card = document.createElement('div');
   const activo = sticker.estado === 'activo';
   const falta = activo && !sticker.destino;
-  card.className = `sticker-card${falta ? ' is-pendiente' : ''}`;
+  const puedeResetear = activo && !sticker.deEmpresa;
+  const bloqueado = activo && Boolean(sticker.bloqueado);
+  card.className = `sticker-card${falta ? ' is-pendiente' : ''}${bloqueado ? ' is-bloqueado' : ''}`;
 
   const destinoTipo = sticker.destino?.tipo ? destinoMeta(sticker.destino.tipo) : null;
   const funcionIcono = sticker.funcion || sticker.destino?.tipo || null;
   const modelo = sticker.modelo ? sticker.modelo.charAt(0).toUpperCase() + sticker.modelo.slice(1) : 'Producto';
-  const pill = falta
+  const pill = bloqueado
+    ? '<span class="sticker-pill is-bloqueado">Bloqueado</span>'
+    : falta
     ? '<span class="sticker-pill is-falta">Falta configurar</span>'
     : `<span class="sticker-pill${activo ? ' is-ok' : ''}">${ESTADO_LABELS[sticker.estado] || sticker.estado}</span>`;
 
   const textos = FUNCION_TEXTOS[funcionIcono] || null;
   let cuerpo;
-  if (sticker.destino) {
+  if (bloqueado) {
+    cuerpo = `<div class="sticker-destino sticker-destino-bloq"><b>Bloqueado.</b> Al acercarlo a un celular ya no abre nada. Lo podés desbloquear cuando quieras.</div>`;
+  } else if (sticker.destino) {
     const valorLegible = escaparHtml(destinoLegible(sticker.destino.tipo, sticker.destino.valor));
     cuerpo = textos
       ? `
@@ -753,7 +778,7 @@ function crearTarjeta(sticker) {
       </div>`
       : `
       <div class="sticker-destino">
-        <span class="sticker-destino-label">Cuando lo apoyan con el celular, abre:</span>
+        <span class="sticker-destino-label">Cada vez que lo acercás a un celular, abre:</span>
         <span class="sticker-destino-valor"><b>${escaparHtml(destinoTipo ? destinoTipo.label : sticker.destino.tipo)}</b> · ${valorLegible}</span>
       </div>`;
   } else if (activo) {
@@ -764,18 +789,36 @@ function crearTarjeta(sticker) {
     cuerpo = `<div class="sticker-destino sticker-destino-empty">Todavía no está activado.</div>`;
   }
 
+  // Menú de los tres puntitos: lo que se hace con el llavero en sí (editar tiene
+  // además su botón afuera, más a mano).
+  const acciones = [];
+  if (activo) acciones.push(['editar', 'Editar']);
+  if (puedeResetear) acciones.push(['resetear', 'Resetear']);
+  if (puedeResetear) acciones.push(bloqueado ? ['desbloquear', 'Desbloquear'] : ['bloquear', 'Bloquear']);
+
   card.innerHTML = `
     <div class="sticker-card-head">
       <div class="sticker-icon">${iconoFuncion(funcionIcono)}</div>
       <div class="sticker-headinfo">
         <div class="sticker-meta">${escaparHtml(modelo)}</div>
-        <div class="sticker-code">Código ${escaparHtml(sticker.codigoPublico)}</div>
+        <div class="sticker-code">#${sticker.numero}</div>
       </div>
       ${pill}
+      ${
+        acciones.length
+          ? `<button type="button" class="sticker-menu-btn" aria-label="Más opciones" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      </button>`
+          : ''
+      }
+    </div>
+    <div class="sticker-menu" role="menu" hidden>
+      ${acciones.map(([id, label]) => `<button type="button" role="menuitem" data-accion="${id}">${label}</button>`).join('')}
     </div>
     ${cuerpo}
-    ${activo ? `<button type="button" class="${falta ? 'btn-primary' : 'btn-ghost'} sticker-edit-btn">${falta ? 'Configurar ahora' : 'Editar a dónde lleva'}</button>` : ''}
+    ${activo ? `<button type="button" class="${falta ? 'btn-primary' : 'btn-ghost'} sticker-edit-btn">${falta ? (textos?.cargar || 'Configurar ahora') : (textos?.editar || 'Editar a dónde lleva')}</button>` : ''}
     <div class="sticker-edit-form modal-form" hidden></div>
+    <div class="sticker-confirm-form modal-form" hidden></div>
     <p class="modal-status sticker-guardado"></p>
   `;
 
@@ -783,7 +826,144 @@ function crearTarjeta(sticker) {
     const editButton = card.querySelector('.sticker-edit-btn');
     editButton.addEventListener('click', () => abrirEdicion(card, sticker));
   }
+  const menuBtn = card.querySelector('.sticker-menu-btn');
+  if (menuBtn) {
+    const menu = card.querySelector('.sticker-menu');
+    const hacer = {
+      editar: () => {
+        if (card.querySelector('.sticker-edit-form').hidden) abrirEdicion(card, sticker);
+      },
+      resetear: () => abrirReset(card, sticker),
+      bloquear: () => abrirBloqueo(card, sticker),
+      desbloquear: () => desbloquear(card, sticker),
+    };
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = menu.hidden;
+      cerrarMenus();
+      menu.hidden = !abrir;
+      menuBtn.setAttribute('aria-expanded', String(abrir));
+    });
+    menu.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-accion]');
+      if (!item) return;
+      cerrarMenus();
+      hacer[item.dataset.accion]?.();
+    });
+  }
   return card;
+}
+
+// Un solo menú abierto a la vez; se cierra al tocar afuera o con Escape.
+function cerrarMenus() {
+  document.querySelectorAll('.sticker-menu:not([hidden])').forEach((menu) => {
+    menu.hidden = true;
+    menu.parentElement.querySelector('.sticker-menu-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+document.addEventListener('click', cerrarMenus);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') cerrarMenus();
+});
+
+// Panel de confirmación dentro de la tarjeta (resetear y bloquear comparten lugar).
+function abrirConfirmacion(card, { html }) {
+  const form = card.querySelector('.sticker-confirm-form');
+  form.hidden = false;
+  form.innerHTML = html;
+  form.querySelector('.confirm-cancel-btn').addEventListener('click', () => {
+    form.hidden = true;
+    form.innerHTML = '';
+  });
+  return form;
+}
+
+// Resetear: el llavero queda sin dueño y quien lo tenga lo activa con su
+// mail. Pide confirmación porque no se deshace (el server exige `confirmar`).
+function abrirReset(card, sticker) {
+  const form = abrirConfirmacion(card, {
+    html: `
+    <p class="edit-funcion"><b>¿Resetear este llavero?</b> Se borra lo que configuraste y queda libre: cualquiera que lo tenga en la mano lo puede activar con su propio mail. Tu cuenta sigue igual. No se puede deshacer.</p>
+    <div class="sticker-actions">
+      <button type="button" class="btn-primary confirm-ok-btn">Sí, resetear</button>
+      <button type="button" class="btn-ghost confirm-cancel-btn">Cancelar</button>
+    </div>
+    <p class="modal-status confirm-status"></p>
+  `,
+  });
+  const confirmBtn = form.querySelector('.confirm-ok-btn');
+  confirmBtn.addEventListener('click', async () => {
+    const status = form.querySelector('.confirm-status');
+    setStatus(status, '', 'Reseteando...');
+    confirmBtn.disabled = true;
+    try {
+      await api(`/me/stickers/${sticker.id}/resetear`, { method: 'POST', body: JSON.stringify({ confirmar: true }) });
+      const libre = document.createElement('div');
+      libre.className = 'sticker-card sticker-vacio';
+      libre.innerHTML = `
+        <p><b>Listo, el llavero #${sticker.numero} quedó libre.</b></p>
+        <p class="sticker-vacio-texto">Ya lo podés regalar: quien lo reciba lo acerca a su celular y lo activa con su mail.</p>`;
+      card.replaceWith(libre);
+    } catch (err) {
+      confirmBtn.disabled = false;
+      if (err.status === 401) {
+        sesionVencida();
+        return;
+      }
+      setStatus(status, 'is-error', err.message);
+    }
+  });
+}
+
+// Bloquear: el llavero deja de abrir cualquier cosa, pero conserva lo que
+// configuraste — se puede desbloquear cuando quieras (a diferencia de resetear).
+function abrirBloqueo(card, sticker) {
+  const form = abrirConfirmacion(card, {
+    html: `
+    <p class="edit-funcion"><b>¿Bloquear este llavero?</b> Al acercarlo a un celular ya no va a abrir nada. Lo que configuraste se guarda y lo podés desbloquear cuando quieras.</p>
+    <div class="sticker-actions">
+      <button type="button" class="btn-primary confirm-ok-btn">Sí, bloquear</button>
+      <button type="button" class="btn-ghost confirm-cancel-btn">Cancelar</button>
+    </div>
+    <p class="modal-status confirm-status"></p>
+  `,
+  });
+  const confirmBtn = form.querySelector('.confirm-ok-btn');
+  confirmBtn.addEventListener('click', async () => {
+    const status = form.querySelector('.confirm-status');
+    setStatus(status, '', 'Bloqueando...');
+    confirmBtn.disabled = true;
+    try {
+      await api(`/me/stickers/${sticker.id}/bloquear`, { method: 'POST' });
+      const nuevo = crearTarjeta({ ...sticker, bloqueado: true });
+      card.replaceWith(nuevo);
+      setStatus(nuevo.querySelector('.sticker-guardado'), 'is-success', '✓ Bloqueado. Al acercarlo a un celular no abre nada.');
+    } catch (err) {
+      confirmBtn.disabled = false;
+      if (err.status === 401) {
+        sesionVencida();
+        return;
+      }
+      setStatus(status, 'is-error', err.message);
+    }
+  });
+}
+
+async function desbloquear(card, sticker) {
+  const estado = card.querySelector('.sticker-guardado');
+  setStatus(estado, '', 'Desbloqueando...');
+  try {
+    await api(`/me/stickers/${sticker.id}/desbloquear`, { method: 'POST' });
+    const nuevo = crearTarjeta({ ...sticker, bloqueado: false });
+    card.replaceWith(nuevo);
+    setStatus(nuevo.querySelector('.sticker-guardado'), 'is-success', '✓ Desbloqueado. Ya vuelve a funcionar.');
+  } catch (err) {
+    if (err.status === 401) {
+      sesionVencida();
+      return;
+    }
+    setStatus(estado, 'is-error', err.message);
+  }
 }
 
 function cerrarEdicion(card) {

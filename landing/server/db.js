@@ -143,6 +143,16 @@ await db.executeMultiple(`
     actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  -- Llavero bloqueado por su dueño desde Mi panel: el tap no lleva a ningún
+  -- lado. Vale solo mientras el llavero siga a nombre de quien lo bloqueó
+  -- (comprador_id): si lo resetean y lo activa otra persona, el bloqueo no la alcanza.
+  CREATE TABLE IF NOT EXISTS stickers_bloqueados (
+    id SERIAL PRIMARY KEY,
+    sticker_id INTEGER NOT NULL UNIQUE REFERENCES stickers(id) ON DELETE CASCADE,
+    comprador_id INTEGER NOT NULL REFERENCES compradores(id),
+    bloqueado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
   CREATE TABLE IF NOT EXISTS historial_cambios (
     id SERIAL PRIMARY KEY,
     sticker_id INTEGER NOT NULL REFERENCES stickers(id),
