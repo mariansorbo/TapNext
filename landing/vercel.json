@@ -6,6 +6,7 @@
     { "source": "/terminos", "destination": "/terminos.html" },
     { "source": "/privacidad", "destination": "/privacidad.html" },
     { "source": "/empresas", "destination": "/empresas.html" },
+    { "source": "/MailParaMelani", "destination": "/mail/influencers/melanie-lopez.html" },
     { "source": "/admin.html", "destination": "https://tapnext.onrender.com/privado/admin" },
     { "source": "/vendedor.html", "destination": "https://tapnext.onrender.com/privado/vendedor" },
     { "source": "/privado/:path*", "destination": "https://tapnext.onrender.com/privado/:path*" },
