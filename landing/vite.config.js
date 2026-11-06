@@ -39,6 +39,8 @@ export default defineConfig({
         pedidoFullCatalogo: resolve(root, 'pedidoFullCatalogo.html'),
         miPanel: resolve(root, 'mi-panel.html'),
         activacion: resolve(root, 'activacion.html'),
+        // Coordinación de la entrega en mano (link del mail de compra); noindex.
+        entrega: resolve(root, 'entrega.html'),
         faqs: resolve(root, 'faqs.html'),
         quienesSomos: resolve(root, 'quienes-somos.html'),
         empresas: resolve(root, 'empresas.html'),

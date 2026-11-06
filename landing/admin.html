@@ -187,6 +187,16 @@
       <div class="admin-table admin-table--scroll" id="ventas-table"></div>
     </div>
 
+    <!-- Entregas propias (envío gratis en mano) — ver server/entrega-propia.js -->
+    <div class="admin-section" id="entregas-section" hidden>
+      <div class="admin-section-head">
+        <h3>Entregas propias</h3>
+        <button type="button" class="row-btn" id="entregas-salida-hoy">Avisar salida de hoy</button>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;">Envío gratis que llevás vos. Un solo intento: el día que salís avisás la salida; si no hay nadie, tocá "No estaba" (le llega el mail con el link para pedir el envío) y después lo mandás por Enviopack.</p>
+      <div class="admin-table admin-table--scroll" id="entregas-table"></div>
+    </div>
+
     <!-- Envíos a domicilio (compra online) — ver "Envio a domicilio" en el vault -->
     <div class="admin-section" id="envios-section" hidden>
       <h3>Envíos a domicilio</h3>

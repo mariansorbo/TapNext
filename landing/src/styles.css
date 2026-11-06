@@ -981,6 +981,29 @@ body.modal-open{overflow:hidden;}
 .wizard-back-btn:hover{border-color:var(--violet); color:var(--paper);}
 .wizard-back-btn:disabled{opacity:0.3; pointer-events:none;}
 .wizard-forward-hint{flex-shrink:0; color:var(--paper-dim); font-size:1rem;}
+/* Página /entrega.html: el comprador elige día y horario de la entrega en mano. */
+.entrega-aviso{
+  font-size:0.9rem; line-height:1.5; margin:0 0 20px; padding:12px 14px; border-radius:10px;
+  background:rgba(240,164,88,0.10); border:1px solid rgba(240,164,88,0.3); color:var(--paper-dim);
+}
+.entrega-sub{font-size:0.95rem; margin:18px 0 10px;}
+.entrega-dias, .entrega-franjas{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;}
+.entrega-opt{
+  padding:10px 14px; border-radius:10px; border:1px solid var(--line); color:var(--paper); font-size:0.9rem;
+  transition:border-color .15s ease, background .15s ease;
+}
+.entrega-opt:hover{border-color:var(--violet);}
+.entrega-opt.is-selected{border-color:var(--violet); background:rgba(123,92,255,0.16);}
+.entrega-correo-txt{margin-top:28px; font-size:0.9rem;}
+#elegir-view .btn-primary{margin-top:18px;}
+
+/* Cartel fijo del wizard: en qué zonas el envío es gratis (lo carga comprar.js
+   desde /auth/config). Chico y discreto, visible en todos los pasos. */
+.wizard-envio-gratis{
+  font-size:0.78rem; line-height:1.35; margin:0 0 14px; padding:7px 12px; border-radius:10px;
+  background:rgba(123,92,255,0.10); border:1px solid rgba(123,92,255,0.28); color:var(--paper-dim);
+}
+.wizard-envio-gratis b{color:var(--violet); font-weight:600;}
 .wizard-progress{display:flex; gap:8px; flex:1;}
 .wizard-dot{flex:1; height:3px; border-radius:2px; background:var(--line);}
 .wizard-dot.is-active, .wizard-dot.is-done{background:var(--violet);}

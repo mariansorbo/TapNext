@@ -70,7 +70,7 @@ async function showDashboard() {
 
 async function loadAll() {
   await loadVendedores();
-  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas(), loadEnvios(), loadSorteo(), loadOrganizaciones()]);
+  await Promise.all([loadStickers(), loadPrecios(), loadVentas(), loadComisiones(), loadLiberadas(), loadEnvios(), loadEntregas(), loadSorteo(), loadOrganizaciones()]);
 }
 
 const loadSorteo = initSorteoAdmin({ api });
@@ -1070,6 +1070,122 @@ async function loadEnvios() {
         alert(err.message);
       } finally {
         btn.disabled = false;
+      }
+    });
+  });
+}
+
+// --- Entregas propias (envío gratis en mano) ---
+const ENTREGA_ESTADO_LABEL = {
+  a_coordinar: 'A coordinar',
+  coordinado: 'Coordinado',
+  en_camino: '🚗 En camino',
+  no_estaba: 'No estaba',
+  pidio_correo: 'Pidió envío por correo',
+  vencido: '⌛ Venció (resolver)',
+};
+
+// Lo que viene de compradores (nombre, dirección...) va escapado: es texto libre.
+const escHtml = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fechaCorta = (iso) =>
+  iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '—';
+const diasHasta = (iso, hoy) => Math.round((Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000);
+const TXT_MAIL_ENTREGA = {
+  enviado: 'Mail enviado.',
+  sin_mail: 'El comprador no tiene mail cargado.',
+  no_configurado: 'No se mandó el mail (Resend sin configurar).',
+  fallo: 'FALLÓ el mail al comprador.',
+};
+
+async function loadEntregas() {
+  const section = document.getElementById('entregas-section');
+  const container = document.getElementById('entregas-table');
+  let data;
+  try {
+    data = await api('/entregas');
+  } catch (err) {
+    if (!section.hidden) container.innerHTML = `<p class="admin-empty">${err.message}</p>`;
+    return;
+  }
+  if (!data.entregas.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  const franjaLabel = (id) => data.franjas.find((f) => f.id === id)?.label || id || '';
+  const paraHoy = data.entregas.filter((e) => e.estado === 'coordinado' && e.entregaFecha === data.hoy).length;
+  const hoyBtn = document.getElementById('entregas-salida-hoy');
+  hoyBtn.textContent = `Avisar salida de hoy (${paraHoy})`;
+  hoyBtn.disabled = paraHoy === 0;
+  hoyBtn.onclick = async () => {
+    if (!confirm(`Se le manda el mail "hoy pasamos" a ${paraHoy} comprador(es) y pasan a "En camino". ¿Seguro?`)) return;
+    hoyBtn.disabled = true;
+    try {
+      const r = await api('/entregas/salida-hoy', { method: 'POST' });
+      alert(`Avisados: ${r.avisados}${r.sinMail ? ` · sin mail: ${r.sinMail}` : ''}${r.fallos ? ` · con error: ${r.fallos}` : ''}`);
+      await loadEntregas();
+    } catch (err) {
+      alert(err.message);
+      hoyBtn.disabled = false;
+    }
+  };
+
+  renderTable(
+    container,
+    ['Venta', 'Destinatario', 'Dirección', 'Límite', 'Día elegido', 'Estado', ''],
+    data.entregas.map((e) => {
+      const dias = e.fechaLimite ? diasHasta(e.fechaLimite, data.hoy) : null;
+      const urgente = ['a_coordinar', 'coordinado', 'en_camino'].includes(e.estado) && dias !== null && dias <= 2;
+      const acciones = [];
+      if (e.estado === 'coordinado') acciones.push(`<button type="button" class="row-btn" data-act="salida" data-id="${e.id}">Avisar salida</button>`);
+      if (['a_coordinar', 'coordinado'].includes(e.estado)) acciones.push(`<button type="button" class="row-btn" data-act="reenviar-mail" data-id="${e.id}">Reenviar mail</button>`);
+      if (['a_coordinar', 'coordinado', 'en_camino'].includes(e.estado)) acciones.push(`<button type="button" class="row-btn" data-act="entregado" data-id="${e.id}">Entregado</button>`);
+      if (['coordinado', 'en_camino'].includes(e.estado)) acciones.push(`<button type="button" class="row-btn" data-act="no-estaba" data-id="${e.id}">No estaba</button>`);
+      if (['no_estaba', 'pidio_correo', 'vencido'].includes(e.estado)) acciones.push(`<button type="button" class="row-btn" data-act="reenvio" data-id="${e.id}">Enviar por Enviopack</button>`);
+      if (e.estado === 'vencido') acciones.push(`<button type="button" class="row-btn" data-act="cerrar" data-id="${e.id}">Cerrar</button>`);
+      return `<tr>
+        <td>#${e.ventaId}</td>
+        <td>${escHtml(e.destinatario)}<br><small>${escHtml(e.telefono)}${e.email ? ` · ${escHtml(e.email)}` : ''}</small></td>
+        <td><small>${escHtml(e.direccion)}</small>${e.referencia ? `<br><small>${escHtml(e.referencia)}</small>` : ''}</td>
+        <td${urgente ? ' style="color:#e5484d;font-weight:600"' : ''}>${fechaCorta(e.fechaLimite)}${urgente ? `<br><small>${dias <= 0 ? 'VENCE HOY' : `faltan ${dias}`}</small>` : ''}</td>
+        <td>${e.entregaFecha ? `${fechaCorta(e.entregaFecha)}${e.entregaFecha === data.hoy ? ' <b>(hoy)</b>' : ''}<br><small>${escHtml(franjaLabel(e.entregaFranja))}</small>` : '—'}</td>
+        <td>${ENTREGA_ESTADO_LABEL[e.estado] || e.estado}</td>
+        <td>${acciones.join(' ')}</td>
+      </tr>`;
+    })
+  );
+
+  container.querySelectorAll('button[data-act]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const { act, id } = btn.dataset;
+      const confirmaciones = {
+        salida: 'Se le manda el mail "hoy pasamos" y pasa a "En camino". ¿Seguro?',
+        entregado: '¿Marcar como entregado?',
+        cerrar: '¿Cerrar esta entrega? Hacelo cuando ya la resolviste con el comprador (devolución, etc.).',
+        'no-estaba': 'Se marca "No estaba" y se le manda el mail con el link para pedir el envío por correo. ¿Seguro?',
+      };
+      if (confirmaciones[act] && !confirm(confirmaciones[act])) return;
+      btn.disabled = true;
+      try {
+        if (act === 'reenvio') {
+          // Primero cotiza: el costo es lo que hay que cobrarle al comprador.
+          const q = await api(`/entregas/${id}/reenvio`, { method: 'POST', body: JSON.stringify({}) });
+          if (!confirm(`El envío por Enviopack cuesta ${MONEY(q.costo)}. Cobraselo al comprador antes.\n\n¿Crear el envío ahora?`)) {
+            btn.disabled = false;
+            return;
+          }
+          const r = await api(`/entregas/${id}/reenvio`, { method: 'POST', body: JSON.stringify({ confirmar: true }) });
+          alert(`Envío creado en Enviopack (${r.estado === 'por_despachar' ? 'por despachar' : 'confirmalo en Enviopack'}). Seguilo en "Envíos a domicilio".`);
+          await Promise.all([loadEntregas(), loadEnvios()]);
+          return;
+        }
+        const r = await api(`/entregas/${id}/${act}`, { method: 'POST' });
+        if (r.mail) alert(TXT_MAIL_ENTREGA[r.mail] || r.mail);
+        await loadEntregas();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
       }
     });
   });

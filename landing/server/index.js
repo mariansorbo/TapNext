@@ -12,7 +12,7 @@ import {
 } from './comision.js';
 import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.js';
 import { validarPassword, crearLimitador } from './password.js';
-import { enviarCorreo, correoDisponible, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
+import { enviarCorreo, correoDisponible, mailEntregaCoordinar, mailEntregaSalida, mailEntregaNoEstaba, mailEntregaRecordatorio, mailEntregaVencida, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { efemerideBloque } from './efemerides.js';
@@ -28,6 +28,18 @@ import {
   crearEnvio,
   etiquetaPdf,
 } from './enviopack.js';
+import {
+  zonaGratisDe,
+  zonasGratisActivas,
+  hoyAR,
+  sumarDiasHabiles,
+  diasDisponibles,
+  FRANJAS,
+  esFranjaValida,
+  PLAZO_DIAS_HABILES,
+  DIAS_DEPOSITO,
+  REENVIO_TEXTO_VERSION,
+} from './entrega-propia.js';
 import { enviarCapiPurchase, metaCapiDisponible } from './meta-capi.js';
 import { enviarVentaPap, papDisponible, esPapVisitorId } from './pap.js';
 import { enviarGaPurchase, ga4Disponible, esGaClientId, esGaSessionId } from './ga4.js';
@@ -567,7 +579,10 @@ function normalizarEmail(raw) {
   return ES_EMAIL(t) ? t : null;
 }
 
-app.get('/api/auth/config', (req, res) => {
+app.get('/api/auth/config', async (req, res) => {
+  // Zonas con envío gratis (cartel del wizard). Si la consulta falla, el
+  // checkout sigue andando sin el cartel.
+  const zonasGratis = await zonasGratisActivas().catch(() => []);
   res.json({
     googleEnabled: GOOGLE_ENABLED,
     verificacion: {
@@ -585,6 +600,8 @@ app.get('/api/auth/config', (req, res) => {
     envio: {
       habilitado: enviopackDisponible,
       provincias: PROVINCIAS_AR,
+      // Reglas de la entrega propia (envío gratis en mano) para los textos del wizard.
+      entregaPropia: { plazoDiasHabiles: PLAZO_DIAS_HABILES, diasDeposito: DIAS_DEPOSITO, zonas: zonasGratis },
     },
   });
 });
@@ -1101,12 +1118,120 @@ app.get('/api/public/envio/cotizar', async (req, res) => {
   if (!esProvinciaValida(provincia)) return res.status(400).json({ error: 'Elegí una provincia.' });
   if (!/^\d{4}$/.test(cp)) return res.status(400).json({ error: 'El código postal son 4 dígitos.' });
   try {
+    // Zona de envío gratis: lo lleva el dueño en mano, no se cotiza en Enviopack.
+    const zona = await zonaGratisDe(provincia, cp);
+    if (zona) {
+      return res.json({
+        costo: 0,
+        gratis: true,
+        modo: 'entrega_propia',
+        zona,
+        plazoDiasHabiles: PLAZO_DIAS_HABILES,
+        diasDeposito: DIAS_DEPOSITO,
+      });
+    }
     const q = await cotizarDomicilio({ provincia, cp });
     res.json({ costo: q.costo, servicio: q.servicio, horasEntrega: q.horasEntrega });
   } catch (err) {
     console.error('[Enviopack] cotizar:', err.message);
     res.status(502).json({ error: 'No pudimos cotizar el envío a ese código postal. Probá de nuevo.' });
   }
+});
+
+// --- Entrega propia: coordinación desde el link del mail ---
+// El comprador entra con /entrega.html?t=<token> (el token de 24 hex es el
+// secreto: sólo lo recibe por mail) y elige día + franja entre mañana y la fecha
+// límite, o pide recibirlo por Correo. Sin login: el token alcanza.
+const entregaFallosPorIp = crearLimitador({ max: 30, ventanaMs: 15 * 60_000 });
+const ESTADOS_EDITABLES_ENTREGA = ['a_coordinar', 'coordinado'];
+
+// Busca la entrega por token. Si no corresponde, ya respondió el error y devuelve null.
+async function entregaPorToken(req, res) {
+  const ip = req.ip || 'desconocida';
+  if (!entregaFallosPorIp.permitido(ip)) {
+    res.status(429).json({ error: 'Demasiados intentos. Probá de nuevo en unos minutos.' });
+    return null;
+  }
+  const token = String(req.params.token || '').trim().toLowerCase();
+  const e = /^[0-9a-f]{24}$/.test(token)
+    ? await get(
+        `SELECT id, venta_id, estado, dest_nombre, localidad, zona,
+                to_char(fecha_limite, 'YYYY-MM-DD') AS fecha_limite,
+                to_char(entrega_fecha, 'YYYY-MM-DD') AS entrega_fecha,
+                entrega_franja
+           FROM venta_envios WHERE token = ? AND modo = 'entrega_propia'`,
+        [token]
+      )
+    : null;
+  if (!e) {
+    entregaFallosPorIp.registrarFallo(ip);
+    res.status(404).json({ error: 'Este link no es válido o ya venció.' });
+    return null;
+  }
+  return e;
+}
+
+app.get('/api/public/entrega/:token', async (req, res) => {
+  const e = await entregaPorToken(req, res);
+  if (!e) return;
+  const editable = ESTADOS_EDITABLES_ENTREGA.includes(e.estado);
+  res.json({
+    estado: e.estado,
+    nombre: String(e.dest_nombre || '').trim().split(/\s+/)[0] || null,
+    localidad: e.localidad,
+    fechaLimite: e.fecha_limite,
+    dias: editable ? diasDisponibles(e.fecha_limite) : [],
+    franjas: FRANJAS,
+    elegido: e.entrega_fecha ? { fecha: e.entrega_fecha, franja: e.entrega_franja } : null,
+    diasDeposito: DIAS_DEPOSITO,
+    // Pasamos y no había nadie: desde acá pide el envío por correo.
+    puedePedirCorreo: e.estado === 'no_estaba',
+  });
+});
+
+app.post('/api/public/entrega/:token/elegir', async (req, res) => {
+  const e = await entregaPorToken(req, res);
+  if (!e) return;
+  if (!ESTADOS_EDITABLES_ENTREGA.includes(e.estado)) {
+    return res.status(409).json({ error: 'Esta entrega ya no se puede modificar desde acá.' });
+  }
+  const fecha = String(req.body?.fecha || '');
+  const franja = String(req.body?.franja || '');
+  if (!diasDisponibles(e.fecha_limite).includes(fecha)) {
+    return res.status(400).json({ error: 'Ese día ya no está disponible. Elegí otro.' });
+  }
+  if (!esFranjaValida(franja)) return res.status(400).json({ error: 'Elegí un horario.' });
+  await run(
+    `UPDATE venta_envios
+        SET estado = 'coordinado', entrega_fecha = ?, entrega_franja = ?, entrega_elegida_en = NOW(), pidio_correo_en = NULL
+      WHERE id = ?`,
+    [fecha, franja, e.id]
+  );
+  const franjaLabel = FRANJAS.find((f) => f.id === franja)?.label || franja;
+  alertaVenta(e.venta_id, `📅 Entrega coordinada — venta #${e.venta_id}`, {
+    antes: [`El comprador eligió: ${fecha}, ${franjaLabel}. (Límite: ${e.fecha_limite}.)`, ''],
+  });
+  res.json({ ok: true, estado: 'coordinado', elegido: { fecha, franja } });
+});
+
+app.post('/api/public/entrega/:token/correo', async (req, res) => {
+  const e = await entregaPorToken(req, res);
+  if (!e) return;
+  if (!ESTADOS_EDITABLES_ENTREGA.includes(e.estado) && e.estado !== 'no_estaba') {
+    return res.status(409).json({ error: 'Esta entrega ya no se puede modificar desde acá.' });
+  }
+  await run(
+    `UPDATE venta_envios SET estado = 'pidio_correo', pidio_correo_en = NOW(), entrega_fecha = NULL, entrega_franja = NULL WHERE id = ?`,
+    [e.id]
+  );
+  alertaVenta(e.venta_id, `📮 Pidió Correo en vez de entrega en mano — venta #${e.venta_id}`, {
+    antes: [
+      'El comprador eligió recibirlo por Correo Argentino (el envío corre por su cuenta).',
+      'Todavía no hay cobro automático del Correo: contactalo para coordinarlo.',
+      '',
+    ],
+  });
+  res.json({ ok: true, estado: 'pidio_correo' });
 });
 
 // Valida y normaliza el bloque `envio` del body de POST /api/ventas. Devuelve
@@ -1127,6 +1252,9 @@ function parseEnvio(raw) {
     localidad: s(raw.localidad, 50),
     provincia: s(raw.provincia, 8),
     cp: s(raw.cp, 8),
+    // Casilla de la entrega propia ("si no estoy, el reenvío por correo lo pago
+    // yo"). Sólo se exige si el CP cae en una zona gratis (ver POST /api/ventas).
+    aceptaReenvio: raw.aceptaReenvio === true,
   };
   if (!esProvinciaValida(campos.provincia)) return { error: 'Provincia de envío inválida.' };
   if (!/^\d{4}$/.test(campos.cp)) return { error: 'Código postal de envío inválido.' };
@@ -1265,8 +1393,20 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
   let envioCotizado = null;
   if (envioDatos) {
     try {
-      const q = await cotizarDomicilio({ provincia: envioDatos.provincia, cp: envioDatos.cp });
-      envioCotizado = { ...envioDatos, costo: q.costo, servicio: q.servicio };
+      const zonaGratis = await zonaGratisDe(envioDatos.provincia, envioDatos.cp);
+      if (zonaGratis) {
+        // Entrega propia: gratis, sin Enviopack. Sin la aceptación explícita de
+        // la regla del reenvío no se deja pagar (el wizard ya lo exige).
+        if (!envioDatos.aceptaReenvio) {
+          return res.status(400).json({
+            error: 'Tenés que aceptar la condición del envío gratis (si no hay nadie, el reenvío por correo lo pagás vos).',
+          });
+        }
+        envioCotizado = { ...envioDatos, costo: 0, servicio: null, modo: 'entrega_propia', zona: zonaGratis };
+      } else {
+        const q = await cotizarDomicilio({ provincia: envioDatos.provincia, cp: envioDatos.cp });
+        envioCotizado = { ...envioDatos, costo: q.costo, servicio: q.servicio, modo: 'domicilio', zona: null };
+      }
     } catch (err) {
       console.error('[Enviopack] cotizar en /ventas:', err.message);
       res.locals.detalleError = `Enviopack (cotizar): ${err.message}`;
@@ -1339,13 +1479,17 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
     await run(
       `INSERT INTO venta_envios
          (venta_id, modo, estado, costo, servicio, dest_nombre, dest_telefono,
-          calle, numero, piso, depto, referencia, localidad, provincia, cp)
-       VALUES (?, 'domicilio', 'pendiente_pago', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          calle, numero, piso, depto, referencia, localidad, provincia, cp,
+          zona, acepta_reenvio_en, acepta_reenvio_version)
+       VALUES (?, ?, 'pendiente_pago', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        ventaId, envioCotizado.costo, envioCotizado.servicio,
+        ventaId, envioCotizado.modo, envioCotizado.costo, envioCotizado.servicio,
         envioCotizado.dest_nombre, envioCotizado.dest_telefono,
         envioCotizado.calle, envioCotizado.numero, envioCotizado.piso, envioCotizado.depto,
         envioCotizado.referencia, envioCotizado.localidad, envioCotizado.provincia, envioCotizado.cp,
+        envioCotizado.zona,
+        envioCotizado.modo === 'entrega_propia' ? new Date().toISOString() : null,
+        envioCotizado.modo === 'entrega_propia' ? REENVIO_TEXTO_VERSION : null,
       ]
     );
   }
@@ -1357,7 +1501,9 @@ app.post('/api/ventas', requireAuth, async (req, res) => {
       unit_price: precio,
       currency_id: 'ARS',
     }));
-    if (envioCotizado) {
+    // Con envío gratis (entrega propia) no hay item de envío: MP no acepta un
+    // item de $0.
+    if (envioCotizado && envioCotizado.costo > 0) {
       mpItems.push({ title: 'Envío a domicilio', quantity: 1, unit_price: envioCotizado.costo, currency_id: 'ARS' });
     }
     const preference = await new Preference(mpClient).create({
@@ -1578,6 +1724,32 @@ async function notificarActivacionGratis(ventaId) {
   }
 }
 
+// Entrega propia: manda al comprador el mail con el link para elegir día y
+// horario. Best-effort; devuelve 'enviado' | 'fallo' | 'sin_mail' | 'no_configurado'
+// (mismos textos que TXT_MAIL) para que la alerta al admin lo cuente.
+// `construir` arma { subject, text, html } a partir de { nombre, entregaUrl }.
+async function enviarMailEntrega(e, token, construir) {
+  try {
+    const c = await get(
+      `SELECT c.email FROM ventas v JOIN compradores c ON c.id = v.comprador_id WHERE v.id = ?`,
+      [e.venta_id]
+    );
+    if (!c?.email) return 'sin_mail';
+    const { subject, text, html } = construir({
+      nombre: e.dest_nombre,
+      entregaUrl: `${FRONTEND_URL}/entrega.html?t=${token}`,
+    });
+    const ok = await enviarCorreo({ to: c.email, subject, text, html });
+    return ok ? 'enviado' : correoDisponible ? 'fallo' : 'no_configurado';
+  } catch (err) {
+    console.error('[entrega propia] no se pudo mandar el mail al comprador:', err.message);
+    return 'fallo';
+  }
+}
+
+const mandarMailCoordinarEntrega = (e, token, fechaLimite) =>
+  enviarMailEntrega(e, token, (d) => mailEntregaCoordinar({ ...d, fechaLimite, diasDeposito: DIAS_DEPOSITO }));
+
 // Crea el envío en Enviopack para una venta ya pagada (llamado desde el webhook).
 // Best-effort e idempotente: si ya tiene enviopack_id o no hay fila de envío,
 // no hace nada. Si Enviopack falla, deja la fila en 'error_enviopack' con el
@@ -1587,6 +1759,22 @@ async function crearEnvioParaVenta(ventaId) {
   try {
     const e = await get('SELECT * FROM venta_envios WHERE venta_id = ?', [ventaId]);
     if (!e) return { estado: 'no_aplica' };
+    // Entrega propia: no va por Enviopack. Queda "a coordinar" con el plazo de
+    // 7 días hábiles contado desde ahora (pago acreditado). Idempotente: si el
+    // webhook llega dos veces no se corre la fecha límite.
+    if (e.modo === 'entrega_propia') {
+      if (e.estado === 'pendiente_pago') {
+        const limite = sumarDiasHabiles(undefined, PLAZO_DIAS_HABILES);
+        const token = e.token || randomBytes(12).toString('hex');
+        await run(
+          `UPDATE venta_envios SET estado = 'a_coordinar', fecha_limite = ?, token = ? WHERE id = ?`,
+          [limite, token, e.id]
+        );
+        const mailCoordinar = await mandarMailCoordinarEntrega(e, token, limite);
+        return { estado: 'a_coordinar', fechaLimite: limite, zona: e.zona, mailCoordinar };
+      }
+      return { estado: 'ya_creado' };
+    }
     if (!enviopackDisponible) return { estado: 'no_configurado' };
     if (e.enviopack_id) return { estado: 'ya_creado' };
     try {
@@ -1782,6 +1970,10 @@ function alertaVentaConfirmada(ventaId, { payment, avisos, envio, capi, pap, ga,
   if (envio.estado === 'por_despachar') {
     txtEnvio = `creado en Enviopack (tracking ${envio.tracking || '—'}) — falta llevarlo al correo`;
     accion = 'despachar el envío';
+  } else if (envio.estado === 'a_coordinar') {
+    txtEnvio = `ENTREGA PROPIA (${envio.zona || 'zona gratis'}) — a coordinar con el comprador; llevarlo antes del ${envio.fechaLimite} (mail con el link para coordinar: ${TXT_MAIL[envio.mailCoordinar] || envio.mailCoordinar})`;
+    accion = 'coordinar la entrega en mano';
+    if (envio.mailCoordinar === 'fallo' || envio.mailCoordinar === 'no_configurado') problemas.push('mail de coordinación');
   } else if (envio.estado === 'por_confirmar_enviopack') {
     txtEnvio = 'creado en Enviopack pero SIN confirmar — confirmalo a mano en el panel de Enviopack';
     accion = 'confirmar el envío en Enviopack';
@@ -1881,6 +2073,61 @@ async function avisarPagosQueNoLlegaron() {
   }
 }
 setInterval(avisarPagosQueNoLlegaron, 5 * 60 * 1000);
+
+// Barrido de entregas propias que quedaron en depósito ("no estaba"): manda el
+// recordatorio de los días 7 y 20 (una vez cada uno) y, a los DIAS_DEPOSITO,
+// las pasa a 'vencido' y te avisa para que resuelvas (p. ej. devolver la plata).
+// Idempotente: cada paso se "reclama" con un UPDATE ... RETURNING que sólo
+// toma las filas que todavía no lo tuvieron, así que correr de más no repite mails.
+// Cada recordatorio sólo corre en su tramo (7→20 y 20→30): si el server estuvo
+// caído no manda uno viejo tarde.
+const RECORDATORIOS_DEPOSITO = [
+  { col: 'recordatorio7_en', desde: 7, hasta: 20 },
+  { col: 'recordatorio20_en', desde: 20, hasta: DIAS_DEPOSITO },
+];
+
+async function barridoEntregasEnDeposito() {
+  try {
+    for (const { col, desde, hasta } of RECORDATORIOS_DEPOSITO) {
+      const filas = await all(
+        `UPDATE venta_envios SET ${col} = NOW()
+          WHERE modo = 'entrega_propia' AND estado = 'no_estaba' AND ${col} IS NULL
+            AND no_estaba_en <= NOW() - make_interval(days => ?::int)
+            AND no_estaba_en >  NOW() - make_interval(days => ?::int)
+          RETURNING *`,
+        [desde, hasta]
+      );
+      for (const e of filas) {
+        const diasRestantes = DIAS_DEPOSITO - desde;
+        const r = await enviarMailEntrega(e, e.token, (d) => mailEntregaRecordatorio({ ...d, diasRestantes }));
+        console.log(`[entrega propia] recordatorio día ${desde} — venta ${e.venta_id}: ${r}`);
+      }
+    }
+    const vencidas = await all(
+      `UPDATE venta_envios SET estado = 'vencido', vencido_en = NOW()
+        WHERE modo = 'entrega_propia' AND estado = 'no_estaba'
+          AND no_estaba_en <= NOW() - make_interval(days => ?::int)
+        RETURNING *`,
+      [DIAS_DEPOSITO]
+    );
+    for (const e of vencidas) {
+      const r = await enviarMailEntrega(e, e.token, (d) => mailEntregaVencida(d));
+      alertaVenta(e.venta_id, `⌛ Venció el depósito de 30 días — venta #${e.venta_id}`, {
+        antes: [
+          `El comprador no pidió el envío por correo en ${DIAS_DEPOSITO} días. El llavero sigue en tu depósito.`,
+          `Mail de aviso al comprador: ${TXT_MAIL[r] || r}.`,
+          'Resolvelo con él (devolución, envío igual, etc.) y después cerralo desde Admin > Entregas propias.',
+          '',
+        ],
+      });
+    }
+  } catch (err) {
+    console.error('[entrega propia] barrido de depósito:', err.message);
+  }
+}
+setInterval(barridoEntregasEnDeposito, 60 * 60 * 1000);
+// También una vez poco después de arrancar (Render/servidor propio reinician).
+setTimeout(barridoEntregasEnDeposito, 30_000);
 
 // Mercado Pago llama acá cuando cambia el estado de un pago (no hay sesión de
 // usuario en este request). Confirmamos el estado real contra la API de MP en
@@ -3209,7 +3456,7 @@ app.get('/api/admin/envios', requireAdmin, async (req, res) => {
     `SELECT e.*, ve.estado_pago, ve.payment_id
        FROM venta_envios e
        JOIN ventas ve ON ve.id = e.venta_id
-       ${where}
+       ${where ? `${where} AND` : 'WHERE'} (e.modo <> 'entrega_propia' OR e.enviopack_id IS NOT NULL)
        ORDER BY e.creado_en DESC`,
     args
   );
@@ -3265,6 +3512,161 @@ app.post('/api/admin/envios/:id/reintentar', requireAdmin, async (req, res) => {
     enviopackId: actualizado.enviopack_id || null,
     error: actualizado.enviopack_error || null,
   });
+});
+
+// --- Entregas propias (envío gratis en mano) — panel "Entregas propias" ---
+// Estados activos (los que el admin tiene que atender). Los entregados y los
+// que ya salieron por Enviopack dejan de aparecer acá.
+const ESTADOS_ENTREGA_ACTIVOS = ['a_coordinar', 'coordinado', 'en_camino', 'no_estaba', 'pidio_correo', 'vencido'];
+
+app.get('/api/admin/entregas', requireAdmin, async (req, res) => {
+  const rows = await all(
+    `SELECT e.*, to_char(e.fecha_limite, 'YYYY-MM-DD') AS fecha_limite_s,
+            to_char(e.entrega_fecha, 'YYYY-MM-DD') AS entrega_fecha_s, c.email
+       FROM venta_envios e
+       JOIN ventas ve ON ve.id = e.venta_id
+       LEFT JOIN compradores c ON c.id = ve.comprador_id
+      WHERE e.modo = 'entrega_propia' AND e.estado = ANY(?) AND e.enviopack_id IS NULL
+      ORDER BY (e.entrega_fecha IS NULL), e.entrega_fecha, e.fecha_limite, e.id`,
+    [ESTADOS_ENTREGA_ACTIVOS]
+  );
+  res.json({
+    hoy: hoyAR(),
+    franjas: FRANJAS,
+    entregas: rows.map((r) => ({
+      id: r.id,
+      ventaId: r.venta_id,
+      estado: r.estado,
+      destinatario: r.dest_nombre,
+      telefono: r.dest_telefono,
+      email: r.email || null,
+      direccion: `${r.calle} ${r.numero}${r.piso ? ` piso ${r.piso}` : ''}${r.depto ? ` ${r.depto}` : ''} · ${r.localidad} (${r.cp})`,
+      referencia: r.referencia || null,
+      zona: r.zona,
+      fechaLimite: r.fecha_limite_s,
+      entregaFecha: r.entrega_fecha_s,
+      entregaFranja: r.entrega_franja,
+      salidaEn: r.salida_en,
+      noEstabaEn: r.no_estaba_en,
+    })),
+  });
+});
+
+// Trae la entrega propia por id y valida que esté en uno de los estados dados.
+// Si no corresponde, ya respondió el error y devuelve null.
+async function entregaAdmin(req, res, estadosPermitidos) {
+  const e = await get(`SELECT * FROM venta_envios WHERE id = ? AND modo = 'entrega_propia'`, [Number(req.params.id)]);
+  if (!e) {
+    res.status(404).json({ error: 'Entrega no encontrada.' });
+    return null;
+  }
+  if (!estadosPermitidos.includes(e.estado)) {
+    res.status(409).json({ error: `No se puede hacer eso con una entrega en estado "${e.estado}".` });
+    return null;
+  }
+  return e;
+}
+
+// Avisa la salida: pasa a en_camino y manda el mail "hoy pasamos".
+async function avisarSalidaEntrega(e) {
+  await run(`UPDATE venta_envios SET estado = 'en_camino', salida_en = NOW() WHERE id = ?`, [e.id]);
+  return enviarMailEntrega(e, e.token, (d) =>
+    mailEntregaSalida({ ...d, franja: e.entrega_franja, diasDeposito: DIAS_DEPOSITO })
+  );
+}
+
+// "Avisar salida de hoy": a todos los coordinados para hoy.
+app.post('/api/admin/entregas/salida-hoy', requireAdmin, async (req, res) => {
+  const filas = await all(
+    `SELECT * FROM venta_envios WHERE modo = 'entrega_propia' AND estado = 'coordinado' AND entrega_fecha = ?`,
+    [hoyAR()]
+  );
+  const resultado = { avisados: 0, sinMail: 0, fallos: 0 };
+  for (const e of filas) {
+    const r = await avisarSalidaEntrega(e);
+    if (r === 'enviado') resultado.avisados += 1;
+    else if (r === 'sin_mail') resultado.sinMail += 1;
+    else resultado.fallos += 1;
+  }
+  res.json({ total: filas.length, ...resultado });
+});
+
+app.post('/api/admin/entregas/:id/salida', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['coordinado']);
+  if (!e) return;
+  res.json({ mail: await avisarSalidaEntrega(e) });
+});
+
+app.post('/api/admin/entregas/:id/entregado', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['a_coordinar', 'coordinado', 'en_camino']);
+  if (!e) return;
+  await run(`UPDATE venta_envios SET estado = 'entregado', entregado_en = NOW() WHERE id = ?`, [e.id]);
+  res.json({ ok: true });
+});
+
+// Un solo intento: no había nadie. El llavero queda en depósito y el comprador
+// recibe el mail con el link para pedir el envío por correo.
+app.post('/api/admin/entregas/:id/no-estaba', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['coordinado', 'en_camino']);
+  if (!e) return;
+  await run(`UPDATE venta_envios SET estado = 'no_estaba', no_estaba_en = NOW() WHERE id = ?`, [e.id]);
+  const mail = await enviarMailEntrega(e, e.token, (d) => mailEntregaNoEstaba({ ...d, diasDeposito: DIAS_DEPOSITO }));
+  res.json({ mail });
+});
+
+// Cierra una entrega vencida una vez que la resolviste por fuera (devolución, etc.).
+app.post('/api/admin/entregas/:id/cerrar', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['vencido']);
+  if (!e) return;
+  await run(`UPDATE venta_envios SET estado = 'cerrado' WHERE id = ?`, [e.id]);
+  res.json({ ok: true });
+});
+
+// Reenvía el mail con el link de coordinación (por si no le llegó).
+app.post('/api/admin/entregas/:id/reenviar-mail', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['a_coordinar', 'coordinado']);
+  if (!e) return;
+  const limite = (await get(`SELECT to_char(fecha_limite, 'YYYY-MM-DD') AS f FROM venta_envios WHERE id = ?`, [e.id]))?.f;
+  res.json({ mail: await mandarMailCoordinarEntrega(e, e.token, limite) });
+});
+
+// Reenvío por Enviopack para los que no estaban (o pidieron correo). Sin
+// `confirmar` sólo cotiza (lo que hay que cobrarle al comprador); con
+// `confirmar: true` crea el envío en Enviopack con el mismo circuito de siempre
+// (después aparece en "Envíos a domicilio" con su etiqueta).
+app.post('/api/admin/entregas/:id/reenvio', requireAdmin, async (req, res) => {
+  const e = await entregaAdmin(req, res, ['no_estaba', 'pidio_correo', 'vencido']);
+  if (!e) return;
+  if (!enviopackDisponible) return res.status(503).json({ error: 'Enviopack no está configurado.' });
+  let q;
+  try {
+    q = await cotizarDomicilio({ provincia: e.provincia, cp: e.cp });
+  } catch (err) {
+    console.error('[Enviopack] cotizar reenvío:', err.message);
+    return res.status(502).json({ error: `No se pudo cotizar en Enviopack: ${err.message}` });
+  }
+  if (req.body?.confirmar !== true) return res.json({ costo: q.costo, servicio: q.servicio });
+  try {
+    const venta = await get(
+      `SELECT v.monto, c.email FROM ventas v LEFT JOIN compradores c ON c.id = v.comprador_id WHERE v.id = ?`,
+      [e.venta_id]
+    );
+    const { enviopackId, tracking, confirmado } = await crearEnvio(
+      { ...e, servicio: q.servicio },
+      e.venta_id,
+      venta?.monto,
+      venta?.email
+    );
+    const estado = confirmado ? 'por_despachar' : 'por_confirmar_enviopack';
+    await run(
+      `UPDATE venta_envios SET enviopack_id = ?, tracking_numero = ?, estado = ?, servicio = ?, reenvio_costo = ?, enviopack_error = NULL WHERE id = ?`,
+      [enviopackId, tracking, estado, q.servicio, q.costo, e.id]
+    );
+    res.json({ estado, costo: q.costo, tracking });
+  } catch (err) {
+    console.error(`[Enviopack] no se pudo crear el reenvío de la venta ${e.venta_id}:`, err.message);
+    res.status(502).json({ error: `Enviopack: ${err.message}` });
+  }
 });
 
 // Marca un envío como despachado (ya lo llevaste al correo).

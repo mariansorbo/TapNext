@@ -107,6 +107,119 @@ ${panelUrl}${acceso.text}`;
   return { subject, text, html };
 }
 
+// 'YYYY-MM-DD' -> "martes 17 de noviembre" (sin pasar por la zona horaria del server).
+export function fechaLarga(iso) {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Mail al COMPRADOR de una compra con envío gratis por entrega propia: cuándo
+ * lo recibe y el link para coordinar día y horario (o pedir Correo).
+ * @param {{ nombre?: string, entregaUrl: string, fechaLimite: string, diasDeposito: number }} data
+ */
+export function mailEntregaCoordinar({ nombre, entregaUrl, fechaLimite, diasDeposito }) {
+  const hola = nombre ? `Hola ${String(nombre).trim().split(/\s+/)[0]}` : 'Hola';
+  const limite = fechaLarga(fechaLimite);
+  const subject = 'Coordinemos la entrega de tu NextTap';
+  const text = `${hola}, ¡gracias por tu compra!
+
+Tu envío es gratis y te lo llevamos nosotros en mano, a más tardar el ${limite}.
+
+Elegí el día y el horario que mejor te quede desde este link:
+${entregaUrl}
+
+Importante: hacemos un solo intento de entrega. Si ese día no hay nadie para recibirlo, tu llavero queda ${diasDeposito} días en nuestro depósito y lo podés recibir por Correo Argentino, abonando el costo de ese envío. Si preferís el Correo desde el principio, también lo podés pedir en el mismo link.`;
+  const html = `<p>${esc(hola)}, ¡gracias por tu compra!</p>
+<p>Tu envío es <strong>gratis</strong> y te lo llevamos nosotros en mano, a más tardar el <strong>${esc(limite)}</strong>.</p>
+<p style="margin:24px 0"><a href="${esc(entregaUrl)}" style="background:#7B5CFF;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:999px;display:inline-block">Elegir día y horario</a></p>
+<p style="color:#444;font-size:14px"><strong>Importante:</strong> hacemos un solo intento de entrega. Si ese día no hay nadie para recibirlo, tu llavero queda ${esc(diasDeposito)} días en nuestro depósito y lo podés recibir por Correo Argentino, abonando el costo de ese envío. Si preferís el Correo desde el principio, también lo podés pedir en el mismo link.</p>`;
+  return { subject, text, html };
+}
+
+const FRANJA_TEXTO = { manana: 'entre las 9 y las 13 hs', tarde: 'entre las 13 y las 18 hs', noche: 'entre las 18 y las 21 hs' };
+
+/**
+ * Mail al COMPRADOR el día de la entrega: "hoy pasamos". Repite la regla del
+ * único intento y le da el link para pedir el envío por correo si no va a estar.
+ * @param {{ nombre?: string, entregaUrl: string, franja?: string|null, diasDeposito: number }} data
+ */
+export function mailEntregaSalida({ nombre, entregaUrl, franja, diasDeposito }) {
+  const hola = nombre ? `Hola ${String(nombre).trim().split(/\s+/)[0]}` : 'Hola';
+  const cuando = FRANJA_TEXTO[franja] ? ` ${FRANJA_TEXTO[franja]}` : '';
+  const subject = 'Hoy te llevamos tu NextTap';
+  const text = `${hola}, hoy pasamos por tu domicilio${cuando} para entregarte tu NextTap.
+
+Es un único intento de entrega: si no hay nadie para recibirlo, tu llavero queda ${diasDeposito} días en nuestro depósito y lo podés recibir por Correo Argentino abonando ese envío.
+
+¿No vas a estar? Podés pedir el envío por correo desde acá:
+${entregaUrl}`;
+  const html = `<p>${esc(hola)}, <strong>hoy pasamos por tu domicilio${esc(cuando)}</strong> para entregarte tu NextTap.</p>
+<p style="color:#444;font-size:14px">Es un único intento de entrega: si no hay nadie para recibirlo, tu llavero queda ${esc(diasDeposito)} días en nuestro depósito y lo podés recibir por Correo Argentino abonando ese envío.</p>
+<p>¿No vas a estar? <a href="${esc(entregaUrl)}">Pedí el envío por correo desde acá</a>.</p>`;
+  return { subject, text, html };
+}
+
+/**
+ * Mail al COMPRADOR cuando se pasó y no había nadie: el llavero queda en
+ * depósito y el link le permite pedir el envío por correo.
+ * @param {{ nombre?: string, entregaUrl: string, diasDeposito: number }} data
+ */
+export function mailEntregaNoEstaba({ nombre, entregaUrl, diasDeposito }) {
+  const hola = nombre ? `Hola ${String(nombre).trim().split(/\s+/)[0]}` : 'Hola';
+  const subject = 'Pasamos y no te encontramos — tu NextTap te espera';
+  const text = `${hola}, pasamos por tu domicilio para entregarte tu NextTap y no había nadie.
+
+Tu llavero queda guardado ${diasDeposito} días en nuestro depósito. Para recibirlo por Correo Argentino (el costo del envío lo abonás vos), pedilo desde este link:
+${entregaUrl}
+
+Te escribimos con el costo y cómo abonarlo.`;
+  const html = `<p>${esc(hola)}, pasamos por tu domicilio para entregarte tu NextTap y no había nadie.</p>
+<p>Tu llavero queda guardado <strong>${esc(diasDeposito)} días</strong> en nuestro depósito. Para recibirlo por Correo Argentino (el costo del envío lo abonás vos), pedilo desde acá:</p>
+<p style="margin:24px 0"><a href="${esc(entregaUrl)}" style="background:#7B5CFF;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:999px;display:inline-block">Pedir envío por correo</a></p>
+<p style="color:#444;font-size:14px">Te escribimos con el costo y cómo abonarlo.</p>`;
+  return { subject, text, html };
+}
+
+/**
+ * Recordatorio al COMPRADOR cuyo llavero espera en depósito (días 7 y 20).
+ * @param {{ nombre?: string, entregaUrl: string, diasRestantes: number }} data
+ */
+export function mailEntregaRecordatorio({ nombre, entregaUrl, diasRestantes }) {
+  const hola = nombre ? `Hola ${String(nombre).trim().split(/\s+/)[0]}` : 'Hola';
+  const subject = `Tu NextTap sigue esperándote (te quedan ${diasRestantes} días)`;
+  const text = `${hola}, tu NextTap sigue guardado en nuestro depósito. Te quedan ${diasRestantes} días para pedir que te lo enviemos por correo (el costo del envío lo abonás vos).
+
+Pedilo desde este link:
+${entregaUrl}
+
+Pasado el plazo no podemos seguir guardándolo.`;
+  const html = `<p>${esc(hola)}, tu NextTap sigue guardado en nuestro depósito. Te quedan <strong>${esc(diasRestantes)} días</strong> para pedir que te lo enviemos por correo (el costo del envío lo abonás vos).</p>
+<p style="margin:24px 0"><a href="${esc(entregaUrl)}" style="background:#7B5CFF;color:#fff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:999px;display:inline-block">Pedir envío por correo</a></p>
+<p style="color:#444;font-size:14px">Pasado el plazo no podemos seguir guardándolo.</p>`;
+  return { subject, text, html };
+}
+
+/**
+ * Aviso al COMPRADOR cuando se cumplieron los 30 días de depósito sin que
+ * pidiera el envío: lo invita a escribir para resolverlo.
+ * @param {{ nombre?: string }} data
+ */
+export function mailEntregaVencida({ nombre }) {
+  const hola = nombre ? `Hola ${String(nombre).trim().split(/\s+/)[0]}` : 'Hola';
+  const subject = 'Se cumplió el plazo de depósito de tu NextTap';
+  const text = `${hola}, pasaron 30 días desde que intentamos entregarte tu NextTap y no pediste el envío por correo.
+
+Escribinos y lo resolvemos: WhatsApp +54 9 11 7108-2780 o mariansorbo@gmail.com.`;
+  const html = `<p>${esc(hola)}, pasaron 30 días desde que intentamos entregarte tu NextTap y no pediste el envío por correo.</p>
+<p>Escribinos y lo resolvemos: <a href="https://wa.me/541171082780">WhatsApp +54 9 11 7108-2780</a> o <a href="mailto:mariansorbo@gmail.com">mariansorbo@gmail.com</a>.</p>`;
+  return { subject, text, html };
+}
+
 /**
  * Arma el mail para el VENDEDOR: qué unidad(es) física(s) tiene que entregar.
  * @param {{ items: Array<{ codigoPublico: string, modelo: string|null }>, comprador: { nombre?: string|null, whatsapp?: string|null, email?: string|null }|null, monto: number, panelUrl: string }} data

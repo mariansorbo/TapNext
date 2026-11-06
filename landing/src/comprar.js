@@ -138,7 +138,8 @@ const state = {
   otpVerified: false,
   authToken: null,
   // Envío a domicilio (online). costo/servicio salen de la cotización del backend.
-  envio: { habilitado: false, costo: null, servicio: null },
+  // gratis = el CP cae en una zona de entrega propia (la lleva el dueño en mano).
+  envio: { habilitado: false, costo: null, servicio: null, gratis: false, entregaPropia: null },
   // Función elegida en el paso 0 (solo pedidoFullCatalogo.html).
   selectedFunction: null,
 };
@@ -475,6 +476,7 @@ api('/auth/config')
     if (!isPresencial && cfg?.envio?.habilitado) {
       state.envio.habilitado = true;
       initEnvioStep(cfg.envio.provincias || []);
+      mostrarZonasGratis(cfg.envio.entregaPropia?.zonas || []);
       STEP_SEQUENCE = tieneWizardModelo ? [0, 1, 5, 3, 4, PAY_STEP] : [1, 5, 3, 4, PAY_STEP];
       renderProgressDots();
     }
@@ -606,6 +608,11 @@ function initEnvioStep(provincias) {
   const ids = ['provincia', 'cp', 'calcular', 'localidad', 'calle', 'numero', 'piso', 'depto', 'referencia', 'nombre', 'telefono', 'status'];
   ids.forEach((k) => (envioEls[k] = document.getElementById(`envio-${k}`)));
   if (!envioEls.provincia) return;
+  envioEls.propia = document.getElementById('envio-propia');
+  envioEls.aceptaReenvio = document.getElementById('envio-acepta-reenvio');
+  envioEls.propiaDias = document.getElementById('envio-propia-dias');
+  envioEls.propiaDeposito = document.getElementById('envio-propia-deposito');
+  envioEls.aceptaReenvio?.addEventListener('change', updateNextButton);
 
   envioEls.provincia.innerHTML =
     '<option value="">Elegí tu provincia</option>' +
@@ -618,6 +625,7 @@ function initEnvioStep(provincias) {
   const invalidarCotizacion = () => {
     state.envio.costo = null;
     state.envio.servicio = null;
+    resetEntregaPropia();
     envioEls.status.textContent = '';
     envioEls.status.className = 'modal-status';
     envioEls.calcular.disabled = !(envioEls.provincia.value && /^\d{4}$/.test(envioEls.cp.value.trim()));
@@ -639,6 +647,26 @@ function initEnvioStep(provincias) {
   );
 }
 
+// Cartel fijo arriba del wizard con las zonas de envío gratis ("A, B y C").
+// Los nombres vienen del backend, así que sumar una zona no toca el front.
+function mostrarZonasGratis(zonas) {
+  const el = document.getElementById('wizard-envio-gratis');
+  if (!el || !zonas.length) return;
+  const lista = zonas.length > 1 ? `${zonas.slice(0, -1).join(', ')} y ${zonas[zonas.length - 1]}` : zonas[0];
+  // textContent para el listado: son nombres de la base, no HTML.
+  el.textContent = '';
+  el.append('🚚 ', Object.assign(document.createElement('b'), { textContent: 'Envío gratis' }), ` en ${lista}.`);
+  el.hidden = false;
+}
+
+// Oculta el bloque de "envío gratis, lo llevamos nosotros" y destilda la casilla:
+// si cambió el destino, la aceptación anterior ya no vale.
+function resetEntregaPropia() {
+  state.envio.gratis = false;
+  if (envioEls.propia) envioEls.propia.hidden = true;
+  if (envioEls.aceptaReenvio) envioEls.aceptaReenvio.checked = false;
+}
+
 async function cotizarEnvio() {
   const provincia = envioEls.provincia.value;
   const cp = envioEls.cp.value.trim();
@@ -650,6 +678,21 @@ async function cotizarEnvio() {
     const q = await api(`/public/envio/cotizar?provincia=${encodeURIComponent(provincia)}&cp=${cp}`);
     state.envio.costo = q.costo;
     state.envio.servicio = q.servicio;
+    if (q.gratis) {
+      // Entrega propia: gratis, la lleva el dueño. Hay que aceptar la regla del
+      // reenvío (casilla) antes de poder avanzar.
+      state.envio.gratis = true;
+      state.envio.entregaPropia = { plazoDiasHabiles: q.plazoDiasHabiles, diasDeposito: q.diasDeposito };
+      if (envioEls.propiaDias) envioEls.propiaDias.textContent = q.plazoDiasHabiles;
+      if (envioEls.propiaDeposito) envioEls.propiaDeposito.textContent = q.diasDeposito;
+      if (envioEls.propia) envioEls.propia.hidden = false;
+      envioEls.status.className = 'modal-status is-success';
+      envioEls.status.textContent = `¡Envío gratis a ${q.zona}!`;
+      envioEls.calcular.disabled = false;
+      updateNextButton();
+      return;
+    }
+    resetEntregaPropia();
     const dias = q.horasEntrega ? ` · llega en ~${Math.ceil(q.horasEntrega / 24)} días hábiles` : '';
     envioEls.status.className = 'modal-status is-success';
     envioEls.status.textContent = `Envío: $${q.costo.toLocaleString('es-AR')}${dias}`;
@@ -674,6 +717,7 @@ function getEnvioFields() {
     referencia: envioEls.referencia.value.trim(),
     destNombre: envioEls.nombre.value.trim(),
     destTelefono: envioEls.telefono.value.trim(),
+    aceptaReenvio: Boolean(state.envio.gratis && envioEls.aceptaReenvio?.checked),
   };
 }
 
@@ -681,6 +725,7 @@ function getEnvioFields() {
 function envioListo() {
   if (!state.envio.habilitado) return true;
   if (state.envio.costo == null) return false;
+  if (state.envio.gratis && !envioEls.aceptaReenvio?.checked) return false;
   const f = getEnvioFields();
   return Boolean(f.provincia && /^\d{4}$/.test(f.cp) && f.localidad && f.calle && f.numero && f.destNombre && f.destTelefono);
 }
@@ -738,6 +783,7 @@ function renderSummary() {
       })
       .join('')}
     ${costoEnvio ? `<div><span class="inline-icon">📦</span> <b>Envío a domicilio</b> — $${costoEnvio.toLocaleString('es-AR')}</div>` : ''}
+    ${state.envio.habilitado && state.envio.gratis ? `<div><span class="inline-icon">📦</span> <b>Envío gratis</b> — te lo llevamos en mano en hasta ${state.envio.entregaPropia?.plazoDiasHabiles || 7} días hábiles (un solo intento; si no estás, el reenvío por correo lo pagás vos)</div>` : ''}
     <div><b>${verif.nombre}:</b> ${state.contacto}</div>
     <div class="wizard-pay-note">Pagás y ya podés empezar a usar tu NFC. El destino de cada uno (a dónde redirige) lo vas a poder configurar y editar cuando quieras, desde tu panel.</div>
   `;
@@ -771,6 +817,7 @@ function openWizard() {
   otpStatus.className = 'modal-status';
   state.envio.costo = null;
   state.envio.servicio = null;
+  resetEntregaPropia();
   if (envioEls.status) {
     envioEls.status.textContent = '';
     envioEls.status.className = 'modal-status';
@@ -972,7 +1019,9 @@ async function checkReturnFromMercadoPago() {
         const detalle = venta.items
           .map((it) => `<div><b>${it.modelo}</b>: tu ID es <code class="pickup-id">${it.stickerCodigo}</code></div>`)
           .join('');
-        const cierre = venta.envio
+        const cierre = venta.envio?.modo === 'entrega_propia'
+          ? `<div class="wizard-pay-note">Te lo llevamos nosotros a ${venta.envio.localidad} (${venta.envio.cp}), sin cargo. Te vamos a escribir por mail para coordinar el día. Mientras tanto, ya podés configurar el destino desde tu panel.</div>`
+          : venta.envio
           ? `<div class="wizard-pay-note">Te lo enviamos a ${venta.envio.localidad} (${venta.envio.cp}) por Correo Argentino. Mientras tanto, ya podés configurar el destino desde tu panel.</div>`
           : `<div class="wizard-pay-note">Pedile al vendedor la unidad con este código — ya la tiene marcada para vos. Te llevamos a tu panel para configurar el destino...</div>`;
         successSummary.innerHTML = `

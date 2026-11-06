@@ -88,6 +88,7 @@
       <div class="wizard-progress" id="wizard-progress"></div>
       <span class="wizard-forward-hint" aria-hidden="true">→</span>
     </div>
+    <p class="wizard-envio-gratis" id="wizard-envio-gratis" hidden></p>
 
     <div class="wizard-step" data-step="0">
       <div class="kicker step-kicker"></div>
@@ -117,6 +118,14 @@
         </label>
         <button type="button" class="btn-ghost" id="envio-calcular" disabled>Calcular envío</button>
         <p class="modal-status" id="envio-status"></p>
+        <div class="envio-propia" id="envio-propia" hidden>
+          <p class="envio-propia-title"><b>Envío gratis: lo llevamos nosotros</b> en hasta <span id="envio-propia-dias">7</span> días hábiles.</p>
+          <p class="envio-propia-note">Hacemos <b>un solo intento</b> de entrega, coordinado con vos por mail. Si no hay nadie para recibirlo, tu llavero queda <span id="envio-propia-deposito">30</span> días en depósito y lo podés recibir por Correo Argentino <b>abonando ese envío</b>.</p>
+          <label class="tyc-check">
+            <input type="checkbox" id="envio-acepta-reenvio">
+            <span>Entiendo que si no estoy en el único intento de entrega, el reenvío por Correo Argentino lo pago yo.</span>
+          </label>
+        </div>
         <label>
           <span>Localidad</span>
           <input type="text" id="envio-localidad" placeholder="La Plata" maxlength="50">

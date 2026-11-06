@@ -541,6 +541,60 @@ await db.executeMultiple(`
   );
   CREATE INDEX IF NOT EXISTS idx_venta_envios_estado ON venta_envios(estado);
 
+  -- === Entrega propia (envío gratis que lleva el dueño en mano) — ver
+  -- server/entrega-propia.js. venta_envios.modo = 'entrega_propia' (costo 0,
+  -- sin Enviopack). Estados: pendiente_pago -> a_coordinar -> coordinado ->
+  -- en_camino -> entregado | no_estaba -> (reactivado por Correo) ... ===
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS zona TEXT;
+  -- Plazo prometido al comprador (7 días hábiles desde que se acredita el pago).
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS fecha_limite DATE;
+  -- Evidencia de que el comprador aceptó, antes de pagar, que si no hay nadie
+  -- en el único intento de entrega, el reenvío por Correo corre por su cuenta.
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS acepta_reenvio_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS acepta_reenvio_version TEXT;
+  -- Coordinación: el comprador entra con un link secreto (/entrega.html?t=<token>)
+  -- y elige día y franja entre hoy y la fecha límite, o pide Correo.
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS token TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_venta_envios_token ON venta_envios(token) WHERE token IS NOT NULL;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS entrega_fecha DATE;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS entrega_franja TEXT;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS entrega_elegida_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS pidio_correo_en TIMESTAMPTZ;
+  -- Seguimiento de la entrega en mano: cuándo se avisó la salida, cuándo se
+  -- entregó, cuándo no había nadie. reenvio_costo = lo que costó el reenvío por
+  -- Enviopack (que se le cobra al comprador aparte).
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS salida_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS entregado_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS no_estaba_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS reenvio_costo REAL;
+  -- Depósito de 30 días tras "no estaba": recordatorios a los 7 y 20 días
+  -- (una sola vez cada uno) y vencimiento a los 30 (estado 'vencido').
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS recordatorio7_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS recordatorio20_en TIMESTAMPTZ;
+  ALTER TABLE venta_envios ADD COLUMN IF NOT EXISTS vencido_en TIMESTAMPTZ;
+
+  -- Zonas con envío gratis por entrega propia. Rangos de CP (4 dígitos) por
+  -- provincia (id de Enviopack: 'C' = CABA, 'B' = Buenos Aires). Se edita acá
+  -- (o desde el admin cuando exista la pantalla) sin tocar código.
+  CREATE TABLE IF NOT EXISTS envio_zonas_gratis (
+    id SERIAL PRIMARY KEY,
+    zona TEXT NOT NULL,
+    provincia TEXT NOT NULL,
+    cp_desde INTEGER NOT NULL,
+    cp_hasta INTEGER NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    nota TEXT,
+    UNIQUE (zona, provincia, cp_desde, cp_hasta)
+  );
+  INSERT INTO envio_zonas_gratis (zona, provincia, cp_desde, cp_hasta, nota) VALUES
+    ('Capital Federal', 'C', 1000, 1440, 'CPs de CABA; revisar el borde 1440'),
+    ('Lanús', 'B', 1822, 1826, 'Valentín Alsina 1822, Gerli 1823, Lanús 1824, Monte Chingolo 1825, Remedios de Escalada 1826'),
+    ('Avellaneda', 'B', 1868, 1875, 'Piñeyro 1868, Gerli 1869, Avellaneda 1870, Dock Sud 1871, Sarandí 1872, Wilde 1875; 1873 y 1874 sin confirmar al 100%'),
+    ('Lomas de Zamora', 'B', 1828, 1828, 'Banfield'),
+    ('Lomas de Zamora', 'B', 1832, 1832, 'Lomas de Zamora'),
+    ('Lomas de Zamora', 'B', 1834, 1836, 'Temperley 1834, Turdera 1835, Llavallol 1836; Budge, Fiorito y otras sin CP confirmado')
+  ON CONFLICT DO NOTHING;
+
   -- === Meta Conversions API (CAPI) — dedup server-side del Purchase que ya
   -- manda el pixel del navegador. El webhook de Mercado Pago (que dispara el
   -- Purchase real) no tiene contexto del browser del comprador, así que estos

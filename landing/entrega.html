@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>tap — Coordinar entrega</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo" data-brand-logo></a>
+  <a href="/mi-panel.html" class="nav-cta">Mi panel</a>
+</nav>
+
+<section class="buy-hero">
+  <div class="wrap">
+    <div class="kicker">Tu entrega</div>
+
+    <div id="loading-view">
+      <p class="lead">Cargando...</p>
+    </div>
+
+    <div id="error-view" hidden>
+      <h2>No pudimos abrir tu entrega.</h2>
+      <p class="lead" id="error-text"></p>
+      <a href="/" class="btn-ghost panel-btn">Volver al inicio</a>
+    </div>
+
+    <!-- Elegir día y horario (estados a_coordinar / coordinado) -->
+    <div id="elegir-view" hidden>
+      <h2 id="elegir-titulo">Elegí cuándo te lo llevamos.</h2>
+      <p class="lead" id="elegir-lead"></p>
+
+      <p class="entrega-aviso">
+        Hacemos <b>un solo intento</b> de entrega. Si no hay nadie para recibirlo, tu llavero queda
+        <span id="dias-deposito">30</span> días en depósito y lo podés recibir por Correo Argentino
+        <b>abonando ese envío</b>.
+      </p>
+
+      <h3 class="entrega-sub">Día</h3>
+      <div class="entrega-dias" id="dias"></div>
+
+      <h3 class="entrega-sub">Horario</h3>
+      <div class="entrega-franjas" id="franjas"></div>
+
+      <button type="button" class="btn-primary panel-btn" id="confirmar" disabled>Confirmar día y horario</button>
+      <p class="modal-status" id="status"></p>
+
+      <p class="section-lead entrega-correo-txt">
+        ¿Preferís no esperar la visita? Podés pedir recibirlo por Correo Argentino
+        (el costo del envío corre por tu cuenta).
+      </p>
+      <button type="button" class="btn-ghost panel-btn" id="pedir-correo">Prefiero recibirlo por Correo Argentino</button>
+    </div>
+
+    <!-- Estado final: sólo informativo -->
+    <div id="info-view" hidden>
+      <h2 id="info-titulo"></h2>
+      <p class="lead" id="info-texto"></p>
+      <button type="button" class="btn-primary panel-btn" id="info-correo" hidden>Pedir envío por correo</button>
+      <p class="modal-status" id="info-status"></p>
+      <a href="/mi-panel.html" class="btn-ghost panel-btn">Ir a Mi panel</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span><span data-brand>tap</span> — Tecnología NFC</span>
+  <span><a href="/privacidad.html">Privacidad</a> · Buenos Aires, Argentina</span>
+</footer>
+
+<script type="module" src="/src/entrega.js"></script>
+</body>
+</html>
