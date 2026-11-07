@@ -185,12 +185,85 @@ ${rayos(16, 16, 24, SOL, 2).replace('stroke-width="2"', 'stroke-width="2" stroke
   // Tres estrellas: la de arriba, la tercera, más grande.
   estrellas: `${estrella(32, 18, 17, SOL)}${estrella(16, 48, 12, SOL)}${estrella(48, 48, 12, SOL)}`,
 
+  // Pascuas: la tumba vacía con la piedra corrida y el amanecer.
+  resurreccion: `${rayos(16, 22, 30, SOL, 2.5)}
+<path d="M4 60Q32 46 60 60V64H4Z" fill="#4C8A3A"/>
+<path d="M14 60V40Q14 24 29 24Q44 24 44 40V60Z" fill="#8A8F94"/>
+<path d="M20 60V42Q20 31 29 31Q38 31 38 42V60Z" fill="#14171A"/>
+<circle cx="51" cy="53" r="9" fill="#B7BCC1"/><path d="M45 50Q51 46 56 50" stroke="#fff" stroke-opacity=".4" stroke-width="2" fill="none"/>
+<path d="M8 28V50M3 34H13" stroke="#EDEFE9" stroke-width="3.5" stroke-linecap="round"/>`,
+
+  // Trabajador: una pala clavada, con un montoncito de tierra.
+  pala: `<ellipse cx="44" cy="58" rx="14" ry="4.5" fill="#6B4A2B"/>
+<g transform="rotate(30 32 32)"><rect x="30" y="8" width="4.5" height="32" rx="2" fill="#B5844C"/>
+<path d="M24 11Q24 4 32 4Q40 4 40 11" stroke="#B5844C" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+<path d="M23 38H41L43 52Q32 64 21 52Z" fill="#C9CED3"/><path d="M27 40L26 52" stroke="#fff" stroke-opacity=".5" stroke-width="2"/></g>`,
+
+  // Flor de loto sobre el agua: símbolo budista, sin figura.
+  loto: `<ellipse cx="32" cy="54" rx="27" ry="5" stroke="#74ACDF" stroke-width="2" fill="none"/>
+<ellipse cx="32" cy="34" rx="7" ry="19" transform="rotate(-62 32 52)" fill="#B79CFF"/>
+<ellipse cx="32" cy="34" rx="7" ry="19" transform="rotate(62 32 52)" fill="#B79CFF"/>
+<ellipse cx="32" cy="34" rx="7" ry="20" transform="rotate(-32 32 52)" fill="#9C7DFF"/>
+<ellipse cx="32" cy="34" rx="7" ry="20" transform="rotate(32 32 52)" fill="#9C7DFF"/>
+<ellipse cx="32" cy="32" rx="7.5" ry="21" fill="${VIOLETA}"/>
+<circle cx="32" cy="50" r="3" fill="${SOL}"/>`,
+
+  // Teclado de piano visto de arriba.
+  piano: `<rect x="4" y="14" width="56" height="38" rx="4" fill="#2B2F33"/>
+<rect x="7" y="22" width="50" height="27" rx="2" fill="#fff"/>
+<path d="M17.5 22V49M28 22V49M38.5 22V49M49 22V49" stroke="#C9CED3" stroke-width="1"/>
+<g fill="#14171A"><rect x="14" y="22" width="7" height="16" rx="1"/><rect x="25" y="22" width="7" height="16" rx="1"/><rect x="35" y="22" width="7" height="16" rx="1"/><rect x="45.5" y="22" width="7" height="16" rx="1"/></g>
+<rect x="9" y="17" width="46" height="3" rx="1.5" fill="${VIOLETA}"/>`,
+
   mundo: `<circle cx="32" cy="32" r="24" stroke="#74ACDF" stroke-width="3.5" fill="none"/>
 <ellipse cx="32" cy="32" rx="10" ry="24" stroke="#74ACDF" stroke-width="3" fill="none"/>
 <path d="M8 32H56M12 20H52M12 44H52" stroke="#74ACDF" stroke-width="3"/>`,
 };
 
+// Ilustraciones apaisadas (viewBox propio): el svg lleva class="ancha".
+const PIEL = '#F6C9A6';
+function persona(cx, color, ancho = 8) {
+  return `<path d="M${cx - ancho} 84L${cx - ancho + 3} 50H${cx + ancho - 3}L${cx + ancho} 84Z" fill="${color}"/>`;
+}
+function rey(cx, manto, piel, regalo) {
+  return `${persona(cx, manto)}<circle cx="${cx}" cy="44" r="5" fill="${piel}"/>
+<path d="M${cx - 5} 40V33L${cx - 2.5} 37L${cx} 32L${cx + 2.5} 37L${cx + 5} 33V40Z" fill="${SOL}"/>
+<path d="M${cx + 4} 57L${cx + 11} 55" stroke="${manto}" stroke-width="3.5" stroke-linecap="round"/>
+<rect x="${cx + 9}" y="49" width="8" height="8" rx="1.5" fill="${regalo}" stroke="#fff" stroke-opacity=".5"/>`;
+}
+const SANTA_X = 92, CUNA_X = 128;
+const PESEBRE = `<path d="M${CUNA_X} 18L${CUNA_X - 13} 70H${CUNA_X + 13}Z" fill="${SOL}" fill-opacity=".14"/>
+${estrella(CUNA_X, 13, 8, SOL)}
+<path d="M0 84H200" stroke="#EDEFE9" stroke-opacity=".25" stroke-width="1.5"/>
+${rey(18, '#7B5CFF', PIEL, '#F6B40E')}${rey(40, '#2F9E7B', '#D9A066', '#E5B80B')}${rey(62, '#E5484D', '#7A4B2A', '#B5651D')}
+${persona(SANTA_X, '#E5484D', 11)}
+<rect x="${SANTA_X - 10}" y="66" width="20" height="4" fill="#14171A"/><rect x="${SANTA_X - 2}" y="65.5" width="4" height="5" fill="${SOL}"/>
+<rect x="${SANTA_X - 11}" y="80" width="22" height="4" fill="#fff"/>
+<path d="M${SANTA_X + 8} 56L${SANTA_X + 21} 63" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
+<circle cx="${SANTA_X + 22}" cy="64" r="2.8" fill="${PIEL}"/>
+<circle cx="${SANTA_X}" cy="43" r="6.5" fill="${PIEL}"/>
+<path d="M${SANTA_X - 6.5} 43Q${SANTA_X - 7} 57 ${SANTA_X} 57Q${SANTA_X + 7} 57 ${SANTA_X + 6.5} 43Q${SANTA_X} 49 ${SANTA_X - 6.5} 43Z" fill="#fff"/>
+<path d="M${SANTA_X - 6.5} 40Q${SANTA_X - 6} 27 ${SANTA_X + 9} 31L${SANTA_X + 6.5} 40Z" fill="#E5484D"/>
+<rect x="${SANTA_X - 7.5}" y="38" width="15" height="4" rx="2" fill="#fff"/><circle cx="${SANTA_X + 10}" cy="31" r="2.8" fill="#fff"/>
+<path d="M${CUNA_X - 15} 71H${CUNA_X + 15}L${CUNA_X + 11} 84H${CUNA_X - 11}Z" fill="#8A5A2B"/>
+<ellipse cx="${CUNA_X}" cy="71" rx="15" ry="3.2" fill="${SOL}"/>
+<ellipse cx="${CUNA_X + 2}" cy="68" rx="9" ry="4" fill="#fff"/>
+<circle cx="${CUNA_X - 6}" cy="66.5" r="3.6" fill="${PIEL}"/>
+<circle cx="${CUNA_X - 6}" cy="66.5" r="6.2" stroke="${SOL}" stroke-width="1.2" fill="none"/>
+${persona(155, '#4F86BD', 9)}<circle cx="155" cy="47" r="5" fill="${PIEL}"/>
+<path d="M148 49Q148 39 155 39Q162 39 162 49Q158.5 45 155 45Q151.5 45 148 49Z" fill="#fff"/>
+<circle cx="155" cy="47" r="8" stroke="${SOL}" stroke-width="1.2" fill="none"/>
+<circle cx="146" cy="68" r="2.4" fill="${PIEL}"/>
+${persona(180, '#8A5A2B', 8)}<circle cx="180" cy="46" r="5" fill="${PIEL}"/>
+<path d="M175.5 47Q175.5 55 180 55Q184.5 55 184.5 47Q180 50 175.5 47Z" fill="#6B4A2B"/>
+<circle cx="180" cy="46" r="8" stroke="${SOL}" stroke-width="1.2" fill="none"/>
+<path d="M190 50V84" stroke="#6B4A2B" stroke-width="2.5" stroke-linecap="round"/>`;
+
+const ANCHAS = { pesebre: { vb: '0 0 200 90', cuerpo: PESEBRE } };
+
 export function svgIlus(nombre) {
+  const ancha = ANCHAS[nombre];
+  if (ancha) return `<svg class="ancha" viewBox="${ancha.vb}" aria-hidden="true">${ancha.cuerpo}</svg>`;
   const cuerpo = ILUS[nombre];
   return cuerpo ? `<svg viewBox="0 0 64 64" aria-hidden="true">${cuerpo}</svg>` : '';
 }

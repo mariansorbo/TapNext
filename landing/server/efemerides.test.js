@@ -59,3 +59,12 @@ test('cultura popular', () => {
   assert.match(efemerideDe(dia(2026, 12, 11)).texto, /Tango/);
   assert.match(efemerideDe(dia(2026, 12, 18)).texto, /tercera estrella/);
 });
+
+test('Nirvana y Pascuas', () => {
+  assert.match(efemerideDe(dia(2026, 2, 15)).texto, /Nirvana/);
+  assert.equal(efemerideDe(dia(2026, 4, 5)).ilus, 'resurreccion');
+});
+
+test('cumpleaños de Charly García', () => {
+  assert.match(efemerideDe(dia(2026, 10, 23)).texto, /Charly/);
+});
