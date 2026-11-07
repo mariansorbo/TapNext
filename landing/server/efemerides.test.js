@@ -79,3 +79,18 @@ test('fechas internacionales', () => {
   assert.match(efemerideDe(dia(2026, 12, 1)).texto, /SIDA/);
   assert.match(efemerideDe(dia(2026, 12, 3)).texto, /Discapacidad/);
 });
+
+test('Malvinas (10/6) y Emprendedor (8/11)', () => {
+  assert.match(efemerideDe(dia(2026, 6, 10)).texto, /Malvinas/);
+  assert.match(efemerideDe(dia(2026, 11, 8)).texto, /Emprendedor/);
+});
+
+test('perro, gato y psicólogo', () => {
+  assert.match(efemerideDe(dia(2026, 7, 29)).texto, /Perro/);
+  assert.match(efemerideDe(dia(2026, 8, 8)).texto, /Gato/);
+  assert.match(efemerideDe(dia(2026, 10, 13)).texto, /Psicólogo/);
+});
+
+test('cumpleaños de Ricardo Iorio', () => {
+  assert.match(efemerideDe(dia(2026, 11, 1)).texto, /Iorio/);
+});
