@@ -68,3 +68,14 @@ test('Nirvana y Pascuas', () => {
 test('cumpleaños de Charly García', () => {
   assert.match(efemerideDe(dia(2026, 10, 23)).texto, /Charly/);
 });
+
+test('hermano y abuelo', () => {
+  assert.match(efemerideDe(dia(2026, 5, 31)).texto, /Hermano/);
+  assert.match(efemerideDe(dia(2026, 7, 26)).texto, /Abuelo/);
+});
+
+test('fechas internacionales', () => {
+  assert.match(efemerideDe(dia(2026, 3, 22)).texto, /Agua/);
+  assert.match(efemerideDe(dia(2026, 12, 1)).texto, /SIDA/);
+  assert.match(efemerideDe(dia(2026, 12, 3)).texto, /Discapacidad/);
+});

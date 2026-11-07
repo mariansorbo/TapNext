@@ -20,16 +20,21 @@ const FIJAS = {
   '02-15': { texto: 'Día del Nirvana · Parinirvana de Buda', ilus: 'loto' },
   '03-08': { texto: 'Día Internacional de la Mujer', ilus: 'mujer' },
   '03-24': { texto: 'Día de la Memoria, por la Verdad y la Justicia', ilus: 'sol', capsula: BANDERA },
+  '03-22': { texto: 'Día Mundial del Agua', ilus: 'gota' },
   '04-02': { texto: 'Día del Veterano y de los Caídos en Malvinas', ilus: 'sol', capsula: BANDERA },
+  '04-22': { texto: 'Día de la Tierra', ilus: 'tierra' },
   '05-01': { texto: 'Día del Trabajador', ilus: 'pala' },
   '05-08': { texto: 'Día de la Virgen de Luján', ilus: 'virgen' },
   '05-11': { texto: 'Día del Himno Nacional Argentino', ilus: 'nota', capsula: BANDERA },
+  '05-15': { texto: 'Día Internacional de la Familia', ilus: 'familia' },
   '05-18': { texto: 'Día de la Escarapela', ilus: 'escarapela', capsula: BANDERA },
   '05-25': { texto: '25 de Mayo · Revolución de Mayo', ilus: 'sol', capsula: BANDERA },
+  '05-31': { texto: 'Día del Hermano', ilus: 'hermanos' },
   '06-02': { texto: 'Día del Bombero Voluntario', ilus: 'bombero' },
   '06-17': { texto: 'Paso a la Inmortalidad del General Güemes', ilus: 'sol', capsula: BANDERA },
   '06-20': { texto: 'Día de la Bandera', ilus: 'sol', capsula: BANDERA },
   '07-09': { texto: '9 de Julio · Día de la Independencia', ilus: 'sol', capsula: BANDERA },
+  '07-26': { texto: 'Día del Abuelo', ilus: 'abuelos' },
   '07-20': { texto: 'Día del Amigo', ilus: 'amigos' },
   '08-01': { texto: 'Día de la Pachamama', ilus: 'pachamama' },
   '08-17': { texto: 'Paso a la Inmortalidad del General San Martín', ilus: 'sol', capsula: BANDERA },
@@ -38,13 +43,17 @@ const FIJAS = {
   '09-21': { texto: 'Feliz Día de la Primavera', ilus: 'primavera' },
   '10-04': { texto: 'Día de los Animales', ilus: 'huella' },
   '10-10': { texto: 'Día Mundial de la Salud Mental', ilus: 'cinta' },
+  '10-05': { texto: 'Día Mundial de los Docentes', ilus: 'pizarron' },
   '10-12': { texto: 'Día del Respeto a la Diversidad Cultural', ilus: 'mundo' },
+  '10-16': { texto: 'Día Mundial de la Alimentación', ilus: 'espiga' },
   '10-23': { texto: 'Cumpleaños de Charly García', ilus: 'piano' },
   '10-31': { texto: 'Feliz Halloween', ilus: 'calabaza', capsula: { bg: '#FF8A1F', fg: '#14171A' } },
   '11-10': { texto: 'Día de la Tradición', ilus: 'mate' },
   '11-20': { texto: 'Día de la Soberanía Nacional', ilus: 'sol', capsula: BANDERA },
   '11-22': { texto: 'Día de la Música', ilus: 'nota' },
   '11-30': { texto: 'Día Nacional del Mate', ilus: 'mate' },
+  '12-01': { texto: 'Día Mundial del SIDA', ilus: 'lazorojo' },
+  '12-03': { texto: 'Día Internacional de las Personas con Discapacidad', ilus: 'accesible' },
   '12-08': { texto: 'Día de la Inmaculada Concepción', ilus: 'estrella' },
   '12-10': { texto: 'Día de los Derechos Humanos', ilus: 'paloma' },
   '12-11': { texto: 'Día Nacional del Tango', ilus: 'sombrero' },
@@ -155,7 +164,7 @@ export function efemerideBloque(org, ahora = new Date()) {
   .efe svg{width:min(26vw,104px,13svh);height:auto;overflow:visible;opacity:0;transform:scale(.6) rotate(-8deg);
     animation:pop .45s .05s cubic-bezier(.2,1.4,.4,1) forwards}
   .efe p{font-size:clamp(.82rem,3.6vw,1rem);font-weight:500;letter-spacing:.01em;opacity:0;animation:show .25s .15s forwards}
-  .efe svg.ancha{width:min(88vw,340px,32svh)}
+  .efe svg.ancha{width:min(92vw,380px,52svh)}
   @keyframes pop{to{opacity:1;transform:none}}`,
     html: `<div class="efe">${svg}<p>${esc(e.texto)}</p></div>`,
   };

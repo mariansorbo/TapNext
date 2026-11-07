@@ -215,6 +215,52 @@ ${rayos(16, 16, 24, SOL, 2).replace('stroke-width="2"', 'stroke-width="2" stroke
 <g fill="#14171A"><rect x="14" y="22" width="7" height="16" rx="1"/><rect x="25" y="22" width="7" height="16" rx="1"/><rect x="35" y="22" width="7" height="16" rx="1"/><rect x="45.5" y="22" width="7" height="16" rx="1"/></g>
 <rect x="9" y="17" width="46" height="3" rx="1.5" fill="${VIOLETA}"/>`,
 
+  // Dos hermanos de la mano.
+  hermanos: `<circle cx="22" cy="16" r="8" fill="#F6C9A6"/><path d="M12 56V34Q12 26 22 26Q32 26 32 34V56Z" fill="#74ACDF"/>
+<circle cx="44" cy="22" r="7" fill="#D9A066"/><path d="M35 56V38Q35 31 44 31Q53 31 53 38V56Z" fill="#E5484D"/>
+<path d="M31 40L36 42" stroke="#F6C9A6" stroke-width="3.5" stroke-linecap="round"/>`,
+
+  // Anteojos redondos y un corazón: los abuelos.
+  abuelos: `<circle cx="19" cy="24" r="12" stroke="#EDEFE9" stroke-width="3.5" fill="none"/><circle cx="45" cy="24" r="12" stroke="#EDEFE9" stroke-width="3.5" fill="none"/>
+<path d="M31 22Q32 19 33 22" stroke="#EDEFE9" stroke-width="3" fill="none"/><path d="M7 22L2 18M57 22L62 18" stroke="#EDEFE9" stroke-width="3" stroke-linecap="round"/>
+<path d="${CORAZON}" fill="${VIOLETA}" transform="translate(32 49) scale(.3) translate(-32 -34)"/>`,
+
+  gota: `<path d="M32 5C32 5 13 28 13 40A19 19 0 0 0 51 40C51 28 32 5 32 5Z" fill="#74ACDF"/>
+<path d="M22 40Q22 49 29 53" stroke="#fff" stroke-opacity=".55" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+<ellipse cx="32" cy="60" rx="14" ry="2.5" stroke="#74ACDF" stroke-width="1.5" fill="none"/>`,
+
+  tierra: `<circle cx="32" cy="32" r="26" fill="#3B82C4"/>
+<path d="M14 22Q22 12 32 16Q34 22 28 26Q24 34 18 32Q12 30 14 22Z" fill="#5FB36A"/>
+<path d="M36 30Q46 26 50 34Q48 46 40 50Q34 44 36 30Z" fill="#5FB36A"/>
+<path d="M18 44Q24 42 26 48Q22 54 16 50Z" fill="#5FB36A"/>
+<ellipse cx="22" cy="18" rx="6" ry="3" transform="rotate(-30 22 18)" fill="#fff" fill-opacity=".25"/>`,
+
+  familia: `<path d="M6 32L32 8L58 32Z" fill="#E5484D"/>
+<rect x="12" y="32" width="40" height="26" fill="#F6E3B4"/>
+<rect x="38" y="42" width="9" height="16" rx="1" fill="#8A5A2B"/>
+<path d="${CORAZON}" fill="${VIOLETA}" transform="translate(25 44) scale(.3) translate(-32 -34)"/>`,
+
+  pizarron: `<rect x="5" y="10" width="54" height="38" rx="3" fill="#8A5A2B"/>
+<rect x="9" y="14" width="46" height="30" rx="1.5" fill="#2F5D4A"/>
+<text x="32" y="36" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="16" fill="#fff" fill-opacity=".9">A B C</text>
+<rect x="12" y="49" width="40" height="4" rx="1" fill="#6B4A2B"/><rect x="40" y="46" width="8" height="3" rx="1.5" fill="#fff"/>`,
+
+  espiga: `<path d="M32 62V24" stroke="#C9A227" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="25" cy="44" rx="4" ry="8" transform="rotate(-30 25 44)" fill="#F6B40E"/><ellipse cx="39" cy="44" rx="4" ry="8" transform="rotate(30 39 44)" fill="#F6B40E"/>
+<ellipse cx="25" cy="32" rx="4" ry="8" transform="rotate(-30 25 32)" fill="#F6B40E"/><ellipse cx="39" cy="32" rx="4" ry="8" transform="rotate(30 39 32)" fill="#F6B40E"/>
+<ellipse cx="26" cy="20" rx="3.6" ry="7" transform="rotate(-25 26 20)" fill="#F6B40E"/><ellipse cx="38" cy="20" rx="3.6" ry="7" transform="rotate(25 38 20)" fill="#F6B40E"/>
+<ellipse cx="32" cy="12" rx="3.6" ry="8" fill="#F6B40E"/>`,
+
+  // Lazo rojo: el símbolo de la lucha contra el VIH/SIDA.
+  lazorojo: `<path d="M32 8C12 20 22 36 32 38C42 36 52 20 32 8Z" stroke="#E5484D" stroke-width="6" fill="none" stroke-linejoin="round"/>
+<path d="M32 38L22 58M32 38L42 58" stroke="#E5484D" stroke-width="6" stroke-linecap="round"/>`,
+
+  // Símbolo de accesibilidad (persona en silla de ruedas) en un círculo.
+  accesible: `<circle cx="32" cy="32" r="28" fill="#74ACDF"/>
+<circle cx="30" cy="13" r="4.5" fill="#fff"/>
+<path d="M30 20V35H44L48 48M30 27H42" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M24 30A13 13 0 1 0 40 51" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+
   mundo: `<circle cx="32" cy="32" r="24" stroke="#74ACDF" stroke-width="3.5" fill="none"/>
 <ellipse cx="32" cy="32" rx="10" ry="24" stroke="#74ACDF" stroke-width="3" fill="none"/>
 <path d="M8 32H56M12 20H52M12 44H52" stroke="#74ACDF" stroke-width="3"/>`,
@@ -232,20 +278,25 @@ function rey(cx, manto, piel, regalo) {
 <rect x="${cx + 9}" y="49" width="8" height="8" rx="1.5" fill="${regalo}" stroke="#fff" stroke-opacity=".5"/>`;
 }
 const SANTA_X = 92, CUNA_X = 128;
-const PESEBRE = `<path d="M${CUNA_X} 18L${CUNA_X - 13} 70H${CUNA_X + 13}Z" fill="${SOL}" fill-opacity=".14"/>
-${estrella(CUNA_X, 13, 8, SOL)}
-<path d="M0 84H200" stroke="#EDEFE9" stroke-opacity=".25" stroke-width="1.5"/>
+
+// Figuras del nacimiento (coordenadas propias, suelo en y=84): se las baja y
+// corre dentro de la escena con un translate.
+const FIGURAS = `<circle cx="${CUNA_X}" cy="68" r="26" fill="url(#pnLuz)"/>
+<circle cx="${SANTA_X - 13}" cy="68" r="9" fill="#8A5A2B"/><path d="M${SANTA_X - 17} 61L${SANTA_X - 13} 58L${SANTA_X - 9} 61Z" fill="#6B4A2B"/>
 ${rey(18, '#7B5CFF', PIEL, '#F6B40E')}${rey(40, '#2F9E7B', '#D9A066', '#E5B80B')}${rey(62, '#E5484D', '#7A4B2A', '#B5651D')}
 ${persona(SANTA_X, '#E5484D', 11)}
 <rect x="${SANTA_X - 10}" y="66" width="20" height="4" fill="#14171A"/><rect x="${SANTA_X - 2}" y="65.5" width="4" height="5" fill="${SOL}"/>
 <rect x="${SANTA_X - 11}" y="80" width="22" height="4" fill="#fff"/>
+<rect x="${SANTA_X - 8}" y="83" width="6" height="3" rx="1" fill="#14171A"/><rect x="${SANTA_X + 2}" y="83" width="6" height="3" rx="1" fill="#14171A"/>
 <path d="M${SANTA_X + 8} 56L${SANTA_X + 21} 63" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
 <circle cx="${SANTA_X + 22}" cy="64" r="2.8" fill="${PIEL}"/>
 <circle cx="${SANTA_X}" cy="43" r="6.5" fill="${PIEL}"/>
 <path d="M${SANTA_X - 6.5} 43Q${SANTA_X - 7} 57 ${SANTA_X} 57Q${SANTA_X + 7} 57 ${SANTA_X + 6.5} 43Q${SANTA_X} 49 ${SANTA_X - 6.5} 43Z" fill="#fff"/>
 <path d="M${SANTA_X - 6.5} 40Q${SANTA_X - 6} 27 ${SANTA_X + 9} 31L${SANTA_X + 6.5} 40Z" fill="#E5484D"/>
 <rect x="${SANTA_X - 7.5}" y="38" width="15" height="4" rx="2" fill="#fff"/><circle cx="${SANTA_X + 10}" cy="31" r="2.8" fill="#fff"/>
+<circle cx="${SANTA_X + 2}" cy="43" r="0.9" fill="#14171A"/><circle cx="${SANTA_X - 2.5}" cy="43" r="0.9" fill="#14171A"/>
 <path d="M${CUNA_X - 15} 71H${CUNA_X + 15}L${CUNA_X + 11} 84H${CUNA_X - 11}Z" fill="#8A5A2B"/>
+<path d="M${CUNA_X - 13} 76H${CUNA_X + 13}" stroke="#6B4A2B" stroke-width="1.2"/>
 <ellipse cx="${CUNA_X}" cy="71" rx="15" ry="3.2" fill="${SOL}"/>
 <ellipse cx="${CUNA_X + 2}" cy="68" rx="9" ry="4" fill="#fff"/>
 <circle cx="${CUNA_X - 6}" cy="66.5" r="3.6" fill="${PIEL}"/>
@@ -259,7 +310,68 @@ ${persona(180, '#8A5A2B', 8)}<circle cx="180" cy="46" r="5" fill="${PIEL}"/>
 <circle cx="180" cy="46" r="8" stroke="${SOL}" stroke-width="1.2" fill="none"/>
 <path d="M190 50V84" stroke="#6B4A2B" stroke-width="2.5" stroke-linecap="round"/>`;
 
-const ANCHAS = { pesebre: { vb: '0 0 200 90', cuerpo: PESEBRE } };
+function oveja(x, y) {
+  return `<ellipse cx="${x}" cy="${y}" rx="7" ry="5" fill="#fff"/><circle cx="${x - 4}" cy="${y - 3}" r="3.5" fill="#fff"/><circle cx="${x + 3}" cy="${y - 3.5}" r="3.5" fill="#fff"/>
+<ellipse cx="${x + 8}" cy="${y - 1}" rx="3" ry="2.6" fill="#2B2F33"/><path d="M${x - 3} ${y + 4}v4M${x + 3} ${y + 4}v4" stroke="#2B2F33" stroke-width="1.6" stroke-linecap="round"/>`;
+}
+
+function casa(x, w, h) {
+  return `<rect x="${x}" y="${90 - h}" width="${w}" height="${h}" fill="#1B1740"/>
+<path d="M${x - 2} ${90 - h}L${x + w / 2} ${90 - h - 6}L${x + w + 2} ${90 - h}Z" fill="#120F30"/>
+<rect x="${x + w / 2 - 1.5}" y="${90 - h + 3}" width="3" height="3.5" fill="#FFD76A"/>`;
+}
+
+// Flecos de paja colgando del alero del techo.
+let paja = '';
+for (let i = 0; i <= 12; i++) {
+  const x = 120 + i * 11.5;
+  const y = x <= 189 ? 71 - (x - 120) * (27 / 69) : 71 - (258 - x) * (27 / 69);
+  paja += `<path d="M${x.toFixed(1)} ${y.toFixed(1)}l-1.5 5"/>`;
+}
+
+const ESTRELLAS_FONDO = [[12, 10], [40, 8], [60, 22], [86, 12], [104, 26], [118, 8], [196, 16], [214, 8], [236, 22], [254, 12], [26, 34], [72, 40], [226, 40], [246, 46], [186, 26]]
+  .map(([x, y], i) => `<circle class="tw" style="animation-delay:${(i * 0.23).toFixed(2)}s" cx="${x}" cy="${y}" r="${i % 3 ? 1 : 1.6}" fill="#fff"/>`).join('');
+
+const PESEBRE = `<defs>
+<linearGradient id="pnCielo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A1633"/><stop offset=".6" stop-color="#2D2A6E"/><stop offset="1" stop-color="#7A4F8F"/></linearGradient>
+<radialGradient id="pnLuz"><stop offset="0" stop-color="#FFE9A0" stop-opacity=".95"/><stop offset="1" stop-color="#FFE9A0" stop-opacity="0"/></radialGradient>
+<clipPath id="pnMarco"><rect width="270" height="130" rx="12"/></clipPath>
+<style>.tw{animation:pnTw 1.6s ease-in-out infinite alternate}@keyframes pnTw{from{opacity:.3}to{opacity:1}}</style>
+</defs>
+<g clip-path="url(#pnMarco)">
+<rect width="270" height="130" fill="url(#pnCielo)"/>
+${ESTRELLAS_FONDO}
+<path d="M32 12A10 10 0 1 0 32 34A8 8 0 1 1 32 12Z" fill="#FFF3C4"/>
+<path d="M0 94Q45 72 90 90T180 84T270 90V130H0Z" fill="#2A2352"/>
+${casa(14, 14, 10)}${casa(33, 12, 8)}${casa(50, 15, 12)}${casa(92, 13, 9)}
+<path d="M144 34L126 106H162Z" fill="#FFE9A0" fill-opacity=".14"/>
+<circle cx="144" cy="22" r="22" fill="url(#pnLuz)"/>
+<path d="M144 8V36M130 22H158M134 12L154 32M154 12L134 32" stroke="#FFE9A0" stroke-width="1.2" stroke-linecap="round" stroke-opacity=".8"/>
+<g class="tw">${estrella(144, 22, 10, '#FFF3C4')}</g>
+<g fill="#3B2A22" stroke="#3B2A22" stroke-linecap="round">
+<ellipse cx="32" cy="88" rx="15" ry="7" stroke="none"/><circle cx="27" cy="80" r="5" stroke="none"/>
+<path d="M44 84Q52 76 53 68" fill="none" stroke-width="5"/><ellipse cx="57" cy="67" rx="5.5" ry="3" transform="rotate(-18 57 67)" stroke="none"/>
+<path d="M22 92V108M28 93V108M38 93V108M43 92V108M17 88Q13 92 14 98" fill="none" stroke-width="2.4"/></g>
+<path d="M0 110Q60 103 120 109T270 107V130H0Z" fill="#1E3326"/>
+<path d="M124 66L189 40L254 66V112H124Z" fill="#2B1D16"/>
+<ellipse cx="189" cy="111" rx="62" ry="4" fill="#B8892B" fill-opacity=".85"/>
+<g>
+<ellipse cx="236" cy="101" rx="14" ry="9" fill="#7A4A2B"/><ellipse cx="222" cy="93" rx="7" ry="6" fill="#7A4A2B"/>
+<path d="M216 88Q211 82 214 80M228 88Q233 82 230 80" stroke="#F1EBDD" stroke-width="2" fill="none" stroke-linecap="round"/>
+<ellipse cx="218" cy="96" rx="3" ry="2.2" fill="#E8A9A0"/><circle cx="221" cy="91" r="1" fill="#14171A"/>
+<ellipse cx="250" cy="102" rx="9" ry="8" fill="#8E8F94"/><ellipse cx="243" cy="94" rx="5" ry="5.5" fill="#8E8F94"/>
+<path d="M241 90L238 80L244 88M246 89L249 80L248 90" fill="#8E8F94"/><ellipse cx="240" cy="97" rx="2.6" ry="2" fill="#C9CED3"/><circle cx="243" cy="93" r="0.9" fill="#14171A"/>
+</g>
+<g transform="translate(16 28)">${FIGURAS}</g>
+<rect x="122" y="64" width="5" height="48" fill="#6B4A2B"/><rect x="251" y="64" width="5" height="48" fill="#6B4A2B"/>
+<path d="M114 66L189 36L264 66L258 71L189 44L120 71Z" fill="#8A5A2B"/>
+<g stroke="#6B4A2B" stroke-width="1.6" stroke-linecap="round">${paja}</g>
+<path d="M120 71L189 44L258 71" stroke="#6B4A2B" stroke-width="1.5" fill="none"/>
+<path d="M160 55V60" stroke="#14171A" stroke-width="1"/><circle cx="160" cy="65" r="11" fill="url(#pnLuz)"/><rect x="156.5" y="60" width="7" height="9" rx="2" fill="#FFD76A"/>
+${oveja(14, 112)}${oveja(30, 118)}
+</g>`;
+
+const ANCHAS = { pesebre: { vb: '0 0 270 130', cuerpo: PESEBRE } };
 
 export function svgIlus(nombre) {
   const ancha = ANCHAS[nombre];
