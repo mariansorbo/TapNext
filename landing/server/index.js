@@ -3967,11 +3967,11 @@ function linkMarca(tipo) {
 // esté decodificada (tope ORG_ESPERA_MAX ms) para que el tiempo en pantalla
 // corra con la imagen ya visible.
 const ORG_ESPERA_MAX = 1200;
-function orgBloque(org) {
+function orgBloque(org, ahora = new Date()) {
   // Sin organización: pantalla de NextTap, con la efeméride del día si hay una
   // (va en el slot de la imagen, arriba de la marca).
   if (!org) {
-    const ef = efemerideBloque(org);
+    const ef = efemerideBloque(org, ahora);
     return { titulo: 'NextTap', css: ef.css, marca: '', imagen: ef.html, js: 'function listo(cb){cb()}' };
   }
   const esc = (v) =>
@@ -4011,7 +4011,7 @@ function orgBloque(org) {
   };
 }
 
-function pantallaRedireccion(destino, tipo, org = null) {
+function pantallaRedireccion(destino, tipo, org = null, ahora = new Date()) {
   const jsUrl = JSON.stringify(String(destino))
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -4022,7 +4022,7 @@ function pantallaRedireccion(destino, tipo, org = null) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  const o = orgBloque(org);
+  const o = orgBloque(org, ahora);
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -4107,11 +4107,11 @@ ${o.color ? `<meta name="theme-color" content="${o.color}">
 // la página de descarga. En iOS / desktop va a la URL web. El intent se dispara
 // apenas carga (así el arranque en frío corre en paralelo con la animación); si a
 // los ~2.5 s seguimos visibles (Android bloqueó el salto), aparece un botón.
-function pantallaApp({ web, intent }, tipo, org = null) {
+function pantallaApp({ web, intent }, tipo, org = null, ahora = new Date()) {
   const webJs = JSON.stringify(String(web)).replace(/</g, '\\u003c');
   const intentJs = JSON.stringify(String(intent)).replace(/</g, '\\u003c');
   const webHtml = String(web).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const o = orgBloque(org);
+  const o = orgBloque(org, ahora);
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -4419,6 +4419,15 @@ function pantallaAlias(datos = {}) {
 </html>`;
 }
 
+// ?efe=AAAA-MM-DD en el link del tap muestra la pantalla de ese día (solo cambia
+// el dibujo; sirve para ver una efeméride sin esperar a la fecha). Sin el
+// parámetro, o con uno inválido, es hoy.
+function fechaDePrueba(efe) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(efe ?? ''));
+  const f = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 15));
+  return f && !Number.isNaN(f.getTime()) ? f : new Date();
+}
+
 app.get('/v/:codigo', routerThrottle, async (req, res) => {
   // Sticker y destino en una sola consulta: cada ida y vuelta a la base es
   // latencia que el tap paga antes de redirigir.
@@ -4476,14 +4485,14 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
       if (r.modo === 'app') {
         // WhatsApp: pantalla mínima que abre la app con un intent:// de Android.
         registrarTap(req, res, { ...tap, resultado: 'app' });
-        return res.type('html').send(pantallaApp(r, destino.tipo, org));
+        return res.type('html').send(pantallaApp(r, destino.tipo, org, fechaDePrueba(req.query.efe)));
       }
       if (r.modo === 'redirect') {
         registrarTap(req, res, { ...tap, resultado: 'destino' });
         // Pantalla de marca solo si es una URL http(s) normal y el plugin no
         // pidió redirect directo (interstitial: false).
         if (r.interstitial !== false && /^https?:\/\//i.test(r.url)) {
-          return res.type('html').send(pantallaRedireccion(r.url, destino.tipo, org));
+          return res.type('html').send(pantallaRedireccion(r.url, destino.tipo, org, fechaDePrueba(req.query.efe)));
         }
         return res.redirect(302, r.url);
       }
@@ -4770,7 +4779,7 @@ app.post('/api/activacion/:codigo', routerThrottle, async (req, res) => {
   }
 });
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get('/api/health', (req, res) => res.json({ ok: true, version: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || undefined }));
 
 app.listen(PORT, () => {
   console.log(`API en http://localhost:${PORT}`);
