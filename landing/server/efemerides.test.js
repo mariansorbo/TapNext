@@ -36,3 +36,26 @@ test('usa la hora de Argentina, no UTC', () => {
   // 26/5 01:00 UTC = 25/5 22:00 en Argentina → todavía es 25 de Mayo
   assert.match(efemerideDe(new Date(Date.UTC(2026, 4, 26, 1))).texto, /Mayo/);
 });
+
+test('efemérides nuevas', () => {
+  assert.match(efemerideDe(dia(2026, 6, 17)).texto, /Güemes/);
+  assert.match(efemerideDe(dia(2026, 11, 30)).texto, /Mate/);
+  assert.match(efemerideDe(dia(2026, 12, 10)).texto, /Derechos Humanos/);
+});
+
+test('Día del Programador: día 256 (13/9, 12/9 en bisiestos)', () => {
+  assert.match(efemerideDe(dia(2026, 9, 13)).texto, /Programador/);
+  assert.match(efemerideDe(dia(2028, 9, 12)).texto, /Programador/);
+  assert.equal(efemerideDe(dia(2028, 9, 13)), null);
+});
+
+test('10/10: gana Salud Mental sobre Dulce de Leche, todos los años', () => {
+  assert.match(efemerideDe(dia(2026, 10, 10)).texto, /Salud Mental/);
+  assert.match(efemerideDe(dia(2027, 10, 10)).texto, /Salud Mental/);
+});
+
+test('cultura popular', () => {
+  assert.match(efemerideDe(dia(2026, 5, 18)).texto, /Escarapela/);
+  assert.match(efemerideDe(dia(2026, 12, 11)).texto, /Tango/);
+  assert.match(efemerideDe(dia(2026, 12, 18)).texto, /tercera estrella/);
+});

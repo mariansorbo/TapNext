@@ -21,18 +21,33 @@ const FIJAS = {
   '03-24': { texto: 'Día de la Memoria, por la Verdad y la Justicia' },
   '04-02': { texto: 'Día del Veterano y de los Caídos en Malvinas', ilus: 'sol', capsula: BANDERA },
   '05-01': { texto: 'Día del Trabajador', ilus: 'engranaje' },
+  '05-08': { texto: 'Día de la Virgen de Luján', ilus: 'virgen' },
+  '05-11': { texto: 'Día del Himno Nacional Argentino', ilus: 'nota', capsula: BANDERA },
+  '05-18': { texto: 'Día de la Escarapela', ilus: 'escarapela', capsula: BANDERA },
   '05-25': { texto: '25 de Mayo · Revolución de Mayo', ilus: 'sol', capsula: BANDERA },
+  '06-02': { texto: 'Día del Bombero Voluntario', ilus: 'bombero' },
+  '06-17': { texto: 'Paso a la Inmortalidad del General Güemes', ilus: 'sol', capsula: BANDERA },
   '06-20': { texto: 'Día de la Bandera', ilus: 'sol', capsula: BANDERA },
   '07-09': { texto: '9 de Julio · Día de la Independencia', ilus: 'sol', capsula: BANDERA },
   '07-20': { texto: 'Día del Amigo', ilus: 'amigos' },
+  '08-01': { texto: 'Día de la Pachamama', ilus: 'pachamama' },
   '08-17': { texto: 'Paso a la Inmortalidad del General San Martín', ilus: 'sol', capsula: BANDERA },
+  '09-04': { texto: 'Día del Inmigrante', ilus: 'valija' },
   '09-11': { texto: 'Día del Maestro', ilus: 'manzana' },
   '09-21': { texto: 'Feliz Día de la Primavera', ilus: 'primavera' },
+  '10-04': { texto: 'Día de los Animales', ilus: 'huella' },
+  '10-10': { texto: 'Día Mundial de la Salud Mental', ilus: 'cinta' },
   '10-12': { texto: 'Día del Respeto a la Diversidad Cultural', ilus: 'mundo' },
   '10-31': { texto: 'Feliz Halloween', ilus: 'calabaza', capsula: { bg: '#FF8A1F', fg: '#14171A' } },
   '11-10': { texto: 'Día de la Tradición', ilus: 'mate' },
   '11-20': { texto: 'Día de la Soberanía Nacional', ilus: 'sol', capsula: BANDERA },
+  '11-22': { texto: 'Día de la Música', ilus: 'nota' },
+  '11-30': { texto: 'Día Nacional del Mate', ilus: 'mate' },
   '12-08': { texto: 'Día de la Inmaculada Concepción', ilus: 'estrella' },
+  '12-10': { texto: 'Día de los Derechos Humanos', ilus: 'paloma' },
+  '12-11': { texto: 'Día Nacional del Tango', ilus: 'sombrero' },
+  '12-18': { texto: 'Aniversario de la tercera estrella', ilus: 'estrellas', capsula: BANDERA },
+  '12-21': { texto: 'Día de la Meditación', ilus: 'meditacion' },
   '12-24': { texto: 'Feliz Nochebuena', ilus: 'santa', capsula: { bg: '#E5484D', fg: '#fff' } },
   '12-25': { texto: 'Feliz Navidad', ilus: 'santa', capsula: { bg: '#E5484D', fg: '#fff' } },
   '12-31': { texto: 'Feliz año nuevo', ilus: 'fuegos' },
@@ -84,6 +99,12 @@ const moviles = [
     ? { texto: 'Feliz Día de las Infancias', ilus: 'globos' } : null),
   (y, m, d) => (m === 10 && d === enesimoDia(y, 10, 0, 3)
     ? { texto: 'Feliz Día de la Madre', ilus: 'tulipan' } : null),
+  // Día 256 del año: 13 de septiembre (12 en bisiestos).
+  (y, m, d) => {
+    const p = new Date(Date.UTC(y, 0, 256));
+    return p.getUTCMonth() + 1 === m && p.getUTCDate() === d
+      ? { texto: 'Día del Programador', ilus: 'codigo' } : null;
+  },
   (y, m, d) => (m === 11 && d === enesimoDia(y, 11, 5, 4)
     ? { texto: 'Black Friday', ilus: 'etiqueta' } : null),
 ];

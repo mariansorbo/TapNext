@@ -15,6 +15,16 @@ function rayos(n, r1, r2, color, ancho) {
   return `<g stroke="${color}" stroke-width="${ancho}" stroke-linecap="round">${l}</g>`;
 }
 
+// Estrella de 5 puntas centrada en (cx,cy) de radio r.
+function estrella(cx, cy, r, color) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (Math.PI / 5) * i - Math.PI / 2, rr = i % 2 ? r * 0.42 : r;
+    pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`);
+  }
+  return `<polygon points="${pts.join(' ')}" fill="${color}"/>`;
+}
+
 const CORAZON = 'M32 56C10 40 6 28 6 20A13 13 0 0 1 32 16A13 13 0 0 1 58 20C58 28 54 40 32 56Z';
 
 function flor(petalos, centro) {
@@ -105,6 +115,75 @@ export const ILUS = {
 
   estrella: `<circle cx="32" cy="32" r="28" fill="${SOL}" fill-opacity=".18"/>
 <path d="M32 6L39 25H59L43 37L49 57L32 45L15 57L21 37L5 25H25Z" fill="${SOL}"/>`,
+
+  bombero: `<rect x="29" y="6" width="6" height="10" rx="3" fill="#E5484D"/>
+<path d="M10 42Q10 14 32 14Q54 14 54 42Z" fill="#E5484D"/>
+<rect x="5" y="41" width="54" height="8" rx="4" fill="#B93338"/>
+<path d="M25 21H39L37 33L32 37L27 33Z" fill="${SOL}"/>`,
+
+  valija: `<path d="M24 24V17Q24 13 28 13H36Q40 13 40 17V24" stroke="#6B4A2B" stroke-width="4" fill="none" stroke-linecap="round"/>
+<rect x="10" y="24" width="44" height="32" rx="6" fill="#8A5A2B"/>
+<rect x="10" y="36" width="44" height="4" fill="#6B4A2B"/><rect x="28" y="33" width="8" height="10" rx="2" fill="${SOL}"/>`,
+
+  huella: `<ellipse cx="32" cy="43" rx="14" ry="11" fill="#EDEFE9"/>
+<ellipse cx="14" cy="30" rx="5" ry="7" transform="rotate(-20 14 30)" fill="#EDEFE9"/>
+<ellipse cx="25" cy="18" rx="5" ry="7.5" transform="rotate(-6 25 18)" fill="#EDEFE9"/>
+<ellipse cx="39" cy="18" rx="5" ry="7.5" transform="rotate(6 39 18)" fill="#EDEFE9"/>
+<ellipse cx="50" cy="30" rx="5" ry="7" transform="rotate(20 50 30)" fill="#EDEFE9"/>`,
+
+  frasco: `<rect x="14" y="14" width="36" height="10" rx="3" fill="#EDEFE9"/>
+<rect x="12" y="22" width="40" height="36" rx="9" fill="#B5651D"/>
+<rect x="19" y="32" width="26" height="16" rx="3" fill="#F6E3B4"/>
+<path d="M24 40H40" stroke="#B5651D" stroke-width="3" stroke-linecap="round"/>
+<path d="M18 28V50" stroke="#fff" stroke-opacity=".25" stroke-width="3" stroke-linecap="round"/>`,
+
+  // Cinta verde: el símbolo de la salud mental.
+  cinta: `<path d="M32 8C12 20 22 36 32 38C42 36 52 20 32 8Z" stroke="#7BD389" stroke-width="6" fill="none" stroke-linejoin="round"/>
+<path d="M32 38L22 58M32 38L42 58" stroke="#7BD389" stroke-width="6" stroke-linecap="round"/>`,
+
+  nota: `<path d="M27 46V15L53 9V40" stroke="${VIOLETA}" stroke-width="4" fill="none" stroke-linejoin="round"/>
+<path d="M27 15L53 9V19L27 25Z" fill="${VIOLETA}"/>
+<ellipse cx="20" cy="47" rx="9" ry="7" transform="rotate(-20 20 47)" fill="${VIOLETA}"/>
+<ellipse cx="46" cy="41" rx="9" ry="7" transform="rotate(-20 46 41)" fill="${VIOLETA}"/>`,
+
+  paloma: `<path d="M8 38Q20 26 36 30Q44 20 54 22Q50 30 52 37Q44 52 26 50Q14 48 8 38Z" fill="#EDEFE9"/>
+<path d="M24 35Q28 12 46 8Q42 24 38 35Z" fill="#fff" stroke="#C9CED3" stroke-width="1.5"/>
+<circle cx="47" cy="27" r="1.6" fill="#14171A"/><path d="M54 22L60 25L54 27Z" fill="${SOL}"/>
+<path d="M52 36Q58 46 54 58" stroke="#4C8A3A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+<ellipse cx="55" cy="45" rx="4" ry="2" transform="rotate(-50 55 45)" fill="#4C8A3A"/>`,
+
+  codigo: `<path d="M22 16L7 32L22 48M42 16L57 32L42 48" stroke="${VIOLETA}" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M37 12L27 52" stroke="#EDEFE9" stroke-width="5" stroke-linecap="round"/>`,
+
+  // Figura sentada en meditación, con aura.
+  meditacion: `<circle cx="32" cy="34" r="28" stroke="${SOL}" stroke-opacity=".5" stroke-width="2" fill="none"/>
+<circle cx="32" cy="17" r="7" fill="${VIOLETA}"/>
+<path d="M20 44Q21 26 32 25Q43 26 44 44Z" fill="${VIOLETA}"/>
+<ellipse cx="32" cy="46" rx="22" ry="8" fill="${VIOLETA}"/>
+<ellipse cx="32" cy="46" rx="22" ry="8" fill="none" stroke="#14171A" stroke-opacity=".35" stroke-width="1.5"/>`,
+
+  escarapela: `<path d="M24 40L16 60L26 55L30 62L34 42Z" fill="#74ACDF"/><path d="M40 40L48 60L38 55L34 62L30 42Z" fill="#fff"/>
+<circle cx="32" cy="28" r="24" fill="#74ACDF"/><circle cx="32" cy="28" r="16.5" fill="#fff"/><circle cx="32" cy="28" r="8" fill="#74ACDF"/>`,
+
+  sombrero: `<ellipse cx="32" cy="42" rx="29" ry="9" fill="#2B2F33"/>
+<path d="M16 42Q14 14 32 14Q50 14 48 42Q32 48 16 42Z" fill="#3A3F44"/>
+<path d="M16.5 36Q32 42 47.5 36L48 42Q32 48 16 42Z" fill="#E5484D"/>
+<path d="M22 20Q32 15 42 20" stroke="#fff" stroke-opacity=".2" stroke-width="2" fill="none"/>`,
+
+  pachamama: `<circle cx="32" cy="30" r="14" fill="${SOL}"/>${rayos(12, 19, 25, SOL, 3)}
+<path d="M2 58L20 30L30 44L42 24L62 58Z" fill="#8A5A2B"/>
+<path d="M42 24L48 34L44 32L40 36L36 32Z" fill="#fff"/><path d="M20 30L25 38L21 36L17 39Z" fill="#fff"/>
+<path d="M2 58H62V62H2Z" fill="#4C8A3A"/>`,
+
+  // Manto celeste y blanco con aureola, sobrio.
+  virgen: `<circle cx="32" cy="22" r="13" stroke="${SOL}" stroke-width="3" fill="none"/>
+${rayos(16, 16, 24, SOL, 2).replace('stroke-width="2"', 'stroke-width="2" stroke-opacity=".6"')}
+<path d="M32 12C22 12 18 26 13 58H51C46 26 42 12 32 12Z" fill="#74ACDF"/>
+<path d="M32 18C27 18 25 28 22 58H42C39 28 37 18 32 18Z" fill="#fff"/>
+<circle cx="32" cy="24" r="5" fill="#F6C9A6"/>`,
+
+  // Tres estrellas: la de arriba, la tercera, más grande.
+  estrellas: `${estrella(32, 18, 17, SOL)}${estrella(16, 48, 12, SOL)}${estrella(48, 48, 12, SOL)}`,
 
   mundo: `<circle cx="32" cy="32" r="24" stroke="#74ACDF" stroke-width="3.5" fill="none"/>
 <ellipse cx="32" cy="32" rx="10" ry="24" stroke="#74ACDF" stroke-width="3" fill="none"/>
