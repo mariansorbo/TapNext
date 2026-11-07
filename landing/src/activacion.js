@@ -1,6 +1,7 @@
 import './styles.css';
 import './visita.js';
 import { applyBrand } from './brand.js';
+import { debeMostrar, mostrarBienvenida } from './bienvenida.js';
 
 applyBrand('Activar llavero');
 
@@ -112,9 +113,23 @@ async function init() {
   try {
     info = await api(`/activacion/${encodeURIComponent(codigo)}`);
   } catch (err) {
-    errorText.textContent = err.message;
-    show(errorView);
-    return;
+    if (import.meta.env.DEV && params.get('bienvenida')) {
+      // Solo en desarrollo: para ver la bienvenida sin backend ni chip real.
+      // ?modelo=llavero|tarjeta|placa  ?org=Nombre
+      info = {
+        estado: 'en_stock',
+        modelo: params.get('modelo') || 'llavero',
+        funcion: 'instagram',
+        organizacion: params.get('org') || null,
+        liberada: true,
+        precio: null,
+        pagosHabilitados: true,
+      };
+    } else {
+      errorText.textContent = err.message;
+      show(errorView);
+      return;
+    }
   }
 
   if (info.estado === 'activo') {
@@ -163,7 +178,10 @@ async function init() {
   }
 
   show(formView);
-  emailInput.focus();
+  // Activación gratis: bienvenida animada antes de pedir el mail (src/bienvenida.js).
+  // El foco al mail espera a que termine, así no salta el teclado detrás.
+  if (debeMostrar(info, codigo, params)) mostrarBienvenida({ info, onFin: () => emailInput.focus() });
+  else emailInput.focus();
 }
 
 let otpEnviado = false;

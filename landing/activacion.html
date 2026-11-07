@@ -50,6 +50,35 @@
 </head>
 <body>
 
+<!-- Bienvenida previa a la activación gratis. La arma y la maneja src/bienvenida.js;
+     el CSS está al final de styles.css ("BIENVENIDA"). Oculta por defecto. -->
+<div id="bienvenida" class="bv" hidden role="dialog" aria-modal="true" aria-label="Bienvenida a NextApp">
+  <div class="bv-top">
+    <button type="button" class="bv-mini" id="bv-sonido" aria-pressed="true" aria-label="Silenciar sonido">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9v6h4l5 4V5L8 9H4z"/>
+        <path class="bv-on" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/>
+        <path class="bv-off" d="M17 9.5l5 5M22 9.5l-5 5"/>
+      </svg>
+    </button>
+    <button type="button" class="bv-mini" id="bv-saltar">Saltar</button>
+  </div>
+
+  <div class="bv-centro">
+    <div class="bv-stage" aria-hidden="true">
+      <span class="bv-ring" style="--i:0"></span>
+      <span class="bv-ring" style="--i:1"></span>
+      <span class="bv-ring" style="--i:2"></span>
+      <span class="bv-ring" style="--i:3"></span>
+      <span class="bv-dot"></span>
+    </div>
+
+    <h1 class="bv-titulo">Bienvenido a <span class="bv-marca">NextApp</span></h1>
+    <p class="bv-sub" id="bv-sub"></p>
+    <button type="button" class="btn-primary bv-empezar" id="bv-empezar">Empezar</button>
+  </div>
+</div>
+
 <nav>
   <a href="/" class="logo" data-brand-logo></a>
   <a href="/mi-panel.html" class="nav-cta">Mi panel</a>
