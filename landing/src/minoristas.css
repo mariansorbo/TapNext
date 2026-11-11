@@ -1,0 +1,48 @@
+/* Página /minoristas: kit demostrador para comercios. Usa los tokens de styles.css. */
+.pagina-minoristas section.mn-hero{border-top:0; padding:56px 0 72px;}
+.mn-h1{
+  font-family:var(--display); font-weight:700; letter-spacing:-0.03em; line-height:1;
+  font-size:clamp(3rem, 11vw, 6.2rem); margin-top:14px;
+}
+.mn-lead{
+  font-family:var(--display); font-weight:700; letter-spacing:-0.02em; line-height:1.1;
+  font-size:clamp(1.5rem, 4.6vw, 2.3rem); margin-top:10px;
+}
+.mn-lead em{font-style:normal; color:#9C86FF;}
+.mn-sub{color:var(--paper-dim); font-size:1.08rem; max-width:56ch; margin-top:16px;}
+.mn-cta{display:flex; flex-wrap:wrap; align-items:center; gap:14px 18px; margin-top:26px;}
+.mn-arte{
+  margin:44px 0 0; border:1px solid var(--line); border-radius:16px; overflow:hidden;
+  background:var(--ink);
+}
+.mn-svg{display:block; width:100%; height:auto;}
+.mn-sg{font-family:var(--display); font-weight:700;}
+.mn-pl{font-family:var(--body);}
+@media (max-width:640px){
+  .mn-callout{display:none;}
+  .pagina-minoristas section.mn-hero{padding:36px 0 56px;}
+}
+
+.mn-kit{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-top:8px;}
+.mn-kit-item{
+  background:var(--surface); border:1px solid var(--line); padding:22px 22px 24px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:10px; min-width:0;
+}
+.mn-kit-item h3{font-family:var(--display); font-weight:700; font-size:1.25rem; letter-spacing:-0.01em;}
+.mn-kit-item p{color:var(--paper-dim); font-size:.98rem;}
+.mn-pill{
+  display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-weight:500;
+  font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; padding:4px 10px; border-radius:6px;
+  color:var(--ink);
+}
+.mn-pill-bloq{background:var(--violet);}
+.mn-pill-desb{background:var(--amber);}
+
+.mn-precios{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-top:8px;}
+.mn-precio{background:var(--surface); border:1px solid var(--line); padding:22px; display:flex; flex-direction:column; gap:6px;}
+.mn-precio b{font-family:var(--display); font-weight:700; font-size:clamp(2.2rem,7vw,3rem); letter-spacing:-0.02em; line-height:1; color:var(--amber);}
+.mn-precio span{color:var(--paper-dim); font-size:.98rem;}
+.mn-precio-gana{border-color:var(--amber);}
+.mn-ejemplo{margin-top:22px; color:var(--paper-dim); font-size:1.05rem;}
+
+.mn-cierre .mn-sub{margin-top:10px;}
