@@ -8,6 +8,8 @@
 // Requisitos del navegador: Chrome en Android (único con Web NFC), contexto
 // seguro (HTTPS o localhost) y NFC activado en el sistema.
 
+import { esNativo, procesar, avisar } from './nfc-nativo.js';
+
 const FUNCION_OPTS = {
   whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
   review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
@@ -195,11 +197,13 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
         <div>✅ <b>Grabado</b> — código <b>${cur.codigoPublico}</b></div>
         ${cur.sobrescrito ? '<div style="color:#e07a7a;">⚠ <b>UID sobrescrito</b> — ya estaba registrado; se re-aplicaron función / modelo / vendedor / lote.</div>' : ''}
         <div><b>URL en el chip:</b><br>${cur.url}</div>
+        ${cur.candado && cur.candado.ok ? '<div>🔒 <b>Bloqueado</b> con su clave.</div>' : ''}
+        ${cur.candado && !cur.candado.ok ? `<div style="color:#e07a7a;">⚠ <b>No se pudo bloquear:</b> ${cur.candado.detalle}. Probá de nuevo con "Editar sticker B2".</div>` : ''}
         <div><b>PWD_AUTH:</b> <span class="grabar-key">${cur.writePassword}</span>
           <button type="button" class="row-btn" data-copy="${cur.writePassword}">copiar</button></div>
         <div><b>PACK:</b> <span class="grabar-key">${cur.writePack}</span>
           <button type="button" class="row-btn" data-copy="${cur.writePack}">copiar</button></div>
-        <p class="grabar-hint">El candado se hace después con NFC Tools usando estas claves. "Siguiente chip" para seguir.</p>
+        <p class="grabar-hint">${cur.candado ? '"Siguiente chip" para seguir.' : 'El candado se hace después con NFC Tools usando estas claves. "Siguiente chip" para seguir.'}</p>
       </div>`;
     stageEl.querySelectorAll('[data-copy]').forEach((b) => {
       b.addEventListener('click', async () => {
@@ -214,6 +218,32 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     }
   }
 
+  // En la APK: una sola pasada que escribe la URL y bloquea el chip con su clave
+  // derivada (PWD/PACK/AUTH0); si ya estaba bloqueado, autentica con esa clave.
+  async function grabarYBloquearNativo(chip) {
+    const r = await procesar({
+      uid: chip.uidNfc,
+      url: chip.url,
+      pwd: chip.writePassword.slice(0, 8),
+      pack: chip.writePack.slice(0, 4),
+      bloquear: true,
+    });
+    if (!r.ok) {
+      avisar('error');
+      const e = new Error(r.detalle || r.error);
+      if (r.error === 'perdido' || r.error === 'sin_chip') e.name = 'AbortError';
+      throw e;
+    }
+    try {
+      await api('/b2/' + chip.id + '/resultado', {
+        method: 'POST',
+        body: JSON.stringify({ url: chip.url, urlAntes: r.urlAntes || null, bloqueo: r.bloqueo, chip: r.chip, motivo: 'Grabar chips NFC' }),
+      });
+    } catch { /* el chip ya quedó bloqueado; la bitácora se puede perder sin drama */ }
+    avisar('ok');
+    return { ok: true };
+  }
+
   async function writeUrl() {
     if (!ndef || !cur) return;
     phase = 'grabando';
@@ -224,10 +254,16 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), WRITE_TIMEOUT_MS);
     try {
-      await ndef.write(
-        { records: [{ recordType: 'url', data: cur.url }] },
-        { overwrite: true, signal: ac.signal },
-      );
+      cur.candado = null;
+      if (esNativo) {
+        // APK: escribe + bloquea en un solo paso (Web NFC no puede el candado).
+        cur.candado = await grabarYBloquearNativo(cur);
+      } else {
+        await ndef.write(
+          { records: [{ recordType: 'url', data: cur.url }] },
+          { overwrite: true, signal: ac.signal },
+        );
+      }
       clearTimeout(timer);
       grabados += 1;
       renderProgress();

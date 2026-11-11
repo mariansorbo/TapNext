@@ -1,5 +1,7 @@
 import './styles.css';
+import './nfc-nativo.js'; // primero: en la APK instala NDEFReader antes de que lo mire el resto
 import { applyBrand } from './brand.js';
+import { initConsolaB2 } from './consola-b2.js';
 import { initNfcGrabar } from './nfc-grabar.js';
 import { initConsolaSticker } from './consola-sticker.js';
 import { initEdicionForzada } from './edicion-forzada.js';
@@ -1594,6 +1596,8 @@ initConsolaSticker({
 });
 
 initEdicionForzada({ api, onChange: () => { loadStickers(); } });
+
+initConsolaB2({ api, onChange: () => { loadStickers(); } });
 
 initDespacho({ api });
 

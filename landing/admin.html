@@ -70,6 +70,9 @@
           <button type="button" class="admin-add-btn" id="toggle-consola-sticker" title="Editar sticker: cargá un código, mirá su estado en el ciclo y corregí vendedor / función / modelo en tanda. Para cuando tenés un pedazo de stock en la mano.">
             <span class="add-icon">✏️</span> Editar sticker
           </button>
+          <button type="button" class="admin-add-btn" id="toggle-consola-b2" title="Editar sticker B2 (solo en la APK NextTap Chips): queda escaneando; a cada chip que apoyás le escribe el link que quieras y lo bloquea con su clave.">
+            <span class="add-icon">🔐</span> Editar sticker B2
+          </button>
           <button type="button" class="admin-add-btn" id="toggle-edicion-forzada" title="Edición forzada (pruebas): cambiá la función y el valor del destino de cualquier chip, en cualquier estado. Queda en la bitácora.">
             <span class="add-icon">🧪</span> Edición forzada
           </button>
@@ -581,6 +584,42 @@
       <button type="button" class="btn-primary modal-submit" id="consola-guardar">Guardar cambios</button>
     </div>
     <div class="admin-table" id="consola-log"></div>
+  </div>
+</div>
+
+<!-- Modal: Editar sticker B2 — escritura de link + candado desde la APK -->
+<div class="modal-overlay" id="b2-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="b2-modal-close">✕</button>
+    <h3>🔐 Editar sticker B2</h3>
+    <p class="modal-sub">Dejá el lector escaneando y apoyá chips de a uno: a cada uno le escribe el link y lo bloquea con su clave (PWD_AUTH). Solo funciona dentro de la APK <b>NextTap Chips</b>.</p>
+    <p class="modal-status is-error" id="b2-aviso" hidden></p>
+    <div class="modal-form" id="b2-config">
+      <label>
+        <span>Link a escribir en el chip</span>
+        <input type="url" id="b2-url" placeholder="https://…  (vacío = el link del sistema, /v/código)" autocomplete="off" inputmode="url">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-bloquear" checked>
+        <span>Bloquear con clave (candado: nadie más puede reescribirlo)</span>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-registrar" checked>
+        <span>Registrar en el sistema los chips que todavía no estén</span>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-vendidos">
+        <span>Permitir editar chips ya vendidos / activos</span>
+      </label>
+      <label>
+        <span>Motivo de la pasada (opcional, queda en la bitácora)</span>
+        <input type="text" id="b2-motivo" placeholder="corrijo el link de la tanda" autocomplete="off">
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="b2-toggle">📡 Empezar a escanear</button>
+    <div class="grabar-stage" id="b2-stage"></div>
+    <p class="modal-status" id="b2-status"></p>
+    <div class="admin-table" id="b2-log"></div>
   </div>
 </div>
 

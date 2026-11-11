@@ -18,6 +18,7 @@ import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAb
 import { efemerideBloque } from './efemerides.js';
 import { montarConsolaSticker } from './consola-sticker.js';
 import { montarEdicionForzada } from './edicion-forzada.js';
+import { montarConsolaB2 } from './consola-b2.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
 import { crearDespachoRouter } from './despacho.js';
 import {
@@ -356,6 +357,19 @@ montarEdicionForzada(app, {
   DESTINO_TIPOS,
   DESTINO_META,
   normalizarDestino,
+  PUBLIC_ROUTER_BASE,
+});
+
+// Editar sticker B2 (botón del panel, solo con la APK "NextTap Chips"): escribe
+// el link y bloquea el chip con su clave derivada. Ver server/consola-b2.js.
+montarConsolaB2(app, {
+  get,
+  run,
+  requireAdmin,
+  registrarEventoAdmin,
+  deriveChipPassword,
+  deriveChipPack,
+  CHIP_MASTER_SECRET,
   PUBLIC_ROUTER_BASE,
 });
 
