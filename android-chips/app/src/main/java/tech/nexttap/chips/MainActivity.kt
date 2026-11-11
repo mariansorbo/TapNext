@@ -15,6 +15,9 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.Toast
 import android.webkit.CookieManager
+import android.webkit.JsPromptResult
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -80,6 +83,43 @@ class MainActivity : Activity() {
                        <p style="opacity:.5;font-size:12px">${urlPanel()}</p></body></html>""",
                     "text/html", "utf-8", null,
                 )
+            }
+        }
+
+        // Sin esto el WebView ignora alert() / confirm() / prompt(): los "¿Eliminar…?" del
+        // panel devolverían "no" en silencio y los botones no harían nada.
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onJsAlert(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message)
+                    .setPositiveButton("OK") { _, _ -> result.confirm() }
+                    .setOnCancelListener { result.confirm() }
+                    .show()
+                return true
+            }
+
+            override fun onJsConfirm(view: WebView, url: String?, message: String?, result: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message)
+                    .setPositiveButton("Aceptar") { _, _ -> result.confirm() }
+                    .setNegativeButton("Cancelar") { _, _ -> result.cancel() }
+                    .setOnCancelListener { result.cancel() }
+                    .show()
+                return true
+            }
+
+            override fun onJsPrompt(
+                view: WebView, url: String?, message: String?, defaultValue: String?, result: JsPromptResult,
+            ): Boolean {
+                val campo = EditText(this@MainActivity).apply { setText(defaultValue ?: "") }
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message)
+                    .setView(campo)
+                    .setPositiveButton("Aceptar") { _, _ -> result.confirm(campo.text.toString()) }
+                    .setNegativeButton("Cancelar") { _, _ -> result.cancel() }
+                    .setOnCancelListener { result.cancel() }
+                    .show()
+                return true
             }
         }
 
