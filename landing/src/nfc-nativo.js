@@ -100,7 +100,9 @@ const aBytes = (d) => {
   return new Uint8Array(d.buffer, d.byteOffset, d.byteLength);
 };
 
-if (esNativo && !('NDEFReader' in window)) {
+// En la APK se pisa siempre: el WebView trae su propio NDEFReader pero rechaza el permiso
+// (NotAllowedError) y no puede escribir ni bloquear.
+if (esNativo) {
   class NDEFReaderNativo extends EventTarget {
     async scan({ signal } = {}) {
       const nfc = estadoNfc();
@@ -140,5 +142,5 @@ if (esNativo && !('NDEFReader' in window)) {
       }
     }
   }
-  window.NDEFReader = NDEFReaderNativo;
+  Object.defineProperty(window, 'NDEFReader', { value: NDEFReaderNativo, writable: true, configurable: true });
 }
