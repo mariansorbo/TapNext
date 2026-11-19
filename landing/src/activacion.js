@@ -14,6 +14,7 @@ const FUNCION_CTA = {
   web: 'tu web',
   agenda: 'tu agenda',
   linktree: 'tu Linktree',
+  custom: 'tu página custom',
   alias: 'tus datos de transferencia',
 };
 
@@ -27,6 +28,7 @@ const FUNCION_PASO_LISTO = {
   web: 'pegás el link de tu web y listo.',
   agenda: 'pegás el link de tu agenda y listo.',
   linktree: 'cargás tu usuario de Linktree y listo.',
+  custom: 'cargás tu WhatsApp e Instagram y listo.',
   alias: 'cargás tu alias y listo.',
 };
 

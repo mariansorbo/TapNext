@@ -72,4 +72,10 @@ export const BRAND_ICONS = {
     <path d="M8 13h16M8 19h16" stroke="#4CC98C" stroke-width="1.6" stroke-linecap="round"/>
     <path d="M13 13v-2.5a3 3 0 0 1 6 0V13M13 19v2.5a3 3 0 0 0 6 0V19" stroke="#4CC98C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`,
+  custom: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="32" rx="8" fill="rgba(123,92,255,0.15)"/>
+    <rect x="8" y="9" width="16" height="4" rx="2" stroke="#7B5CFF" stroke-width="1.6"/>
+    <rect x="8" y="15" width="16" height="4" rx="2" stroke="#7B5CFF" stroke-width="1.6"/>
+    <rect x="8" y="21" width="16" height="3" rx="1.5" stroke="#7B5CFF" stroke-width="1.6" opacity="0.6"/>
+  </svg>`,
 };

@@ -249,3 +249,41 @@ test('alias: resolver tolera una fila vieja / rota', () => {
   assert.equal(r.modo, 'landing');
   assert.equal(typeof r.datos.alias, 'string');
 });
+
+// --- Custom (página con WhatsApp + Instagram) ---------------------------
+
+// El registry recibe siempre string (como llega del front).
+const J = JSON.stringify;
+
+test('custom: normaliza WhatsApp e Instagram con los parsers de cada función', () => {
+  const r = normalizarDestino('custom', J({ nombre: '  Juan  Pérez ', bio: 'Plomero', whatsapp: '11 2233 4455', instagram: '@juan.plomero' }));
+  assert.ok(r.valor, r.error);
+  assert.deepEqual(JSON.parse(r.valor), {
+    nombre: 'Juan Pérez',
+    bio: 'Plomero',
+    whatsapp: 'https://wa.me/541122334455',
+    instagram: 'https://instagram.com/juan.plomero',
+  });
+});
+
+test('custom: alcanza con uno de los dos', () => {
+  assert.ok(normalizarDestino('custom', J({ nombre: 'X', whatsapp: '11 2233 4455' })).valor);
+  assert.ok(normalizarDestino('custom', J({ nombre: 'X', instagram: 'juan' })).valor);
+});
+
+test('custom: errores (sin nombre, sin redes, número o usuario inválido, no-JSON)', () => {
+  err('custom', J({ nombre: '', whatsapp: '11 2233 4455' }));
+  err('custom', J({ nombre: 'X' }));
+  err('custom', J({ nombre: 'X', whatsapp: '123' }));
+  err('custom', J({ nombre: 'X', instagram: 'instagram.com' }));
+  err('custom', 'no es json');
+});
+
+test('custom: resolver devuelve landing con los datos', () => {
+  const { valor } = normalizarDestino('custom', J({ nombre: 'X', instagram: 'juan' }));
+  const r = resolverDestino('custom', valor);
+  assert.equal(r.modo, 'landing');
+  assert.equal(r.funcion, 'custom');
+  assert.equal(r.datos.instagram, 'https://instagram.com/juan');
+  assert.equal(r.datos.whatsapp, null);
+});

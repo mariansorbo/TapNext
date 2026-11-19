@@ -14,6 +14,7 @@ const FUNCION_LABELS = {
   web: 'Web propia',
   agenda: 'Agenda',
   linktree: 'LinkTree',
+  custom: 'Custom',
 };
 const MODELOS = ['llavero', 'tarjeta', 'placa'];
 

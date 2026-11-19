@@ -1945,12 +1945,3 @@ details[open] .add-icon{transform:rotate(45deg);}
 .rota-grupo[data-activo="false"] .rota-extra > :nth-child(3){transition-delay:.12s;}
 @keyframes rota-extra-entra{from{opacity:0; transform:translateX(-70px);}}
 @media (prefers-reduced-motion: reduce){ .rota-extra > *, .rota-grupo[data-activo="true"] .rota-extra > *{animation:none; transition:none;} }
-
-/* Editor de la función "links" (lista de botones) en Mi panel */
-.links-lista{display:flex; flex-direction:column; gap:10px;}
-.links-fila{display:flex; flex-direction:column; gap:6px; padding:10px; border:1px dashed var(--line); border-radius:10px;}
-.links-fila input{font:inherit; color:var(--paper); background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:0.9rem; width:100%;}
-.links-fila input:focus{outline:none; border-color:var(--violet);}
-.links-acciones{display:flex; gap:6px; justify-content:flex-end;}
-.links-acciones .btn-ghost{padding:4px 12px; min-width:40px;}
-.links-agrega[hidden]{display:none;}

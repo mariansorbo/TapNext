@@ -12,7 +12,7 @@ import { esNativo, procesar, avisar } from './nfc-nativo.js';
 
 const FUNCION_OPTS = {
   whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
-  review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
+  review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree', custom: 'Custom',
   alias: 'Datos de transferencia',
 };
 const MODELO_OPTS = { llavero: 'Llavero', tarjeta: 'Stand', placa: 'Placa' };

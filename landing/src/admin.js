@@ -120,6 +120,7 @@ const FUNCION_LABELS = {
   agenda: 'Agenda',
   linktree: 'LinkTree',
   alias: 'Datos de transferencia',
+  custom: 'Custom',
 };
 
 function renderTable(container, headers, rows) {

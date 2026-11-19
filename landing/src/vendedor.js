@@ -240,7 +240,7 @@ async function loadStock({ silencioso = false } = {}) {
 
 const FUNC_LABEL = {
   whatsapp: 'WhatsApp', instagram: 'Instagram', pago: 'Pago', menu: 'Menú',
-  review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree',
+  review: 'Reseña', web: 'Web propia', agenda: 'Agenda', linktree: 'LinkTree', custom: 'Custom',
 };
 const MODELO_LABEL = { llavero: 'Llavero', tarjeta: 'Stand', placa: 'Placa', suelto: 'Suelto' };
 const comboNombre = (modelo, funcion) =>

@@ -19,6 +19,7 @@ import web from './web.js';
 import agenda from './agenda.js';
 import linktree from './linktree.js';
 import alias from './alias.js';
+import custom from './custom.js';
 
 export { aUrlAbsoluta };
 
@@ -46,7 +47,7 @@ export { aUrlAbsoluta };
  * @property {(valor: string) => string} preview  - frase legible de qué va a pasar
  */
 
-const PLUGINS = [whatsapp, instagram, pago, menu, review, web, agenda, linktree, alias];
+const PLUGINS = [whatsapp, instagram, pago, menu, review, web, agenda, linktree, alias, custom];
 const REGISTRY = Object.fromEntries(PLUGINS.map((p) => [p.id, p]));
 
 export const DESTINO_TIPOS = PLUGINS.map((p) => p.id);

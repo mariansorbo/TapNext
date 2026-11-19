@@ -14,6 +14,7 @@ import { generateOtp, hashValue, generateToken, generateLinkToken } from './otp.
 import { validarPassword, crearLimitador } from './password.js';
 import { enviarCorreo, correoDisponible, mailEntregaCoordinar, mailEntregaSalida, mailEntregaNoEstaba, mailEntregaRecordatorio, mailEntregaVencida, mailCompraComprador, mailVentaVendedor, mailActivacionGratis, mailRetiroComprador, mailRetiroVendedor } from './correo.js';
 import { canalVerificacion, canalPorId, CAMPOS_COMPRADOR_VALIDOS } from './verificacion/index.js';
+import { pantallaCustom } from './pantalla-custom.js';
 import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAbsoluta } from './destinos/index.js';
 import { efemerideBloque } from './efemerides.js';
 import { montarConsolaSticker } from './consola-sticker.js';
@@ -4528,7 +4529,7 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
         // El tap no lleva a ningún lado: renderizamos la página de la función.
         // Hoy solo 'alias' (datos de transferencia + copiar).
         registrarTap(req, res, { ...tap, resultado: 'landing' });
-        return res.type('html').send(pantallaAlias(r.datos));
+        return res.type('html').send(r.funcion === 'custom' ? pantallaCustom(r.datos) : pantallaAlias(r.datos));
       }
     }
   }

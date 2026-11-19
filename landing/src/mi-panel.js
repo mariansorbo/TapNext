@@ -15,6 +15,7 @@ const FUNCION_ICONOS = {
   web: BRAND_ICONS.web,
   agenda: BRAND_ICONS.googleCalendar,
   linktree: BRAND_ICONS.linktree,
+  custom: BRAND_ICONS.custom,
   alias: BRAND_ICONS.alias,
 };
 const ICONO_GENERICO = `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +41,7 @@ function resumenDestino(tipo, valor) {
   if (!meta.campos) return valor;
   try {
     const d = JSON.parse(valor) || {};
-    return [d.alias, d.titular].filter(Boolean).join(' · ') || valor;
+    return [d.alias || d.nombre, d.titular].filter(Boolean).join(' · ') || valor;
   } catch {
     return valor;
   }
@@ -121,6 +122,13 @@ const FUNCION_TEXTOS = {
     falta: 'Falta cargar tu usuario de Linktree. Hasta que lo cargues, al acercarlo a un celular no abre nada.',
     editar: 'Cambiar mi usuario de Linktree',
     cargar: 'Cargar mi usuario de Linktree',
+  },
+  custom: {
+    que: 'qué página muestra',
+    apunta: 'Muestra tu página:',
+    falta: 'Falta armar tu página. Hasta que la armes, al acercarlo a un celular no muestra nada.',
+    editar: 'Editar mi página',
+    cargar: 'Armar mi página',
   },
   alias: {
     que: 'qué datos de transferencia muestra',
