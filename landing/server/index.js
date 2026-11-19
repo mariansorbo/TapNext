@@ -18,6 +18,7 @@ import { DESTINO_TIPOS, DESTINO_META, normalizarDestino, resolverDestino, aUrlAb
 import { efemerideBloque } from './efemerides.js';
 import { montarConsolaSticker } from './consola-sticker.js';
 import { montarEdicionForzada } from './edicion-forzada.js';
+import { montarConsolaB2 } from './consola-b2.js';
 import { MODOS_ACTIVACION, modoDeLiberacion, crearLiberacion, crearModoActivacionRouter } from './modo-activacion.js';
 import { crearDespachoRouter } from './despacho.js';
 import {
@@ -356,6 +357,19 @@ montarEdicionForzada(app, {
   DESTINO_TIPOS,
   DESTINO_META,
   normalizarDestino,
+  PUBLIC_ROUTER_BASE,
+});
+
+// Editar sticker B2 (botón del panel, solo con la APK "NextTap Chips"): escribe
+// el link y bloquea el chip con su clave derivada. Ver server/consola-b2.js.
+montarConsolaB2(app, {
+  get,
+  run,
+  requireAdmin,
+  registrarEventoAdmin,
+  deriveChipPassword,
+  deriveChipPack,
+  CHIP_MASTER_SECRET,
   PUBLIC_ROUTER_BASE,
 });
 
@@ -4230,9 +4244,20 @@ function pantallaDesactivado(orgNombre, { titulo = 'Este llavero está desactiva
 </html>`;
 }
 
-function pantallaNoActivado(codigo, cola = null) {
+function pantallaNoActivado(codigo, cola = null, { activo = false } = {}) {
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Producto ya activado (tiene dueño) pero sin destino cargado: el dueño entra
+  // a su panel desde acá para elegir a dónde lleva el tap.
+  const titulo = activo
+    ? 'Este producto todav&iacute;a no tiene un destino.'
+    : 'Este producto todav&iacute;a no est&aacute; activado.';
+  const texto = activo
+    ? 'El chip funciona y ya tiene due&ntilde;o, pero todav&iacute;a no se carg&oacute; a d&oacute;nde lleva. Su due&ntilde;o lo configura desde su panel.'
+    : 'El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.';
+  const panelLink = activo
+    ? `<a class="panel" href="${esc(FRONTEND_URL)}/mi-panel.html">Acceder a mi panel</a>`
+    : '';
   const codigoHtml = esc(codigo);
   const codigoLinea = codigoHtml
     ? `<p class="codigo">C&oacute;digo del chip: <b>${codigoHtml}</b></p>`
@@ -4267,6 +4292,7 @@ function pantallaNoActivado(codigo, cola = null) {
   p.codigo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;color:rgba(237,239,233,.5)}
   p.codigo b{color:var(--paper);letter-spacing:.06em}
   a.link{color:rgba(237,239,233,.5);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;letter-spacing:.03em;text-decoration:none;margin-top:6px}
+  a.panel{position:absolute;top:max(16px,env(safe-area-inset-top));right:16px;color:var(--paper);background:rgba(123,92,255,.22);border:1px solid rgba(123,92,255,.55);border-radius:999px;padding:8px 14px;font-size:.85rem;font-weight:600;text-decoration:none}
   .cola{border:1px solid rgba(123,92,255,.4);background:rgba(123,92,255,.1);border-radius:14px;padding:16px 24px;display:flex;flex-direction:column;gap:4px;align-items:center}
   .cola-pos{font-size:clamp(1.8rem,9vw,2.6rem);font-weight:700;letter-spacing:-.02em;color:var(--paper)}
   .cola-de{font-size:.5em;font-weight:500;color:rgba(237,239,233,.55)}
@@ -4275,9 +4301,10 @@ function pantallaNoActivado(codigo, cola = null) {
 </style>
 </head>
 <body>
+  ${panelLink}
   <div class="mark">Next<span class="tap">Tap</span></div>
-  <h1>Este producto todav&iacute;a no est&aacute; activado.</h1>
-  <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
+  <h1>${titulo}</h1>
+  <p>${texto}</p>
   ${colaBloque}
   ${codigoLinea}
   <a class="link" href="https://next-tap.tech">next-tap.tech</a>
@@ -4560,7 +4587,13 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     stickerId: sticker ? sticker.id : null,
     resultado: !sticker ? 'desconocido' : sticker.estado === 'activo' ? 'sin_destino' : 'no_activado',
   });
-  return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola));
+  return res
+    .type('html')
+    .send(
+      pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola, {
+        activo: Boolean(sticker && sticker.estado === 'activo'),
+      })
+    );
 });
 
 // --- Activación del lote especial: verificás tu email → pagás → editás ---

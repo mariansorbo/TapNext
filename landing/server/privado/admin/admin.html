@@ -6,8 +6,8 @@
   <title>tap — Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/privado/admin/a/admin-CdJmjMNL.js"></script>
-  <link rel="stylesheet" crossorigin href="/privado/admin/a/admin-B7jZKmF2.css">
+  <script type="module" crossorigin src="/privado/admin/a/admin-DlnZ_jAf.js"></script>
+  <link rel="stylesheet" crossorigin href="/privado/admin/a/admin-BLUndfV9.css">
 </head>
 <body>
 
@@ -71,6 +71,9 @@
           </button>
           <button type="button" class="admin-add-btn" id="toggle-consola-sticker" title="Editar sticker: cargá un código, mirá su estado en el ciclo y corregí vendedor / función / modelo en tanda. Para cuando tenés un pedazo de stock en la mano.">
             <span class="add-icon">✏️</span> Editar sticker
+          </button>
+          <button type="button" class="admin-add-btn" id="toggle-consola-b2" title="Editar sticker B2 (solo en la APK NextTap Chips): queda escaneando; a cada chip que apoyás le escribe el link que quieras y lo bloquea con su clave.">
+            <span class="add-icon">🔐</span> Editar sticker B2
           </button>
           <button type="button" class="admin-add-btn" id="toggle-edicion-forzada" title="Edición forzada (pruebas): cambiá la función y el valor del destino de cualquier chip, en cualquier estado. Queda en la bitácora.">
             <span class="add-icon">🧪</span> Edición forzada
@@ -187,6 +190,16 @@
     <div class="admin-section">
       <h3>Ventas</h3>
       <div class="admin-table admin-table--scroll" id="ventas-table"></div>
+    </div>
+
+    
+    <div class="admin-section" id="entregas-section" hidden>
+      <div class="admin-section-head">
+        <h3>Entregas propias</h3>
+        <button type="button" class="row-btn" id="entregas-salida-hoy">Avisar salida de hoy</button>
+      </div>
+      <p class="section-lead" style="margin:0 0 16px;">Envío gratis que llevás vos. Un solo intento: el día que salís avisás la salida; si no hay nadie, tocá "No estaba" (le llega el mail con el link para pedir el envío) y después lo mandás por Enviopack.</p>
+      <div class="admin-table admin-table--scroll" id="entregas-table"></div>
     </div>
 
     
@@ -577,6 +590,42 @@
 </div>
 
 
+<div class="modal-overlay" id="b2-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="b2-modal-close">✕</button>
+    <h3>🔐 Editar sticker B2</h3>
+    <p class="modal-sub">Dejá el lector escaneando y apoyá chips de a uno: a cada uno le escribe el link y lo bloquea con su clave (PWD_AUTH). Solo funciona dentro de la APK <b>NextTap Chips</b>.</p>
+    <p class="modal-status is-error" id="b2-aviso" hidden></p>
+    <div class="modal-form" id="b2-config">
+      <label>
+        <span>Link a escribir en el chip</span>
+        <input type="url" id="b2-url" placeholder="https://…  (vacío = el link del sistema, /v/código)" autocomplete="off" inputmode="url">
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-bloquear" checked>
+        <span>Bloquear con clave (candado: nadie más puede reescribirlo)</span>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-registrar" checked>
+        <span>Registrar en el sistema los chips que todavía no estén</span>
+      </label>
+      <label class="modal-check">
+        <input type="checkbox" id="b2-vendidos">
+        <span>Permitir editar chips ya vendidos / activos</span>
+      </label>
+      <label>
+        <span>Motivo de la pasada (opcional, queda en la bitácora)</span>
+        <input type="text" id="b2-motivo" placeholder="corrijo el link de la tanda" autocomplete="off">
+      </label>
+    </div>
+    <button type="button" class="btn-primary modal-submit" id="b2-toggle">📡 Empezar a escanear</button>
+    <div class="grabar-stage" id="b2-stage"></div>
+    <p class="modal-status" id="b2-status"></p>
+    <div class="admin-table" id="b2-log"></div>
+  </div>
+</div>
+
+
 <div class="modal-overlay" id="forzada-modal-overlay">
   <div class="modal">
     <button type="button" class="modal-close" id="forzada-modal-close">✕</button>
@@ -784,6 +833,18 @@
         <button type="button" class="btn-primary" id="grabar-next" disabled>Siguiente chip</button>
       </div>
       <button type="button" class="btn-ghost" id="grabar-finish" style="margin-top:14px; width:100%;">Terminar</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal-overlay" id="grabar-alerta-overlay" style="z-index:110;">
+  <div class="modal" style="max-width:340px; padding:28px 24px;" role="alertdialog" aria-labelledby="grabar-alerta-titulo">
+    <h3 id="grabar-alerta-titulo">⚠ Este sticker no es NTAG213</h3>
+    <p class="modal-sub" id="grabar-alerta-msg" style="margin-bottom:18px;"></p>
+    <div class="wizard-nav">
+      <button type="button" class="btn-ghost" id="grabar-alerta-saltear">Saltear este</button>
+      <button type="button" class="btn-primary" id="grabar-alerta-seguir">Registrar igual</button>
     </div>
   </div>
 </div>

@@ -312,13 +312,13 @@ function rey(cx, manto, piel, regalo) {
 <path d="M${cx + 4} 57L${cx + 11} 55" stroke="${manto}" stroke-width="3.5" stroke-linecap="round"/>
 <rect x="${cx + 9}" y="49" width="8" height="8" rx="1.5" fill="${regalo}" stroke="#fff" stroke-opacity=".5"/>`;
 }
-const SANTA_X = 92, CUNA_X = 128;
+const SANTA_X = 12, CUNA_X = 128;
 
 // Figuras del nacimiento (coordenadas propias, suelo en y=84): se las baja y
 // corre dentro de la escena con un translate.
 const FIGURAS = `<circle cx="${CUNA_X}" cy="68" r="26" fill="url(#pnLuz)"/>
 <circle cx="${SANTA_X - 13}" cy="68" r="9" fill="#8A5A2B"/><path d="M${SANTA_X - 17} 61L${SANTA_X - 13} 58L${SANTA_X - 9} 61Z" fill="#6B4A2B"/>
-${rey(18, '#7B5CFF', PIEL, '#F6B40E')}${rey(40, '#2F9E7B', '#D9A066', '#E5B80B')}${rey(62, '#E5484D', '#7A4B2A', '#B5651D')}
+${rey(46, '#7B5CFF', PIEL, '#F6B40E')}${rey(66, '#2F9E7B', '#D9A066', '#E5B80B')}${rey(86, '#E5484D', '#7A4B2A', '#B5651D')}
 ${persona(SANTA_X, '#E5484D', 11)}
 <rect x="${SANTA_X - 10}" y="66" width="20" height="4" fill="#14171A"/><rect x="${SANTA_X - 2}" y="65.5" width="4" height="5" fill="${SOL}"/>
 <rect x="${SANTA_X - 11}" y="80" width="22" height="4" fill="#fff"/>
