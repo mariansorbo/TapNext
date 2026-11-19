@@ -4244,9 +4244,20 @@ function pantallaDesactivado(orgNombre, { titulo = 'Este llavero está desactiva
 </html>`;
 }
 
-function pantallaNoActivado(codigo, cola = null) {
+function pantallaNoActivado(codigo, cola = null, { activo = false } = {}) {
   const esc = (v) =>
     String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Producto ya activado (tiene dueño) pero sin destino cargado: el dueño entra
+  // a su panel desde acá para elegir a dónde lleva el tap.
+  const titulo = activo
+    ? 'Este producto todav&iacute;a no tiene un destino.'
+    : 'Este producto todav&iacute;a no est&aacute; activado.';
+  const texto = activo
+    ? 'El chip funciona y ya tiene due&ntilde;o, pero todav&iacute;a no se carg&oacute; a d&oacute;nde lleva. Su due&ntilde;o lo configura desde su panel.'
+    : 'El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.';
+  const panelLink = activo
+    ? `<a class="panel" href="${esc(FRONTEND_URL)}/mi-panel.html">Acceder a mi panel</a>`
+    : '';
   const codigoHtml = esc(codigo);
   const codigoLinea = codigoHtml
     ? `<p class="codigo">C&oacute;digo del chip: <b>${codigoHtml}</b></p>`
@@ -4281,6 +4292,7 @@ function pantallaNoActivado(codigo, cola = null) {
   p.codigo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem;color:rgba(237,239,233,.5)}
   p.codigo b{color:var(--paper);letter-spacing:.06em}
   a.link{color:rgba(237,239,233,.5);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;letter-spacing:.03em;text-decoration:none;margin-top:6px}
+  a.panel{position:absolute;top:max(16px,env(safe-area-inset-top));right:16px;color:var(--paper);background:rgba(123,92,255,.22);border:1px solid rgba(123,92,255,.55);border-radius:999px;padding:8px 14px;font-size:.85rem;font-weight:600;text-decoration:none}
   .cola{border:1px solid rgba(123,92,255,.4);background:rgba(123,92,255,.1);border-radius:14px;padding:16px 24px;display:flex;flex-direction:column;gap:4px;align-items:center}
   .cola-pos{font-size:clamp(1.8rem,9vw,2.6rem);font-weight:700;letter-spacing:-.02em;color:var(--paper)}
   .cola-de{font-size:.5em;font-weight:500;color:rgba(237,239,233,.55)}
@@ -4289,9 +4301,10 @@ function pantallaNoActivado(codigo, cola = null) {
 </style>
 </head>
 <body>
+  ${panelLink}
   <div class="mark">Next<span class="tap">Tap</span></div>
-  <h1>Este producto todav&iacute;a no est&aacute; activado.</h1>
-  <p>El chip funciona, pero todav&iacute;a no lleva a ning&uacute;n lado. Se activa cuando lo compr&aacute;s. Si ya te lo entregaron y sigue as&iacute;, avisale a quien te lo vendi&oacute;.</p>
+  <h1>${titulo}</h1>
+  <p>${texto}</p>
   ${colaBloque}
   ${codigoLinea}
   <a class="link" href="https://next-tap.tech">next-tap.tech</a>
@@ -4314,14 +4327,14 @@ function pantallaAlias(datos = {}) {
   const cuit = datos.cuit ? String(datos.cuit) : '';
   const cuitLindo = /^\d{11}$/.test(cuit) ? `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}` : cuit;
 
-  const filaSec = (label, mostrar, copiar) =>
-    copiar
-      ? `<button type="button" class="sec" data-copy="${esc(copiar)}">
-           <span class="sec-l">${esc(label)}</span>
-           <span class="sec-v">${esc(mostrar)}</span>
-           <span class="sec-i">copiar</span>
-         </button>`
-      : '';
+  const icoCopiar =
+    '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+  const fila = (label, mostrar, copiar, principal) => {
+    const cuerpo = `<span class="fila-t"><span class="lb">${esc(label)}</span><span class="val${principal ? ' alias' : ''}"${principal ? ' id="alias"' : ''}>${esc(mostrar)}</span></span>`;
+    return copiar
+      ? `<button type="button" class="fila${principal ? ' prin' : ''}" data-copy="${esc(copiar)}" aria-label="Copiar ${esc(label)}">${cuerpo}<span class="ico">${icoCopiar}</span></button>`
+      : `<div class="fila">${cuerpo}</div>`;
+  };
 
   return `<!doctype html>
 <html lang="es">
@@ -4331,51 +4344,54 @@ function pantallaAlias(datos = {}) {
 <meta name="robots" content="noindex,nofollow">
 <title>NextTap — datos de transferencia</title>
 <style>
-  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF}
+  :root{--ink:#14171A;--paper:#EDEFE9;--violet:#7B5CFF;--line:#3a3f45;--mut:#9a9d9a}
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{min-height:100%}
   body{background:var(--ink);color:var(--paper);
     font-family:'Space Grotesk',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:14px;min-height:100svh;padding:34px 22px;text-align:center;-webkit-font-smoothing:antialiased}
-  .mark{display:flex;align-items:baseline;gap:.1em;font-weight:700;font-size:clamp(1.9rem,10vw,2.8rem);letter-spacing:-.03em;margin-bottom:10px}
-  .mark .tap{background:var(--violet);color:var(--ink);padding:.06em .26em .12em;border-radius:.16em}
-  .k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(237,239,233,.45)}
-  h1{font-size:clamp(1.3rem,6vw,1.7rem);font-weight:600;letter-spacing:-.02em;max-width:20ch}
-  .banco{color:rgba(237,239,233,.6);font-size:.95rem}
-  .alias{margin-top:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:clamp(1.3rem,7vw,1.9rem);
-    letter-spacing:.02em;word-break:break-all;user-select:all;-webkit-user-select:all;
-    background:rgba(237,239,233,.06);border:1px solid rgba(237,239,233,.14);border-radius:12px;padding:14px 16px;width:min(420px,100%)}
-  .copy{margin-top:4px;width:min(420px,100%);background:var(--paper);color:var(--ink);border:0;
-    font-family:inherit;font-weight:600;font-size:1.02rem;padding:14px 20px;border-radius:999px;cursor:pointer}
-  .copy.done{background:var(--violet);color:var(--ink)}
-  .secs{width:min(420px,100%);display:flex;flex-direction:column;gap:8px;margin-top:6px}
-  .sec{display:flex;align-items:center;gap:10px;background:transparent;color:inherit;
-    border:1px solid rgba(237,239,233,.14);border-radius:12px;padding:11px 14px;cursor:pointer;font-family:inherit;text-align:left}
-  .sec-l{font-size:.72rem;letter-spacing:.04em;color:rgba(237,239,233,.5);white-space:nowrap}
-  .sec-v{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9rem;word-break:break-all}
-  .sec-i{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--violet);white-space:nowrap}
-  .hint{color:rgba(237,239,233,.5);max-width:30ch;line-height:1.5;font-size:.9rem;margin-top:6px}
-  a.link{color:rgba(237,239,233,.45);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;letter-spacing:.03em;text-decoration:none;margin-top:4px}
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    min-height:100svh;padding:max(28px,env(safe-area-inset-top)) 18px 40px;-webkit-font-smoothing:antialiased}
+  .mark{display:inline-flex;align-items:center;gap:.1em;font-weight:700;font-size:clamp(2.6rem,14vw,3.3rem);line-height:1;letter-spacing:-.03em}
+  .mark .tap{background:var(--violet);color:var(--ink);padding:.07em .24em .1em;border-radius:.18em;line-height:1}
+  h1{width:min(420px,100%);margin-top:24px;padding-bottom:12px;border-bottom:1px dashed var(--line);
+    font-size:clamp(1.4rem,6.5vw,1.6rem);font-weight:600;letter-spacing:-.02em;text-align:left}
+  .ficha{width:min(420px,100%)}
+  .fila{display:flex;align-items:center;gap:12px;width:100%;padding:13px 0;border:0;border-bottom:1px dashed var(--line);
+    background:transparent;color:inherit;font-family:inherit;text-align:left}
+  button.fila{cursor:pointer}
+  .fila-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .lb{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+  .val{font-size:1.4rem;line-height:1.2;word-break:break-word}
+  button.fila .val{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.1rem;word-break:break-all}
+  button.fila .val.alias{font-size:clamp(1.5rem,8vw,1.9rem);user-select:all;-webkit-user-select:all}
+  .prin .lb{color:#9d86ff}
+  .ico{flex:none;width:48px;height:48px;border-radius:12px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+  .prin .ico{background:var(--violet);border-color:var(--violet);color:var(--ink)}
+  .fila.done .ico{background:var(--paper);border-color:var(--paper);color:var(--ink)}
+  .guia{width:min(420px,100%);margin-top:20px;background:#1f2328;border:1px solid var(--line);border-radius:16px;padding:16px;text-align:left}
+  .guia p{font-size:1.05rem;line-height:1.45;color:rgba(237,239,233,.85)}
+  .guia b{font-weight:600;color:var(--paper)}
+  a.link{margin-top:22px;color:rgba(237,239,233,.45);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;letter-spacing:.03em;text-decoration:none}
   .toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);
     bottom:calc(env(safe-area-inset-bottom) + 24px);background:var(--paper);color:var(--ink);
-    font-weight:600;font-size:.9rem;padding:10px 20px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+    font-weight:600;font-size:1rem;padding:11px 22px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
   @media (prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
 </head>
 <body>
   <div class="mark">Next<span class="tap">Tap</span></div>
-  <p class="k">Datos de transferencia</p>
-  ${titular ? `<h1>${esc(titular)}</h1>` : ''}
-  ${banco ? `<p class="banco">${esc(banco)}</p>` : ''}
-  <div class="alias" id="alias">${esc(alias)}</div>
-  <button type="button" class="copy" id="copy" data-copy="${esc(alias)}">Copiar alias</button>
-  <div class="secs">
-    ${filaSec('CBU / CVU', cbu, cbu)}
-    ${filaSec('CUIT / CUIL', cuitLindo, cuit)}
+  <h1>Datos de transferencia</h1>
+  <div class="ficha">
+    ${titular ? fila('Titular', titular) : ''}
+    ${banco ? fila('Banco', banco) : ''}
+    ${fila('Alias', alias, alias, true)}
+    ${cbu ? fila('CBU / CVU', cbu, cbu) : ''}
+    ${cuit ? fila('CUIT / CUIL', cuitLindo, cuit) : ''}
   </div>
-  <p class="hint">Pegalo en tu app del banco para hacer la transferencia.</p>
+  <section class="guia">
+    <p>Copiá el alias, abrí la app de tu banco, entrá a Transferir y pegalo. Antes de confirmar, revisá que aparezca ${titular ? `el nombre <b>${esc(titular)}</b>` : 'el nombre del titular'}.</p>
+  </section>
   <a class="link" href="https://next-tap.tech">next-tap.tech</a>
   <div class="toast" id="toast">Copiado</div>
   <script>
@@ -4412,10 +4428,8 @@ function pantallaAlias(datos = {}) {
         copiar(text, function(ok){
           if(ok){
             flash('Copiado');
-            if(btn.id==='copy'){
-              var prev=btn.textContent; btn.textContent='¡Copiado!'; btn.classList.add('done');
-              setTimeout(function(){ btn.textContent=prev; btn.classList.remove('done'); },1600);
-            }
+            btn.classList.add('done');
+            setTimeout(function(){ btn.classList.remove('done'); },1600);
           }else{
             flash('Copialo a mano');
             try{
@@ -4573,7 +4587,13 @@ app.get('/v/:codigo', routerThrottle, async (req, res) => {
     stickerId: sticker ? sticker.id : null,
     resultado: !sticker ? 'desconocido' : sticker.estado === 'activo' ? 'sin_destino' : 'no_activado',
   });
-  return res.type('html').send(pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola));
+  return res
+    .type('html')
+    .send(
+      pantallaNoActivado(sticker ? sticker.codigo_publico : req.params.codigo, cola, {
+        activo: Boolean(sticker && sticker.estado === 'activo'),
+      })
+    );
 });
 
 // --- Activación del lote especial: verificás tu email → pagás → editás ---

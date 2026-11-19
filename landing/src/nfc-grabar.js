@@ -26,6 +26,32 @@ const WRITE_TIMEOUT_MS = 6000;
 // el UID como hex plano en minúscula (ver generateUidNfc en server/index.js).
 const normalizeUid = (serial) => String(serial || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
 
+// Detección del tipo de chip. Web NFC NO expone el GET_VERSION de NXP, así que
+// "NTAG213" no se puede leer directo: se estima por capacidad. La NTAG213
+// guarda 144 bytes de usuario (215: 504, 216: 888). Se intenta escribir un
+// registro de PRUEBA_BYTES; si entra, el chip es más grande que una 213.
+// Es una estimación: no distingue una 213 de un chip más chico (NTAG203,
+// Ultralight) ni de uno bloqueado.
+const PRUEBA_BYTES = 200;
+const PROBE_TIMEOUT_MS = 4000;
+
+// → 'cabe' (≥ 215/216), 'no-cabe' (compatible con 213) o 'sin-chip' (se fue el chip).
+async function probarCapacidad(ndef) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
+  try {
+    await ndef.write(
+      { records: [{ recordType: 'mime', mediaType: 'application/octet-stream', data: new Uint8Array(PRUEBA_BYTES) }] },
+      { overwrite: true, signal: ac.signal },
+    );
+    return 'cabe';
+  } catch (err) {
+    return err && err.name === 'AbortError' ? 'sin-chip' : 'no-cabe';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function initNfcGrabar({ api, getVendedores, onSaved }) {
   const overlay = document.getElementById('grabar-modal-overlay');
   if (!overlay) return;
@@ -54,6 +80,9 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   const nextBtn = $('grabar-next');
   const skipBtn = $('grabar-skip');
   const finishBtn = $('grabar-finish');
+
+  const alertaOverlay = $('grabar-alerta-overlay');
+  const alertaMsg = $('grabar-alerta-msg');
 
   funcionSel.innerHTML = '<option value="">Sin asignar</option>' +
     Object.entries(FUNCION_OPTS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
@@ -86,7 +115,10 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     overlay.classList.remove('is-open');
     document.body.classList.remove('modal-open');
   }
+  let uidEnAlerta = null;
+  function cerrarAlerta() { alertaOverlay.classList.remove('is-open'); }
   function stopScan() {
+    cerrarAlerta();
     if (scanAbort) { try { scanAbort.abort(); } catch {} }
     scanAbort = null;
     ndef = null;
@@ -154,7 +186,7 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   // operación en vuelo (registrando/grabando) — así el usuario nunca queda
   // trabado. "Siguiente chip" solo se habilita con un chip terminado.
   function syncNav() {
-    const busy = phase === 'registrando' || phase === 'grabando';
+    const busy = phase === 'verificando' || phase === 'registrando' || phase === 'grabando';
     skipBtn.disabled = busy;
     nextBtn.disabled = phase !== 'hecho';
   }
@@ -292,6 +324,32 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
     if (uid === lastUidRead) return;     // mismo tap repetido
     lastUidRead = uid;
 
+    // Antes de registrar, estimamos el tipo de chip: si no parece NTAG213,
+    // avisamos y dejamos elegir entre registrarlo igual o saltearlo.
+    phase = 'verificando';
+    syncNav();
+    setStatus('Verificando el tipo de chip…');
+    const prueba = await probarCapacidad(ndef);
+    if (prueba === 'sin-chip') {
+      phase = 'esperando';
+      lastUidRead = null;
+      syncNav();
+      setStatus('No detecté el chip a tiempo. Acercalo bien al centro del dorso.', 'error');
+      return;
+    }
+    if (prueba === 'cabe') {
+      phase = 'alerta';
+      syncNav();
+      setStatus('Chip no NTAG213 — elegí cómo seguir.', 'error');
+      uidEnAlerta = uid;
+      alertaMsg.textContent =`La capacidad del chip supera a la de una NTAG213 (144 bytes): parece una NTAG215/216. UID ${uid}. Le dejé un mensaje de prueba que se pisa si lo registrás.`;
+      alertaOverlay.classList.add('is-open');
+      return;
+    }
+    await registrarChip(uid);
+  }
+
+  async function registrarChip(uid) {
     phase = 'registrando';
     syncNav();
     setStatus('Registrando el chip…');
@@ -413,6 +471,20 @@ export function initNfcGrabar({ api, getVendedores, onSaved }) {
   });
 
   finishBtn.addEventListener('click', close);
+
+  // Modal de "no es NTAG213": registrar igual o saltear el chip.
+  $('grabar-alerta-seguir').addEventListener('click', () => {
+    const uid = uidEnAlerta;
+    cerrarAlerta();
+    uidEnAlerta = null;
+    if (phase === 'alerta' && uid) registrarChip(uid);
+  });
+  $('grabar-alerta-saltear').addEventListener('click', () => {
+    cerrarAlerta();
+    uidEnAlerta = null;
+    setStatus('Chip salteado (no es NTAG213).');
+    armForNextChip();
+  });
 
   $('grabar-modal-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
