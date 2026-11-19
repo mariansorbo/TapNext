@@ -66,10 +66,6 @@
       <div class="empresas-cta">
         <a href="https://wa.me/541171082780?text=Hola%2C%20quiero%20NextTap%20para%20mi%20empresa" target="_blank" rel="noopener" class="btn-primary">Hablemos por WhatsApp</a>
         <a href="#contacto" class="btn-ghost">o escribinos por mail</a>
-        <div class="emp-compra-propia">
-          <span>¿Lo querés para vos y no para una empresa?</span>
-          <a href="/pedido.html?iniciar=1" class="btn-quiero">Compra el tuyo</a>
-        </div>
       </div>
     </div>
   </div>
@@ -107,22 +103,30 @@
 </section>
 
 <!-- 3. Por qué funciona -->
-<section>
+<section class="emp-seccion-carrusel">
   <div class="wrap">
     <!-- Carrusel: rota solo (src/empresas.js) y se puede deslizar a mano. -->
     <div class="emp-carrusel" data-carrusel>
+      <!-- Video de fondo continuo: no cambia con las slides, solo los textos. -->
+      <video class="emp-carrusel-fondo" src="/videos/empresas-fondo.mp4" autoplay muted loop playsinline preload="metadata" aria-hidden="true" tabindex="-1"></video>
       <div class="emp-carrusel-pista">
         <article class="emp-carrusel-item">
+          <div class="emp-carrusel-texto">
           <h3>Soy de acá.</h3>
           <p>Cuando alguien de tu equipo pasa su contacto con tu marca adelante, no solo comparte un número: está diciendo “mirá, soy parte de esto”. La gente se presenta orgullosa de dónde trabaja.</p>
+          </div>
         </article>
         <article class="emp-carrusel-item">
+          <div class="emp-carrusel-texto">
           <h3>Al principio de cada relación.</h3>
           <p>La publicidad compite por atención. Este segundo no: ocurre justo cuando alguien quiere conocer a tu colaborador. Tu marca no interrumpe nada, abre la conversación.</p>
+          </div>
         </article>
         <article class="emp-carrusel-item">
+          <div class="emp-carrusel-texto">
           <h3>El regalo que no termina en un cajón.</h3>
           <p>La taza, la lapicera y la gorra con logo terminan guardadas. NextTap es un llavero lindo, sin logos estampados, que tu gente lleva de verdad en sus llaves. La marca no está en el objeto: aparece en el tap.</p>
+          </div>
         </article>
       </div>
       <div class="emp-carrusel-puntos" role="tablist" aria-label="Elegí un argumento"></div>
