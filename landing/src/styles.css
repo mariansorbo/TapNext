@@ -234,7 +234,8 @@ body.has-video-bg{background:var(--ink);}
 }
 .bg-video-desktop{display:none;}
 /* Celular: el video arranca más abajo; la franja de arriba queda con el mismo gris del fondo del video (.bg-video-fill). */
-.bg-video-mobile{--video-bajada:110px; top:var(--video-bajada); height:calc(100% - var(--video-bajada));}
+.bg-video-mobile{--video-bajada:160px; top:var(--video-bajada); height:calc(100% - var(--video-bajada));}
+.bg-video-mobile.sin-franja{top:0; height:100%;}
 @media (min-width:1024px){
   .bg-video-mobile{display:none;}
   .bg-video-desktop{display:block;}

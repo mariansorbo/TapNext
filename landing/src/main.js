@@ -174,6 +174,32 @@ if (bgVideo) {
   applyParallax();
 }
 
+// Celular: el video arranca más abajo (ver .bg-video-mobile en styles.css) y la franja de arriba se
+// pinta del mismo color que el borde superior del video en cada momento, para que no se note el corte.
+const rellenoVideo = document.querySelector('.bg-video-fill');
+if (bgVideo && rellenoVideo) {
+  const lienzo = document.createElement('canvas');
+  lienzo.width = 3; lienzo.height = 1;
+  const ctx = lienzo.getContext('2d', { willReadFrequently: true });
+  const pintar = () => {
+    if (!bgVideo.videoWidth || getComputedStyle(bgVideo).display === 'none') return;
+    try {
+      ctx.drawImage(bgVideo, 0, 0, bgVideo.videoWidth, 4, 0, 0, 3, 1);
+      const d = ctx.getImageData(0, 0, 3, 1).data;
+      const c = (k) => `rgb(${d[k * 4]},${d[k * 4 + 1]},${d[k * 4 + 2]})`;
+      rellenoVideo.style.background = `linear-gradient(90deg, ${c(0)}, ${c(1)}, ${c(2)})`;
+    } catch { /* sin permiso de lectura: queda el gris fijo del CSS */ }
+  };
+  setInterval(pintar, 120);
+
+  // La franja de arriba es solo para la primera escena del video (gris, con los llaveros): en cuanto
+  // cambia la escena (CORTE_ESCENA_1, en segundos) el video vuelve a ocupar todo el alto, y al
+  // reiniciarse el loop vuelve a bajar. Se revisa cada 30 ms para que coincida con el corte.
+  const CORTE_ESCENA_1 = 3.02;
+  const ajustarFranja = (t) => bgVideo.classList.toggle('sin-franja', t >= CORTE_ESCENA_1);
+  setInterval(() => ajustarFranja(bgVideo.currentTime), 30);
+}
+
 // "Un toque, y ya está": playlist de 4 clips con crossfade suave entre uno y
 // el siguiente (dos <video> superpuestos, el que entra se precarga mientras
 // el actual todavía está en pantalla).
