@@ -604,6 +604,7 @@ h2{
    texto grande abajo a la izquierda. Cada slide deja lugar para un video de
    fondo en loop (.emp-carrusel-fondo, va detrás del texto con un degradé que
    lo oscurece para que se lea). */
+@media (max-width:899px){.pagina-empresas section.emp-seccion-como-se-ve{display:none;}}
 .pagina-empresas section.emp-seccion-carrusel{padding-top:0; padding-bottom:0;}
 .emp-carrusel{position:relative; width:100vw; margin-left:calc(50% - 50vw); overflow:hidden; isolation:isolate; background:var(--ink);}
 .emp-carrusel-pista{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
@@ -616,7 +617,7 @@ h2{
 .emp-carrusel-item::before{content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
   background:linear-gradient(180deg, rgba(20,23,26,.25) 0%, rgba(20,23,26,.88) 100%);}
 .emp-carrusel-fondo{position:absolute; inset:0; z-index:-1; width:100%; height:100%; object-fit:cover; pointer-events:none;}
-.emp-carrusel-texto{align-self:flex-start; max-width:min(100%,640px); opacity:.8;}
+.emp-carrusel-texto{align-self:flex-start; max-width:min(100%,640px); opacity:.65;}
 .emp-carrusel-item h3{font-family:var(--display); font-weight:700; font-size:clamp(2.4rem,9vw,4.6rem);
   letter-spacing:-0.035em; line-height:1.02; margin-bottom:18px; max-width:14ch;}
 .emp-carrusel-item p{color:var(--paper); font-size:clamp(.95rem,2vw,1.15rem); line-height:1.5; max-width:46ch;}
@@ -1944,3 +1945,12 @@ details[open] .add-icon{transform:rotate(45deg);}
 .rota-grupo[data-activo="false"] .rota-extra > :nth-child(3){transition-delay:.12s;}
 @keyframes rota-extra-entra{from{opacity:0; transform:translateX(-70px);}}
 @media (prefers-reduced-motion: reduce){ .rota-extra > *, .rota-grupo[data-activo="true"] .rota-extra > *{animation:none; transition:none;} }
+
+/* Editor de la función "links" (lista de botones) en Mi panel */
+.links-lista{display:flex; flex-direction:column; gap:10px;}
+.links-fila{display:flex; flex-direction:column; gap:6px; padding:10px; border:1px dashed var(--line); border-radius:10px;}
+.links-fila input{font:inherit; color:var(--paper); background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:0.9rem; width:100%;}
+.links-fila input:focus{outline:none; border-color:var(--violet);}
+.links-acciones{display:flex; gap:6px; justify-content:flex-end;}
+.links-acciones .btn-ghost{padding:4px 12px; min-width:40px;}
+.links-agrega[hidden]{display:none;}
