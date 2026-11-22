@@ -133,6 +133,36 @@ test('links: agrega https:// , valida el dominio y tolera typos', () => {
   err('web', '');
 });
 
+// --- Reseñas de Google ---------------------------------------------------
+
+test('reseña: acepta g.page/r/CODIGO y lo deja en /review', () => {
+  ok('review', 'g.page/r/CAbc123/review', 'https://g.page/r/CAbc123/review');
+  ok('review', 'https://g.page/r/CAbc123', 'https://g.page/r/CAbc123/review');
+  ok('review', 'https://www.g.page/r/CAbc123/review/', 'https://g.page/r/CAbc123/review');
+});
+
+test('reseña: acepta writereview con placeid y descarta el resto del query', () => {
+  ok(
+    'review',
+    'https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es',
+    'https://search.google.com/local/writereview?placeid=ChIJ_abc-123'
+  );
+});
+
+test('reseña: un link de ficha de Maps es error con indicación', () => {
+  errMatch('review', 'https://maps.app.goo.gl/XyZ123', /ficha/);
+  errMatch('review', 'https://www.google.com/maps/place/Tu+Local', /ficha/);
+  errMatch('review', 'maps.google.com/?cid=123', /ficha/);
+});
+
+test('reseña: otros links y vacíos son error', () => {
+  err('review', 'tunegocio.com');
+  err('review', 'https://g.page/tunegocio');
+  err('review', 'https://search.google.com/local/writereview');
+  err('review', '');
+  err('review', 'https://evil.com/g.page/r/x/review');
+});
+
 // --- resolver ---------------------------------------------------------
 
 test('resolverDestino: whatsapp -> modo app (intent Android + fallback web)', () => {
