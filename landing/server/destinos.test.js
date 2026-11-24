@@ -165,6 +165,33 @@ test("reseña: acepta cualquier link válido, sin rechazar por dominio ni format
   ok("review", "https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es", "https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es");
 });
 
+test("reseña: extrae el link de un texto pegado (Compartir de Maps, mensajes, envoltorios)", () => {
+  // Compartir desde la app de Maps: nombre + dirección + link
+  ok("review", "Café Ejemplo\nAv. Corrientes 1234, CABA\nhttps://maps.app.goo.gl/AbC123", "https://maps.app.goo.gl/AbC123");
+  ok("review", "Café Ejemplo Av. Corrientes 1234, CABA https://maps.app.goo.gl/AbC123", "https://maps.app.goo.gl/AbC123");
+  // mensaje con texto y punto final
+  ok("review", "Dejanos tu reseña: https://g.page/r/CAbc123/review.", "https://g.page/r/CAbc123/review");
+  ok("review", "(https://g.page/r/CAbc123/review)", "https://g.page/r/CAbc123/review");
+  ok("review", "<https://g.page/minegocio/review?gm>", "https://g.page/minegocio/review?gm");
+  // copiado de HTML y con invisibles / espacio duro
+  ok("review", "https://search.google.com/local/writereview?placeid=ChIJabc&amp;hl=es", "https://search.google.com/local/writereview?placeid=ChIJabc&hl=es");
+  ok("review", "​https://g.page/r/CAbc123/review ", "https://g.page/r/CAbc123/review");
+  // sin esquema, dentro de una frase
+  ok("review", "mi link es g.page/r/CAbc123", "https://g.page/r/CAbc123/review");
+  // varios links: gana el de Google/Maps
+  ok("review", "Web https://tunegocio.com y reseñas https://g.page/r/CAbc123/review", "https://g.page/r/CAbc123/review");
+  // link largo de Maps con coordenadas, tildes codificadas y "!" internos
+  const largo = "https://www.google.com/maps/place/Caf%C3%A9+Ejemplo/@-34.6037,-58.3816,17z/data=!3m1!4b1!4m6!3m5!1s0x95bcca:0x1f!8m2!3d-34.6!4d-58.38!16s%2Fg%2F11abc?entry=ttu";
+  ok("review", largo, largo);
+  ok("review", "Café Ejemplo " + largo, largo);
+});
+
+test("reseña: texto suelto o mails no se toman por link", () => {
+  err("review", "Av.Corrientes 1234 CABA");
+  err("review", "escribime a info@tunegocio.com");
+  err("review", "Café Ejemplo");
+});
+
 test("reseña: solo falla lo que no es un link", () => {
   err("review", "");
   err("review", "no-es-un-dominio");
