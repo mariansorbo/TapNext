@@ -133,34 +133,43 @@ test('links: agrega https:// , valida el dominio y tolera typos', () => {
   err('web', '');
 });
 
-// --- Reseñas de Google ---------------------------------------------------
+// --- Reseñas ---------------------------------------------------------------
 
-test('reseña: acepta g.page/r/CODIGO y lo deja en /review', () => {
-  ok('review', 'g.page/r/CAbc123/review', 'https://g.page/r/CAbc123/review');
-  ok('review', 'https://g.page/r/CAbc123', 'https://g.page/r/CAbc123/review');
-  ok('review', 'https://www.g.page/r/CAbc123/review/', 'https://g.page/r/CAbc123/review');
+test("reseña: g.page/r/CODIGO se deja en /review", () => {
+  ok("review", "g.page/r/CAbc123/review", "https://g.page/r/CAbc123/review");
+  ok("review", "https://g.page/r/CAbc123", "https://g.page/r/CAbc123/review");
+  ok("review", "https://www.g.page/r/CAbc123/review/", "https://g.page/r/CAbc123/review");
 });
 
-test('reseña: acepta writereview con placeid y descarta el resto del query', () => {
-  ok(
-    'review',
-    'https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es',
-    'https://search.google.com/local/writereview?placeid=ChIJ_abc-123'
-  );
+test("reseña: acepta cualquier link válido, sin rechazar por dominio ni formato", () => {
+  const links = [
+    "https://g.page/minegocio/review?gm", // formato viejo con nombre propio
+    "https://g.page/r/CAbc-_123/review?utm=x",
+    "https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es",
+    "https://g.co/kgs/AbC123",
+    "https://share.google/AbC123",
+    "https://goo.gl/maps/AbC123",
+    "https://maps.app.goo.gl/XyZ123",
+    "https://www.google.com/maps/place/Tu+Local/@-34.6,-58.4,17z",
+    "https://www.google.com/search?q=mi+local#lrd=0x95bcca:0x1f,3",
+    "https://www.tripadvisor.com.ar/UserReviewEdit-g1-d2-Local.html",
+    "https://www.facebook.com/minegocio/reviews",
+    "tunegocio.com/resenas",
+  ];
+  for (const l of links) {
+    const r = normalizarDestino("review", l);
+    assert.ok(r.valor && !r.error, "review: " + l + " debería aceptarse, fue " + JSON.stringify(r));
+  }
+  // el link del formato viejo se guarda tal cual, sin tocarlo
+  ok("review", "https://g.page/minegocio/review?gm", "https://g.page/minegocio/review?gm");
+  ok("review", "https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es", "https://search.google.com/local/writereview?placeid=ChIJ_abc-123&hl=es");
 });
 
-test('reseña: un link de ficha de Maps es error con indicación', () => {
-  errMatch('review', 'https://maps.app.goo.gl/XyZ123', /ficha/);
-  errMatch('review', 'https://www.google.com/maps/place/Tu+Local', /ficha/);
-  errMatch('review', 'maps.google.com/?cid=123', /ficha/);
-});
-
-test('reseña: otros links y vacíos son error', () => {
-  err('review', 'tunegocio.com');
-  err('review', 'https://g.page/tunegocio');
-  err('review', 'https://search.google.com/local/writereview');
-  err('review', '');
-  err('review', 'https://evil.com/g.page/r/x/review');
+test("reseña: solo falla lo que no es un link", () => {
+  err("review", "");
+  err("review", "no-es-un-dominio");
+  err("review", "@minegocio");
+  err("review", "11 5555 4444");
 });
 
 // --- resolver ---------------------------------------------------------
@@ -316,4 +325,21 @@ test('custom: resolver devuelve landing con los datos', () => {
   assert.equal(r.funcion, 'custom');
   assert.equal(r.datos.instagram, 'https://instagram.com/juan');
   assert.equal(r.datos.whatsapp, null);
+});
+
+// --- wifi ---
+test('wifi: normaliza SSID y contraseña sin tocar la puntuación', () => {
+  const r = normalizarDestino('wifi', JSON.stringify({ ssid: 'Bar "Pepe".', password: 'clave;123,ok.' }));
+  assert.deepEqual(JSON.parse(r.valor), { ssid: 'Bar "Pepe".', password: 'clave;123,ok.' });
+});
+test('wifi: red abierta (sin contraseña) y errores', () => {
+  assert.ok(normalizarDestino('wifi', JSON.stringify({ ssid: 'Libre', password: '' })).valor);
+  assert.ok(normalizarDestino('wifi', JSON.stringify({ ssid: '', password: '12345678' })).error);
+  assert.ok(normalizarDestino('wifi', JSON.stringify({ ssid: 'X', password: '123' })).error);
+  assert.ok(normalizarDestino('wifi', JSON.stringify({ ssid: 'x'.repeat(33) })).error);
+});
+test('wifi: resolver es landing', () => {
+  const r = resolverDestino('wifi', JSON.stringify({ ssid: 'A', password: '12345678' }));
+  assert.equal(r.modo, 'landing');
+  assert.equal(r.funcion, 'wifi');
 });
