@@ -9,7 +9,8 @@
 
 import { createHash } from 'node:crypto';
 
-export const ACUERDO_TEXTO_VERSION = 1;
+// v2: cláusula 11 (confidencialidad, no copia y exclusividad).
+export const ACUERDO_TEXTO_VERSION = 2;
 
 // Valores por defecto — todo lo que el admin puede cambiar por comercio.
 // Los valores de reposición no tienen default a propósito (no hay dato): el
@@ -31,11 +32,15 @@ export const PARAMS_DEFAULT = {
   valorReposicionStand: null,
   valorReposicionMuestra: null,
   jurisdiccion: 'CABA',
+  confidencialidadMeses: 24,
+  noCompetenciaMeses: 12,
+  penalidad: null, // monto fijo opcional; sin dato no se menciona
+  exclusividadVenta: true,
 };
 
 const NUM = ['precioRendicion', 'precioSugeridoDesde', 'precioSugeridoHasta', 'plazoDias', 'unidIg', 'unidWpp',
   'muestras', 'anticipo', 'tasaMoraMensual', 'diasReclamoFabrica', 'preavisoDias', 'valorReposicionStand',
-  'valorReposicionMuestra'];
+  'valorReposicionMuestra', 'confidencialidadMeses', 'noCompetenciaMeses', 'penalidad'];
 
 // Mezcla lo que mandó el admin con los defaults y valida. Devuelve { params } o { error }.
 export function normalizarParams(entrada = {}) {
@@ -51,6 +56,8 @@ export function normalizarParams(entrada = {}) {
     p[k] = n;
   }
   p.anticipoReembolsable = p.anticipoReembolsable === true || p.anticipoReembolsable === 'true' || p.anticipoReembolsable === 1;
+  p.exclusividadVenta = !(p.exclusividadVenta === false || p.exclusividadVenta === 'false' || p.exclusividadVenta === 0);
+  if (p.penalidad === 0) p.penalidad = null;
   p.muestrasDetalle = String(p.muestrasDetalle || '').trim().slice(0, 300);
   p.jurisdiccion = String(p.jurisdiccion || '').trim().slice(0, 80) || PARAMS_DEFAULT.jurisdiccion;
   if (!(p.precioRendicion > 0)) return { error: 'El precio de rendición tiene que ser mayor a 0.' };
@@ -90,6 +97,7 @@ export function armarContrato(params, comercio = {}) {
     `Pagás un anticipo de ${pesos(p.anticipo)} ahora; se descuenta de lo que debas al rendir.`,
     `Tenés ${p.plazoDias} días desde la entrega para rendir: pagás lo vendido y devolvés lo no vendido y el kit.`,
     `Los llaveros que no devuelvas, devuelvas activados o devuelvas dañados se pagan como vendidos (${pesos(p.precioRendicion)} c/u).`,
+    `NextTap es un desarrollo propio: no podés copiarlo ni desarrollar o participar en un producto equivalente durante el acuerdo y ${p.noCompetenciaMeses} meses después (cláusula 11).`,
   ];
 
   const clausulas = [
@@ -99,7 +107,7 @@ export function armarContrato(params, comercio = {}) {
     },
     {
       titulo: '2. Objeto',
-      texto: `NextTap entrega al Comercio, según el Anexo, un lote de llaveros NFC en consignación y un kit exhibidor en comodato. El Comercio actúa por cuenta propia e independiente: no hay relación laboral, sociedad ni exclusividad entre las partes.`,
+      texto: `NextTap entrega al Comercio, según el Anexo, un lote de llaveros NFC en consignación y un kit exhibidor en comodato. El Comercio actúa por cuenta propia e independiente: no hay relación laboral ni sociedad entre las partes. La exclusividad se rige por la cláusula 11.`,
     },
     {
       titulo: '3. Anticipo a cuenta',
@@ -142,11 +150,23 @@ export function armarContrato(params, comercio = {}) {
       texto: `El Comercio consiente que NextTap trate sus datos solo para gestionar este acuerdo, según la política de privacidad vigente (Ley 25.326).`,
     },
     {
-      titulo: '11. Vigencia y terminación',
+      titulo: '11. Confidencialidad, no copia y exclusividad',
+      texto: `a) El Comercio reconoce que el producto NextTap (llaveros NFC cuyo destino se configura desde la plataforma, su diseño, el stand exhibidor, la marca y el software) es un desarrollo propio de NextTap. Por eso se obliga a no desarrollar, fabricar ni hacer fabricar, ni participar en el desarrollo, la fabricación o la comercialización de un producto igual o equivalente (llaveros, tarjetas u objetos con tecnología NFC que abran un destino configurable), por sí o por interpósita persona, ya sea solo, en sociedad o como colaborador de un tercero, durante la vigencia del acuerdo y ${p.noCompetenciaMeses} meses después de su terminación.${
+        p.exclusividadVenta
+          ? ' Durante la vigencia, el Comercio tampoco exhibirá ni venderá productos equivalentes de otras marcas junto con los de NextTap.'
+          : ''
+      } b) El Comercio mantendrá en reserva la información que reciba de NextTap (proveedores, costos, precios de rendición, diseños, funcionamiento de la plataforma y toda información no pública) durante la vigencia y ${p.confidencialidadMeses} meses después. c) El Comercio no copiará ni hará copiar el diseño del stand, de los llaveros o de sus pantallas, ni los desarmará ni analizará para replicarlos. d) El Comercio declara que entiende el alcance de esta cláusula y que la acepta como condición para recibir el kit y los llaveros.${
+        p.penalidad
+          ? ` e) Si incumple esta cláusula, el Comercio abona a NextTap una penalidad de ${pesos(p.penalidad)}, sin perjuicio de reclamar mayores daños y de pedir que cese la conducta.`
+          : ' e) El incumplimiento de esta cláusula obliga al Comercio a indemnizar los daños causados y habilita a NextTap a pedir que cese la conducta.'
+      } Si algún tribunal considerara excesivo el alcance de alguna parte de esta cláusula, se aplica en la medida máxima que ese tribunal admita y el resto sigue vigente.`,
+    },
+    {
+      titulo: '12. Vigencia y terminación',
       texto: `El acuerdo es por tiempo indeterminado. Cualquiera de las partes puede terminarlo con ${p.preavisoDias} días de aviso. Ante un incumplimiento, NextTap puede exigir la devolución inmediata del kit y de los llaveros no vendidos.`,
     },
     {
-      titulo: '12. Jurisdicción',
+      titulo: '13. Jurisdicción',
       texto: `Rige la ley argentina. Las partes intentarán una mediación previa y, de no resolverse, se someten a los tribunales ordinarios de ${p.jurisdiccion}.`,
     },
     {

@@ -25,7 +25,7 @@ test('armarContrato: usa los parámetros y el hash cambia con el texto', () => {
   assert.match(a.texto, /\$8\.000/);
   assert.match(a.texto, /60 días/);
   assert.match(a.texto, /Kiosco Sur/);
-  assert.equal(a.resumen.length, 5);
+  assert.equal(a.resumen.length, 6);
   const b = armarContrato(normalizarParams({ ...base, plazoDias: 45 }).params, { nombre: 'Kiosco Sur' });
   assert.match(b.texto, /45 días/);
   assert.notEqual(a.hash, b.hash);
@@ -44,4 +44,19 @@ test('defaults: coinciden con lo acordado', () => {
   assert.equal(PARAMS_DEFAULT.unidIg, 10);
   assert.equal(PARAMS_DEFAULT.unidWpp, 10);
   assert.equal(PARAMS_DEFAULT.tasaMoraMensual, 2);
+});
+
+test('cláusula 11: exclusividad, plazos y penalidad opcional', () => {
+  const base2 = { valorReposicionStand: 30000, valorReposicionMuestra: 8000 };
+  const a = armarContrato(normalizarParams(base2).params).texto;
+  assert.match(a, /11\. Confidencialidad, no copia y exclusividad/);
+  assert.match(a, /12 meses después/);
+  assert.match(a, /24 meses después/);
+  assert.match(a, /tampoco exhibirá ni venderá productos equivalentes/);
+  assert.match(a, /indemnizar los daños/);
+  assert.doesNotMatch(a, /penalidad de/);
+  const b = armarContrato(normalizarParams({ ...base2, penalidad: 500000, exclusividadVenta: false, noCompetenciaMeses: 6 }).params).texto;
+  assert.match(b, /penalidad de \$500\.000/);
+  assert.match(b, /6 meses después/);
+  assert.doesNotMatch(b, /tampoco exhibirá/);
 });

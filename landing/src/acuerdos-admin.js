@@ -26,6 +26,9 @@ const CAMPOS = [
   ['valorReposicionStand', 'Valor de reposición del stand ($) *', 'number'],
   ['valorReposicionMuestra', 'Valor de reposición por muestra ($) *', 'number'],
   ['jurisdiccion', 'Jurisdicción', 'text'],
+  ['noCompetenciaMeses', 'No desarrollar producto equivalente (meses después)', 'number'],
+  ['confidencialidadMeses', 'Confidencialidad (meses después)', 'number'],
+  ['penalidad', 'Penalidad por copiar o competir ($, opcional)', 'number'],
 ];
 
 async function copiar(texto, btn) {
@@ -53,6 +56,8 @@ export function initAcuerdosAdmin({ api }) {
         <label><span>Mail del comercio (acá llega el código)</span><input id="ac-ad-email" type="email" maxlength="160"></label>
         <label><span>Teléfono (opcional)</span><input id="ac-ad-tel" maxlength="40"></label>
         <label><span>El link vence en (días)</span><input id="ac-ad-dias" type="number" min="1" max="60" value="7"></label>
+        <label><span>No vender equivalentes de otras marcas mientras dure el acuerdo</span>
+          <select id="ac-ad-excl"><option value="true">Sí</option><option value="false">No</option></select></label>
         <label><span>Anticipo reembolsable</span>
           <select id="ac-ad-reemb"><option value="true">Sí — se devuelve el saldo a favor</option><option value="false">No</option></select></label>
         <div id="ac-ad-campos" class="ac-ad-campos"></div>
@@ -88,11 +93,12 @@ export function initAcuerdosAdmin({ api }) {
       return `<label><span>${esc(label)}</span><input data-param="${k}" type="${tipo}" value="${v === null || v === undefined ? '' : esc(v)}" ${tipo === 'number' ? 'min="0" step="any"' : ''}></label>`;
     }).join('');
     $('ac-ad-reemb').value = String(defaults.anticipoReembolsable !== false);
+    $('ac-ad-excl').value = String(defaults.exclusividadVenta !== false);
   }
 
   async function generar() {
     estado('');
-    const params = { anticipoReembolsable: $('ac-ad-reemb').value === 'true' };
+    const params = { anticipoReembolsable: $('ac-ad-reemb').value === 'true', exclusividadVenta: $('ac-ad-excl').value === 'true' };
     for (const input of raiz.querySelectorAll('[data-param]')) params[input.dataset.param] = input.value;
     try {
       const r = await api('/acuerdos', {
