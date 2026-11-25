@@ -50,6 +50,7 @@ import { registrarTap, crearVisitasRouter, registrarAceptacionTyc, esVisitanteId
 import { crearSorteoRouter, crearSorteoAdminRouter } from './sorteo.js';
 import { crearPapAdminRouter, crearAfiliadosPublicoRouter } from './pap-admin.js';
 import { crearContactoEmpresasRouter } from './contacto-empresas.js';
+import { inicializarAcuerdos, crearAcuerdosAdminRouter, crearAcuerdosPublicoRouter } from './acuerdos.js';
 import { crearPrivadoRouter } from './privado.js';
 import {
   crearOrganizacionesRouter,
@@ -189,6 +190,10 @@ app.use('/api', crearContactoEmpresasRouter());
 // Valida el código de agencia de /mail/afiliados.html (ver server/pap-admin.js).
 app.use('/api', crearAfiliadosPublicoRouter());
 
+// Acuerdos con minoristas (link de firma del comercio). Ver server/acuerdos.js.
+await inicializarAcuerdos(db);
+const ACUERDOS_DEPS = { db, enviarCorreo, avisarAdmin, frontendUrl: process.env.FRONTEND_URL || 'https://next-tap.tech' };
+app.use('/api/acuerdos', crearAcuerdosPublicoRouter(ACUERDOS_DEPS));
 // Paneles admin y vendedor: el HTML/JS solo se entrega con sesión (server/privado.js).
 app.use('/privado', crearPrivadoRouter({ get, hashValue, puerto: process.env.PORT || 3001 }));
 
@@ -3270,6 +3275,7 @@ app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
 // comisiones y pagos). Ver server/pap-admin.js.
 app.use('/api/admin', requireAdmin, crearPapAdminRouter());
 app.use(
+app.use('/api/admin', requireAdmin, crearAcuerdosAdminRouter(ACUERDOS_DEPS));
   '/api/admin',
   requireAdmin,
   crearOrganizacionesAdminRouter({

@@ -10,6 +10,7 @@ import { modoCeldaHtml, wireModoButtons, MODO_INFO } from './modo-activacion-ui.
 import { initSorteoAdmin } from './sorteo-admin.js';
 import { initOrganizacionesAdmin } from './organizaciones-admin.js';
 import { initPapAdmin } from './pap-admin.js';
+import { initAcuerdosAdmin } from './acuerdos-admin.js';
 
 applyBrand('Admin');
 
@@ -178,6 +179,7 @@ wireToggle('toggle-pap-primer', 'pap-primer-panel');
 // (src/pap-admin.js, que carga sus datos recién la primera vez que se abre).
 const papAdmin = initPapAdmin({ api });
 const TAB_KEY = 'tap_admin_tab';
+const acuerdosAdmin = initAcuerdosAdmin({ api });
 function abrirSolapa(id) {
   document.querySelectorAll('[data-admin-tab]').forEach((b) => {
     const activa = b.dataset.adminTab === id;
@@ -192,6 +194,7 @@ function abrirSolapa(id) {
   }
   if (id === 'pap-tab') papAdmin.abrir();
 }
+  if (id === 'acuerdos-tab') acuerdosAdmin.abrir();
 document.querySelectorAll('[data-admin-tab]').forEach((b) => b.addEventListener('click', () => abrirSolapa(b.dataset.adminTab)));
 
 // Genérico para abrir/cerrar un .modal-overlay: click en el botón trigger lo

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Acuerdo NextTap — Firma</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <meta name="theme-color" content="#14171A">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="pagina-acuerdo">
+<!-- Página privada: se entra solo por el link único que genera el admin. Sin pixel ni analytics a propósito. -->
+<main class="ac-wrap">
+  <header class="ac-head">
+    <span class="ac-logo">NextTap</span>
+  </header>
+
+  <section id="ac-cargando" class="ac-card"><p>Cargando tu acuerdo…</p></section>
+
+  <section id="ac-error" class="ac-card" hidden>
+    <h1>No pudimos abrir el acuerdo</h1>
+    <p id="ac-error-msg"></p>
+  </section>
+
+  <!-- Paso 1: resumen + verificar mail -->
+  <section id="ac-paso-verificar" class="ac-card" hidden>
+    <p class="ac-kicker">Acuerdo para <b id="ac-comercio"></b></p>
+    <h1>Tu kit y tu lote de llaveros</h1>
+    <ul class="ac-resumen" id="ac-resumen"></ul>
+    <details class="ac-detalle">
+      <summary>Ver el contrato completo</summary>
+      <div id="ac-clausulas"></div>
+    </details>
+    <div class="ac-verificar">
+      <h2>Primero, verificamos tu mail</h2>
+      <p>Te mandamos un código de 6 dígitos a <b id="ac-mail"></b>.</p>
+      <button type="button" class="ac-btn" id="ac-pedir-codigo">Enviarme el código</button>
+      <div id="ac-codigo-caja" hidden>
+        <label>Código<input id="ac-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></label>
+        <button type="button" class="ac-btn" id="ac-verificar">Verificar</button>
+        <button type="button" class="ac-link" id="ac-reenviar">Reenviar código</button>
+      </div>
+      <p class="ac-estado" id="ac-verificar-estado" role="status"></p>
+    </div>
+  </section>
+
+  <!-- Paso 2: datos + firma -->
+  <section id="ac-paso-firmar" class="ac-card" hidden>
+    <p class="ac-kicker">Mail verificado ✓</p>
+    <h1>Tus datos y tu firma</h1>
+    <form id="ac-form" novalidate>
+      <label>Nombre y apellido<input id="ac-nombre" autocomplete="name" required></label>
+      <label>DNI o CUIT<input id="ac-documento" inputmode="numeric" required></label>
+      <label>Nombre del local<input id="ac-local"></label>
+      <label>Domicilio del local<input id="ac-domicilio" autocomplete="street-address" required></label>
+
+      <div class="ac-checks">
+        <label class="ac-check"><input type="checkbox" id="ac-c1"><span>Leí y acepto el acuerdo y el anexo.</span></label>
+        <label class="ac-check"><input type="checkbox" id="ac-c2"><span id="ac-c2-texto"></span></label>
+        <label class="ac-check"><input type="checkbox" id="ac-c3"><span>Acepto firmar electrónicamente y que mi mail verificado es mi domicilio para notificaciones.</span></label>
+      </div>
+
+      <label>Firma: escribí tu nombre y apellido completos<input id="ac-firma" autocomplete="off" required></label>
+      <button type="submit" class="ac-btn" id="ac-firmar" disabled>Firmar acuerdo</button>
+      <p class="ac-estado" id="ac-firmar-estado" role="status"></p>
+    </form>
+    <details class="ac-detalle">
+      <summary>Ver el contrato completo</summary>
+      <div id="ac-clausulas-2"></div>
+    </details>
+  </section>
+
+  <!-- Paso 3: listo -->
+  <section id="ac-paso-listo" class="ac-card" hidden>
+    <p class="ac-kicker">Firmado ✓</p>
+    <h1>Listo, quedó firmado</h1>
+    <p>Te mandamos una copia del acuerdo a tu mail.</p>
+    <p>Próximo paso: el anticipo de <b id="ac-anticipo"></b>. Te escribimos para coordinarlo y para la entrega del kit.</p>
+  </section>
+</main>
+<script type="module" src="/src/acuerdo.js"></script>
+</body>
+</html>
