@@ -3274,8 +3274,8 @@ app.use('/api/admin', requireAdmin, crearSorteoAdminRouter());
 // Solapa "Post Affiliate Pro" del panel (agencias, ventas por transferencia,
 // comisiones y pagos). Ver server/pap-admin.js.
 app.use('/api/admin', requireAdmin, crearPapAdminRouter());
-app.use(
 app.use('/api/admin', requireAdmin, crearAcuerdosAdminRouter(ACUERDOS_DEPS));
+app.use(
   '/api/admin',
   requireAdmin,
   crearOrganizacionesAdminRouter({

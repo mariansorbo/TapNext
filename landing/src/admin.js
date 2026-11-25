@@ -193,8 +193,8 @@ function abrirSolapa(id) {
     /* sin storage: arranca siempre en Panel */
   }
   if (id === 'pap-tab') papAdmin.abrir();
-}
   if (id === 'acuerdos-tab') acuerdosAdmin.abrir();
+}
 document.querySelectorAll('[data-admin-tab]').forEach((b) => b.addEventListener('click', () => abrirSolapa(b.dataset.adminTab)));
 
 // Genérico para abrir/cerrar un .modal-overlay: click en el botón trigger lo
