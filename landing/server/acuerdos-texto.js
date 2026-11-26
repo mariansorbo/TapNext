@@ -10,7 +10,8 @@
 import { createHash } from 'node:crypto';
 
 // v2: cláusula 11 (confidencialidad, no copia y exclusividad).
-export const ACUERDO_TEXTO_VERSION = 2;
+// v3: con penalidad, la cláusula 11 deja asentado el reconocimiento del daño.
+export const ACUERDO_TEXTO_VERSION = 3;
 
 // Valores por defecto — todo lo que el admin puede cambiar por comercio.
 // Los valores de reposición no tienen default a propósito (no hay dato): el
@@ -158,7 +159,7 @@ export function armarContrato(params, comercio = {}) {
           : ''
       } b) El Comercio mantendrá en reserva la información que reciba de NextTap (proveedores, costos, precios de rendición, diseños, funcionamiento de la plataforma y toda información no pública) durante la vigencia y ${p.confidencialidadMeses} meses después. c) El Comercio no copiará ni hará copiar el diseño del stand, de los llaveros o de sus pantallas, ni los desarmará ni analizará para replicarlos. d) El Comercio declara que entiende el alcance de esta cláusula y que la acepta como condición para recibir el kit y los llaveros.${
         p.penalidad
-          ? ` e) Si incumple esta cláusula, el Comercio abona a NextTap una penalidad de ${pesos(p.penalidad)}, sin perjuicio de reclamar mayores daños y de pedir que cese la conducta.`
+          ? ` e) Si incumple esta cláusula, el Comercio abona a NextTap una penalidad de ${pesos(p.penalidad)}, sin perjuicio de reclamar mayores daños y de pedir que cese la conducta. El Comercio reconoce que el perjuicio que le causaría a NextTap la copia o la competencia con su producto (pérdida de mercado, de inversión en desarrollo y de diferenciación) excede ampliamente el valor del lote y del kit entregados, y que esa penalidad es una estimación razonable de ese perjuicio y no una sanción desproporcionada.`
           : ' e) El incumplimiento de esta cláusula obliga al Comercio a indemnizar los daños causados y habilita a NextTap a pedir que cese la conducta.'
       } Si algún tribunal considerara excesivo el alcance de alguna parte de esta cláusula, se aplica en la medida máxima que ese tribunal admita y el resto sigue vigente.`,
     },

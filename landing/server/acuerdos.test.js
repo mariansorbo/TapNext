@@ -83,3 +83,12 @@ test('armarContrato: el domicilio electrónico sigue al canal', () => {
   assert.match(armarContrato(p, { nombre: 'X', canal: 'whatsapp' }).texto, /número de WhatsApp verificado/);
   assert.match(armarContrato(p, { nombre: 'X' }).texto, /El mail verificado/);
 });
+
+test('cláusula 11: con penalidad deja asentado el reconocimiento del daño (y sin penalidad no)', () => {
+  const b3 = { valorReposicionStand: 30000, valorReposicionMuestra: 8000 };
+  const con = armarContrato(normalizarParams({ ...b3, penalidad: 10000000 }).params);
+  assert.match(con.texto, /excede ampliamente el valor del lote/);
+  assert.match(con.texto, /estimación razonable de ese perjuicio/);
+  assert.equal(con.version, 3);
+  assert.doesNotMatch(armarContrato(normalizarParams(b3).params).texto, /excede ampliamente/);
+});
