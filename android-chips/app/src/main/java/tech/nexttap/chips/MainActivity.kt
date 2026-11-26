@@ -3,6 +3,7 @@ package tech.nexttap.chips
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -64,6 +65,12 @@ class MainActivity : Activity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                // "Abrir en WhatsApp" de los Acuerdos: el panel manda un intent:// dirigido a
+                // WhatsApp Business. Solo aceptamos ese destino exacto (nada de intents arbitrarios).
+                if (request.url.scheme == "intent") {
+                    abrirWhatsappBusiness(request.url.toString())
+                    return true
+                }
                 if (request.url.scheme == "javascript" || request.url.host == panel().host) return false
                 // Cualquier otro sitio se abre afuera: el puente NFC es solo del panel.
                 try {
@@ -128,6 +135,25 @@ class MainActivity : Activity() {
 
         if (savedInstanceState != null) webView.restoreState(savedInstanceState)
         else webView.loadUrl(urlPanel())
+    }
+
+    /** Abre el chat en WhatsApp Business; si no está instalada, usa la dirección de respaldo (wa.me). */
+    private fun abrirWhatsappBusiness(uri: String) {
+        try {
+            val destino = Intent.parseUri(uri, Intent.URI_INTENT_SCHEME)
+            val permitido = destino.`package` == "com.whatsapp.w4b" && destino.scheme == "whatsapp"
+            if (!permitido) return
+            destino.addCategory(Intent.CATEGORY_BROWSABLE)
+            destino.component = null
+            destino.selector = null
+            try {
+                startActivity(destino)
+            } catch (_: ActivityNotFoundException) {
+                destino.getStringExtra("browser_fallback_url")
+                    ?.takeIf { Uri.parse(it).scheme == "https" }
+                    ?.let { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }
+            }
+        } catch (_: Exception) { /* link mal armado: no hace nada */ }
     }
 
     /** Diálogo para cambiar la dirección del panel sin recompilar la app. */
