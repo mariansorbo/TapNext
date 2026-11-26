@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 
 // v2: cláusula 11 (confidencialidad, no copia y exclusividad).
 // v3: con penalidad, la cláusula 11 deja asentado el reconocimiento del daño.
-export const ACUERDO_TEXTO_VERSION = 3;
+// v4: día de cobro explícito (fecha de entrega + plazo), visita al local, mora automática y disposiciones generales.
+export const ACUERDO_TEXTO_VERSION = 4;
 
 // Valores por defecto — todo lo que el admin puede cambiar por comercio.
 // Los valores de reposición no tienen default a propósito (no hay dato): el
@@ -21,6 +22,7 @@ export const PARAMS_DEFAULT = {
   precioSugeridoDesde: 20000,
   precioSugeridoHasta: 25000,
   plazoDias: 60,
+  fechaEntrega: null, // 'YYYY-MM-DD' opcional: con ella el contrato dice el día exacto de cobro
   unidIg: 10,
   unidWpp: 10,
   muestras: 3,
@@ -60,6 +62,11 @@ export function normalizarParams(entrada = {}) {
   p.exclusividadVenta = !(p.exclusividadVenta === false || p.exclusividadVenta === 'false' || p.exclusividadVenta === 0);
   if (p.penalidad === 0) p.penalidad = null;
   p.muestrasDetalle = String(p.muestrasDetalle || '').trim().slice(0, 300);
+  if (p.fechaEntrega !== null && p.fechaEntrega !== undefined) {
+    const f = String(p.fechaEntrega).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || sumarDias(f, 0) !== f) return { error: 'La fecha de entrega no es válida.' };
+    p.fechaEntrega = f;
+  }
   p.jurisdiccion = String(p.jurisdiccion || '').trim().slice(0, 80) || PARAMS_DEFAULT.jurisdiccion;
   if (!(p.precioRendicion > 0)) return { error: 'El precio de rendición tiene que ser mayor a 0.' };
   if (!(p.plazoDias >= 1)) return { error: 'El plazo de rendición tiene que ser de al menos 1 día.' };
@@ -69,6 +76,22 @@ export function normalizarParams(entrada = {}) {
   if (p.muestras > 0 && (p.valorReposicionMuestra === null || !(p.valorReposicionMuestra > 0)))
     return { error: 'Cargá el valor de reposición de cada muestra.' };
   return { params: p };
+}
+
+// Fechas en texto ("martes 20 de enero de 2027") sin depender de la zona horaria.
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// iso = 'YYYY-MM-DD'. Devuelve otro iso, n días después (n puede ser 0).
+export function sumarDias(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+export function fechaLarga(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return `${DIAS[dt.getUTCDay()]} ${d} de ${MESES[m - 1]} de ${y}`;
 }
 
 export const pesos = (n) => `$${Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
@@ -88,6 +111,8 @@ export function armarContrato(params, comercio = {}) {
   const muestras = p.muestras > 0
     ? `${p.muestras} llaveros de muestra${p.muestrasDetalle ? ` (${p.muestrasDetalle})` : ''}`
     : 'sin llaveros de muestra';
+  const fechaCobro = p.fechaEntrega ? sumarDias(p.fechaEntrega, p.plazoDias) : null;
+  const lugarCobro = comercio.domicilio ? ` (${comercio.domicilio})` : '';
   const medio = comercio.canal === 'whatsapp' ? 'El número de WhatsApp verificado' : 'El mail verificado';
   const quien = comercio.nombre
     ? `${comercio.nombre}${comercio.documento ? `, DNI/CUIT ${comercio.documento}` : ''}${comercio.domicilio ? `, con domicilio en ${comercio.domicilio}` : ''}`
@@ -97,7 +122,9 @@ export function armarContrato(params, comercio = {}) {
     `Recibís ${total} llaveros en consignación (${detalleLote}), un stand exhibidor y ${muestras}.`,
     `Por cada llavero que vendas le debés a NextTap ${pesos(p.precioRendicion)}. El precio al público lo ponés vos (sugerido ${pesos(p.precioSugeridoDesde)} a ${pesos(p.precioSugeridoHasta)}).`,
     `Pagás un anticipo de ${pesos(p.anticipo)} ahora; se descuenta de lo que debas al rendir.`,
-    `Tenés ${p.plazoDias} días desde la entrega para rendir: pagás lo vendido y devolvés lo no vendido y el kit.`,
+    fechaCobro
+      ? `Entrega prevista: ${fechaLarga(p.fechaEntrega)}. El día de cobro es el ${fechaLarga(fechaCobro)} (a los ${p.plazoDias} días): NextTap pasa por tu local a cobrar lo vendido y a retirar lo que no vendiste.`
+      : `Tenés ${p.plazoDias} días desde la entrega para rendir. El día exacto de cobro (entrega + ${p.plazoDias} días) queda escrito en la constancia de recepción, y NextTap pasa por tu local a cobrar lo vendido y a retirar lo que no vendiste.`,
     `Los llaveros que no devuelvas, devuelvas activados o devuelvas dañados se pagan como vendidos (${pesos(p.precioRendicion)} c/u).`,
     `NextTap es un desarrollo propio: no podés copiarlo ni desarrollar o participar en un producto equivalente durante el acuerdo y ${p.noCompetenciaMeses} meses después (cláusula 11).`,
   ];
@@ -121,7 +148,7 @@ export function armarContrato(params, comercio = {}) {
     },
     {
       titulo: '4. Llaveros en consignación',
-      texto: `El lote es de ${total} llaveros (${detalleLote}). Siguen siendo propiedad de NextTap hasta que el Comercio los vende a un cliente final. El Comercio fija libremente el precio de venta; NextTap solo sugiere entre ${pesos(p.precioSugeridoDesde)} y ${pesos(p.precioSugeridoHasta)}. Por cada llavero vendido el Comercio debe a NextTap ${pesos(p.precioRendicion)}. El Comercio no puede prestar, regalar, empeñar ni vender los llaveros a otros comercios o revendedores. Al recibirlos, el Comercio reconoce que están completos, nuevos, sin activar y en perfecto estado, y responde por su robo, pérdida o rotura desde la entrega.`,
+      texto: `El lote es de ${total} llaveros (${detalleLote}). Siguen siendo propiedad de NextTap hasta que el Comercio los vende a un cliente final. El Comercio fija libremente el precio de venta; NextTap solo sugiere entre ${pesos(p.precioSugeridoDesde)} y ${pesos(p.precioSugeridoHasta)}. Por cada llavero vendido el Comercio debe a NextTap ${pesos(p.precioRendicion)}. El Comercio no puede prestar, regalar, empeñar ni vender los llaveros a otros comercios o revendedores. Al recibirlos, el Comercio reconoce que están completos, nuevos, sin activar y en perfecto estado, y responde por su robo, pérdida o rotura desde la entrega. El Comercio cuenta el stock junto con NextTap al recibirlo (constancia de recepción), lleva registro de lo que vende y permite a NextTap contar el stock en el local, en horario comercial y con aviso previo.`,
     },
     {
       titulo: '5. Llaveros que se consideran vendidos',
@@ -129,11 +156,15 @@ export function armarContrato(params, comercio = {}) {
         p.diasReclamoFabrica > 0
           ? ` Queda exceptuado el defecto de fábrica comunicado a NextTap dentro de los ${p.diasReclamoFabrica} días de la entrega: en ese caso NextTap cambia la unidad.`
           : ''
-      }`,
+      } NextTap puede verificar en su plataforma qué llaveros fueron activados, y ese registro hace fe de la venta salvo prueba en contrario.`,
     },
     {
-      titulo: '6. Rendición',
-      texto: `El plazo de rendición es de ${p.plazoDias} días corridos desde la entrega. Al vencerlo, el Comercio paga lo vendido (menos el anticipo) y devuelve lo no vendido. Puede pagar antes o en partes. Para recibir un nuevo lote debe haber rendido el anterior. El pago es por transferencia o Mercado Pago a las cuentas que indique NextTap. Desde el día siguiente al vencimiento corre sobre el saldo impago un interés simple de ${p.tasaMoraMensual}% mensual.`,
+      titulo: '6. Rendición y día de cobro',
+      texto: `El plazo de rendición es de ${p.plazoDias} días corridos desde la entrega. ${
+        fechaCobro
+          ? `La entrega está prevista para el ${fechaLarga(p.fechaEntrega)}, por lo que el plazo vence el ${fechaLarga(fechaCobro)}: ese es el día de cobro. Si la entrega efectiva fuera otro día, la constancia de recepción fija la fecha real y el día de cobro se recalcula con ella.`
+          : `La fecha de entrega, y con ella el día de cobro (entrega + ${p.plazoDias} días), constan en la constancia de recepción que el Comercio confirma al recibir el lote.`
+      } El día de cobro NextTap pasa por el local del Comercio${lugarCobro}, en horario comercial, a cobrar lo vendido y a retirar los llaveros no vendidos y, si el acuerdo termina, el kit. El Comercio tiene que estar, o dejar a alguien autorizado, con el stock y el kit completos y ordenados para contarlos. Si no hay nadie, el vencimiento y los intereses corren igual y el Comercio paga dentro de las 48 horas por transferencia o Mercado Pago; NextTap vuelve a pasar a retirar lo que corresponda. Si es NextTap quien no puede ir ese día, avisa con anticipación y reprograma sin que corran intereses por esa demora. Al vencer el plazo, el Comercio paga lo vendido (menos el anticipo) y devuelve lo no vendido. Puede pagar antes o en partes. Para recibir un nuevo lote debe haber rendido el anterior. El pago es por transferencia o Mercado Pago a las cuentas que indique NextTap, y NextTap entrega comprobante de cada pago recibido. La mora es automática por el solo vencimiento del plazo, sin necesidad de aviso: desde el día siguiente corre sobre el saldo impago un interés simple de ${p.tasaMoraMensual}% mensual.`,
     },
     {
       titulo: '7. Control de activación',
@@ -141,7 +172,7 @@ export function armarContrato(params, comercio = {}) {
     },
     {
       titulo: '8. Kit exhibidor (comodato gratuito)',
-      texto: `El kit incluye un stand exhibidor (valor de reposición ${pesos(p.valorReposicionStand)}) y ${muestras}${p.muestras > 0 ? ` (valor de reposición ${pesos(p.valorReposicionMuestra)} cada una)` : ''}. Es propiedad de NextTap y se presta sin costo. El Comercio lo usa solo para exhibir en su local y lo devuelve completo y en las mismas condiciones, salvo el desgaste normal por uso. Si no lo devuelve, o lo devuelve roto o incompleto, paga el valor de reposición de lo faltante o dañado, que NextTap puede descontar del anticipo. Las muestras son de exhibición: no se venden ni se activan.`,
+      texto: `El kit incluye un stand exhibidor (valor de reposición ${pesos(p.valorReposicionStand)}) y ${muestras}${p.muestras > 0 ? ` (valor de reposición ${pesos(p.valorReposicionMuestra)} cada una)` : ''}. Es propiedad de NextTap y se presta sin costo. El Comercio lo usa solo para exhibir en su local y lo devuelve completo y en las mismas condiciones, salvo el desgaste normal por uso. Si no lo devuelve, o lo devuelve roto o incompleto, paga el valor de reposición de lo faltante o dañado, que NextTap puede descontar del anticipo. Las muestras son de exhibición: no se venden ni se activan. Al terminar el acuerdo, el Comercio entrega el kit en su local el día de cobro o en el plazo que NextTap indique, y el retiro es por cuenta de NextTap. Mientras el Comercio siga con un nuevo lote, conserva el kit.`,
     },
     {
       titulo: '9. Marca y postventa',
@@ -168,12 +199,16 @@ export function armarContrato(params, comercio = {}) {
       texto: `El acuerdo es por tiempo indeterminado. Cualquiera de las partes puede terminarlo con ${p.preavisoDias} días de aviso. Ante un incumplimiento, NextTap puede exigir la devolución inmediata del kit y de los llaveros no vendidos.`,
     },
     {
-      titulo: '13. Jurisdicción',
+      titulo: '13. Disposiciones generales',
+      texto: `a) Quien firma declara que sus datos son verdaderos y que tiene facultades para obligar al Comercio (si es una sociedad, firma en su representación). b) El Comercio no puede ceder ni transferir este acuerdo, ni los llaveros ni el kit. c) Este acuerdo contiene todo lo pactado y reemplaza cualquier conversación o promesa anterior; solo puede modificarse por escrito, aceptado por el mismo medio verificado. d) Si alguna cláusula fuera inválida, las demás siguen vigentes. e) El Comercio puede pedir a NextTap una copia del acuerdo firmado cuando quiera.`,
+    },
+    {
+      titulo: '14. Jurisdicción',
       texto: `Rige la ley argentina. Las partes intentarán una mediación previa y, de no resolverse, se someten a los tribunales ordinarios de ${p.jurisdiccion}.`,
     },
     {
       titulo: 'Anexo — Lote y kit',
-      texto: `Llaveros en consignación: ${total} (${detalleLote}); valor máximo del lote al precio de rendición: ${pesos(maxLote)}. Kit: 1 stand exhibidor, ${muestras}. Anticipo: ${pesos(p.anticipo)}. Plazo de rendición: ${p.plazoDias} días desde la entrega. La recepción física se confirma con el código de retiro al momento de la entrega.`,
+      texto: `Llaveros en consignación: ${total} (${detalleLote}); valor máximo del lote al precio de rendición: ${pesos(maxLote)}. Kit: 1 stand exhibidor, ${muestras}. Anticipo: ${pesos(p.anticipo)}. Plazo de rendición: ${p.plazoDias} días desde la entrega.${fechaCobro ? ` Entrega prevista: ${fechaLarga(p.fechaEntrega)}. Día de cobro: ${fechaLarga(fechaCobro)}.` : ' Día de cobro: entrega + ' + p.plazoDias + ' días, según la constancia de recepción.'} La recepción física se confirma con el código de retiro al momento de la entrega.`,
     },
   ];
 

@@ -13,6 +13,7 @@ const ESTADOS = { enviado: 'Link enviado', firmado: 'Firmado · falta anticipo',
 const CAMPOS = [
   ['precioRendicion', 'Precio de rendición ($/u)', 'number'],
   ['plazoDias', 'Plazo de rendición (días)', 'number'],
+  ['fechaEntrega', 'Fecha de entrega prevista (con ella el contrato dice el día exacto de cobro)', 'date'],
   ['unidIg', 'Llaveros Instagram', 'number'],
   ['unidWpp', 'Llaveros WhatsApp', 'number'],
   ['muestras', 'Muestras (cantidad)', 'number'],

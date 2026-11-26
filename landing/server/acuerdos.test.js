@@ -89,6 +89,36 @@ test('cláusula 11: con penalidad deja asentado el reconocimiento del daño (y s
   const con = armarContrato(normalizarParams({ ...b3, penalidad: 10000000 }).params);
   assert.match(con.texto, /excede ampliamente el valor del lote/);
   assert.match(con.texto, /estimación razonable de ese perjuicio/);
-  assert.equal(con.version, 3);
+  assert.equal(con.version, 4);
   assert.doesNotMatch(armarContrato(normalizarParams(b3).params).texto, /excede ampliamente/);
+});
+
+import { fechaLarga, sumarDias } from './acuerdos-texto.js';
+
+test('fechas: suma de días y formato en español', () => {
+  assert.equal(sumarDias('2026-12-01', 60), '2027-01-30');
+  assert.equal(sumarDias('2026-12-31', 1), '2027-01-01');
+  assert.equal(fechaLarga('2027-01-30'), 'sábado 30 de enero de 2027');
+});
+
+test('fechaEntrega: se valida y fija el día de cobro en resumen, cláusula 6 y anexo', () => {
+  const b4 = { valorReposicionStand: 30000, valorReposicionMuestra: 8000 };
+  assert.match(normalizarParams({ ...b4, fechaEntrega: '2026-02-30' }).error, /fecha de entrega/);
+  assert.match(normalizarParams({ ...b4, fechaEntrega: 'mañana' }).error, /fecha de entrega/);
+  const c = armarContrato(normalizarParams({ ...b4, fechaEntrega: '2026-12-01' }).params, { nombre: 'X', domicilio: 'Av. Siempreviva 742' });
+  assert.match(c.resumen[3], /sábado 30 de enero de 2027/);
+  assert.match(c.texto, /el plazo vence el sábado 30 de enero de 2027: ese es el día de cobro/);
+  assert.match(c.texto, /pasa por el local del Comercio \(Av\. Siempreviva 742\)/);
+  assert.match(c.texto, /Día de cobro: sábado 30 de enero de 2027/);
+  assert.equal(c.resumen.length, 6);
+});
+
+test('sin fechaEntrega: el día de cobro queda atado a la constancia de recepción', () => {
+  const c = armarContrato(normalizarParams({ valorReposicionStand: 1, valorReposicionMuestra: 1 }).params, { nombre: 'X' });
+  assert.match(c.resumen[3], /constancia de recepción/);
+  assert.match(c.texto, /Día de cobro: entrega \+ 60 días/);
+  assert.match(c.texto, /La mora es automática/);
+  assert.match(c.texto, /13\. Disposiciones generales/);
+  assert.match(c.texto, /14\. Jurisdicción/);
+  assert.equal(c.version, 4);
 });
