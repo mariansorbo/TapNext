@@ -1,0 +1,95 @@
+/* Solapa Acuerdos del admin — pensada primero para celular (una columna, botones grandes). */
+#acuerdos-tab { --ac-line: rgba(237,239,233,0.14); --ac-card: var(--surface, #1B1F23); --ac-card-2: var(--surface-2, #22272C); }
+#acuerdos-tab button, #acuerdos-tab summary { font: inherit; }
+
+.ac-ad-bloque { margin-bottom: 20px; }
+.ac-ad-titulo { font-size: 1.15rem; margin: 0 0 12px; }
+
+/* Botón grande que abre/cierra el formulario */
+.ac-ad-nuevo > summary {
+  list-style: none; cursor: pointer; text-align: center;
+  background: var(--violet, #7B5CFF); color: #fff; font-weight: 600;
+  padding: 14px 18px; border-radius: 12px; min-height: 48px;
+}
+.ac-ad-nuevo > summary::-webkit-details-marker { display: none; }
+.ac-ad-nuevo[open] > summary { background: var(--ac-card-2); color: var(--paper, #EDEFE9); border: 1px solid var(--ac-line); }
+.ac-ad-form { display: grid; gap: 14px; margin-top: 14px; }
+.ac-ad-aviso { color: var(--paper-dim, #C9CDC4); font-size: 0.92rem; margin: 0; }
+
+.ac-ad-grupo { border: 1px solid var(--ac-line); border-radius: 12px; background: var(--ac-card); }
+.ac-ad-grupo > summary { cursor: pointer; padding: 14px; font-weight: 600; list-style: none; min-height: 48px; display: flex; align-items: center; justify-content: space-between; }
+.ac-ad-grupo > summary::-webkit-details-marker { display: none; }
+.ac-ad-grupo > summary::after { content: '+'; color: var(--violet, #7B5CFF); font-size: 1.3rem; }
+.ac-ad-grupo[open] > summary::after { content: '–'; }
+.ac-ad-grupo-campos { display: grid; gap: 12px; padding: 0 14px 14px; grid-template-columns: 1fr; }
+.ac-ad-esenciales { display: grid; gap: 12px; grid-template-columns: 1fr; }
+
+.ac-ad-campo { display: grid; gap: 6px; font-size: 0.85rem; color: var(--paper-dim, #C9CDC4); }
+.ac-ad-campo input, .ac-ad-campo select {
+  width: 100%; background: var(--ac-card-2); border: 1px solid var(--ac-line); border-radius: 10px;
+  color: var(--paper, #EDEFE9); font-size: 16px; padding: 12px; min-height: 46px;
+}
+.ac-ad-campo input:focus, .ac-ad-campo select:focus { outline: 2px solid var(--violet, #7B5CFF); outline-offset: 1px; }
+.ac-ad-campo small { font-size: 0.78rem; opacity: 0.85; line-height: 1.35; }
+
+.ac-ad-btn {
+  display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; cursor: pointer;
+  min-height: 46px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--ac-line);
+  background: var(--ac-card-2); color: var(--paper, #EDEFE9); font-weight: 600; width: 100%;
+}
+.ac-ad-btn--primario { background: var(--violet, #7B5CFF); border-color: var(--violet, #7B5CFF); color: #fff; }
+.ac-ad-btn--peligro { color: #ff9a9a; }
+.ac-ad-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ac-ad-estado { min-height: 20px; font-size: 0.9rem; margin: 0; }
+.ac-ad-estado.is-error { color: #ff7a7a; }
+.ac-ad-estado.is-ok { color: #4CC98C; }
+
+/* Resultado de generar el link */
+.ac-ad-resultado { margin-top: 14px; padding: 14px; border: 1px solid var(--violet, #7B5CFF); border-radius: 12px; background: var(--ac-card); display: grid; gap: 10px; }
+.ac-ad-resultado[hidden] { display: none; }
+.ac-ad-resultado input, .ac-ad-resultado textarea {
+  width: 100%; background: var(--ac-card-2); border: 1px solid var(--ac-line); border-radius: 10px; color: var(--paper, #EDEFE9); font-size: 16px; padding: 10px;
+}
+.ac-ad-acciones { display: grid; gap: 8px; grid-template-columns: 1fr; }
+
+/* Filtros */
+.ac-ad-filtros { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+.ac-ad-chip { flex: none; cursor: pointer; border: 1px solid var(--ac-line); background: var(--ac-card); color: var(--paper, #EDEFE9); border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.9rem; }
+.ac-ad-chip.is-activo { background: var(--violet, #7B5CFF); border-color: var(--violet, #7B5CFF); color: #fff; }
+
+/* Tarjetas */
+.ac-ad-lista { display: grid; gap: 10px; }
+.ac-ad-vacio { color: var(--paper-dim, #C9CDC4); padding: 14px 0; }
+.ac-card { border: 1px solid var(--ac-line); border-radius: 14px; background: var(--ac-card); overflow: hidden; }
+.ac-card-head {
+  display: grid; grid-template-columns: 1fr auto 18px; gap: 10px; align-items: center; width: 100%;
+  background: none; border: 0; color: inherit; text-align: left; cursor: pointer; padding: 14px; min-height: 64px;
+}
+.ac-card-main { display: grid; gap: 3px; min-width: 0; }
+.ac-card-main b { font-size: 1rem; overflow-wrap: anywhere; }
+.ac-card-main small { color: var(--paper-dim, #C9CDC4); font-size: 0.84rem; }
+.ac-chev { color: var(--paper-dim, #C9CDC4); transition: transform .15s; font-size: 1.2rem; }
+.ac-card-head[aria-expanded="true"] .ac-chev { transform: rotate(90deg); }
+.ac-badge { font-size: 0.74rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: var(--ac-card-2); border: 1px solid var(--ac-line); }
+.ac-badge--enviado { color: #F2B84B; border-color: rgba(242,184,75,.4); }
+.ac-badge--firmado { color: #b6a3ff; border-color: rgba(123,92,255,.5); }
+.ac-badge--pagado { color: #4CC98C; border-color: rgba(76,201,140,.45); }
+.ac-badge--vencido, .ac-badge--anulado { color: #9aa0a6; }
+
+.ac-card-body { border-top: 1px solid var(--ac-line); padding: 14px; display: grid; gap: 16px; }
+.ac-card-body[hidden] { display: none; }
+.ac-sec h4 { margin: 0 0 8px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--paper-dim, #C9CDC4); }
+.ac-dl { display: grid; gap: 8px; margin: 0; }
+.ac-dl > div { display: grid; gap: 2px; }
+.ac-dl dt { font-size: 0.8rem; color: var(--paper-dim, #C9CDC4); }
+.ac-dl dd { margin: 0; overflow-wrap: anywhere; }
+.ac-dl dd.ac-fuerte { font-weight: 600; }
+.ac-contrato > summary { cursor: pointer; color: var(--violet, #7B5CFF); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.ac-contrato pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 0.85rem; color: var(--paper-dim, #C9CDC4); background: var(--ac-card-2); border-radius: 10px; padding: 12px; max-height: 360px; overflow: auto; }
+
+@media (min-width: 640px) {
+  .ac-ad-esenciales, .ac-ad-grupo-campos { grid-template-columns: 1fr 1fr; }
+  .ac-ad-acciones { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .ac-dl { grid-template-columns: 1fr 1fr; }
+  .ac-ad-btn { width: auto; }
+}

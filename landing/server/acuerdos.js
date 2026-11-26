@@ -23,7 +23,7 @@
 
 import express from 'express';
 import { randomBytes, randomInt, createHash } from 'node:crypto';
-import { PARAMS_DEFAULT, normalizarParams, armarContrato, pesos } from './acuerdos-texto.js';
+import { PARAMS_DEFAULT, normalizarParams, armarContrato, pesos, sumarDias } from './acuerdos-texto.js';
 import { canalWhatsapp } from './verificacion/canales/whatsapp.js';
 
 const OTP_TTL_MIN = 10;
@@ -128,6 +128,19 @@ export async function inicializarAcuerdos(db) {
   `);
 }
 
+// Texto listo para pegar en WhatsApp: el envío lo hace el admin a mano.
+function mensajeParaComercio(p, url, canal) {
+  return (
+    `Hola! Te paso el acuerdo para el kit exhibidor y los ${p.unidIg + p.unidWpp} llaveros NextTap. ` +
+    `Lo firmás en 2 minutos desde acá: ${url} ` +
+    `(te va a llegar un código de verificación por ${canal === 'whatsapp' ? 'WhatsApp' : 'mail'}).`
+  );
+}
+
+// A quién abrirle el chat de WhatsApp Web: el contacto si es WhatsApp; si no, el teléfono opcional.
+const whatsappDe = (a) => (a.canal === 'whatsapp' ? a.email : normalizarWhatsapp(a.telefono));
+const diaCobroDe = (p) => (p.fechaEntrega ? sumarDias(p.fechaEntrega, p.plazoDias) : null);
+
 // deps: { db, enviarCorreo, avisarAdmin, frontendUrl }
 function helpers(deps) {
   const { db, frontendUrl } = deps;
@@ -160,6 +173,8 @@ export function crearAcuerdosAdminRouter(deps) {
           link: a.estado === 'enviado' ? link(a.token) : null,
           unidades: p.unidIg + p.unidWpp,
           anticipo: p.anticipo,
+          fechaEntrega: p.fechaEntrega || null,
+          diaCobro: diaCobroDe(p),
           creadoEn: a.creado_en,
           expira: a.expira,
           firmadoEn: a.firmado_en,
@@ -185,17 +200,11 @@ export function crearAcuerdosAdminRouter(deps) {
     );
     const url = link(token);
     const p = norm.params;
-    // A quién abrirle el chat de WhatsApp Web: el contacto si es WhatsApp; si no, el teléfono opcional.
-    const whatsapp = contacto.canal === 'whatsapp' ? contacto.destino : normalizarWhatsapp(telefono);
     res.status(201).json({
       id: fila.id,
       link: url,
-      whatsapp,
-      // Texto listo para pegar en WhatsApp: el envío lo hace el admin a mano.
-      mensaje:
-        `Hola! Te paso el acuerdo para el kit exhibidor y los ${p.unidIg + p.unidWpp} llaveros NextTap. ` +
-        `Lo firmás en 2 minutos desde acá: ${url} ` +
-        `(te va a llegar un código de verificación por ${contacto.canal === 'whatsapp' ? 'WhatsApp' : 'mail'}).`,
+      whatsapp: whatsappDe({ canal: contacto.canal, email: contacto.destino, telefono }),
+      mensaje: mensajeParaComercio(p, url, contacto.canal),
     });
   });
 
@@ -203,9 +212,14 @@ export function crearAcuerdosAdminRouter(deps) {
     const a = await one(`SELECT * FROM acuerdos WHERE id = ?`, [Number(req.params.id)]);
     if (!a) return res.status(404).json({ error: 'Acuerdo no encontrado.' });
     const firma = await one(`SELECT * FROM acuerdo_firmas WHERE acuerdo_id = ?`, [a.id]);
+    const params = JSON.parse(a.params_json);
+    const url = a.estado === 'enviado' ? link(a.token) : null;
     res.json({
-      acuerdo: { ...a, estado: estadoVisible(a), params: JSON.parse(a.params_json), params_json: undefined, token: undefined },
-      link: a.estado === 'enviado' ? link(a.token) : null,
+      acuerdo: { ...a, contacto: a.email, estado: estadoVisible(a), params, params_json: undefined, token: undefined },
+      link: url,
+      whatsapp: whatsappDe(a),
+      mensaje: url ? mensajeParaComercio(params, url, a.canal) : null,
+      diaCobro: diaCobroDe(params),
       firma,
     });
   });
