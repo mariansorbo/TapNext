@@ -73,10 +73,16 @@ async function cargar() {
 }
 
 async function pedirCodigo() {
+  const nombre = $('ac-nombre-previo').value.trim().replace(/\s+/g, ' ');
+  if (nombre.length < 5 || !nombre.includes(' ')) {
+    estado('ac-verificar-estado', 'Escribí tu nombre y apellido para recibir el código.', 'error');
+    $('ac-nombre-previo').focus();
+    return;
+  }
   $('ac-pedir-codigo').disabled = true;
   estado('ac-verificar-estado', 'Enviando…');
   try {
-    const r = await api('/codigo', {});
+    const r = await api('/codigo', { nombre });
     $('ac-codigo-caja').hidden = false;
     $('ac-pedir-codigo').hidden = true;
     estado('ac-verificar-estado', r.canal === 'whatsapp' ? `Te lo mandamos por WhatsApp (${r.contactoEnmascarado}).` : `Te lo mandamos a ${r.contactoEnmascarado}. Revisá también spam.`, 'ok');
@@ -92,6 +98,8 @@ async function verificar() {
   try {
     const r = await api('/verificar', { codigo: $('ac-codigo').value });
     sesion = r.sesion;
+    // El nombre que dio al pedir el código ya viene cargado en el formulario de firma (lo puede corregir).
+    $('ac-nombre').value = r.nombre || $('ac-nombre-previo').value.trim();
     mostrar('ac-paso-firmar');
   } catch (err) {
     estado('ac-verificar-estado', err.message, 'error');

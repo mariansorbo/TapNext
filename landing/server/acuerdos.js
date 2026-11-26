@@ -107,6 +107,9 @@ export async function inicializarAcuerdos(db) {
     );
     ALTER TABLE acuerdos ADD COLUMN IF NOT EXISTS canal TEXT NOT NULL DEFAULT 'email'; -- email | whatsapp
     ALTER TABLE acuerdo_firmas ADD COLUMN IF NOT EXISTS mail_copia TEXT; -- adónde se mandó la copia
+    ALTER TABLE acuerdo_firmas ADD COLUMN IF NOT EXISTS nombre_verificacion TEXT; -- nombre que dio al pedir el código
+    ALTER TABLE acuerdo_otp ADD COLUMN IF NOT EXISTS nombre TEXT;
+    ALTER TABLE acuerdo_sesiones ADD COLUMN IF NOT EXISTS nombre TEXT;
     CREATE TABLE IF NOT EXISTS acuerdo_otp (
       id SERIAL PRIMARY KEY,
       acuerdo_id INTEGER NOT NULL REFERENCES acuerdos(id),
@@ -265,11 +268,14 @@ export function crearAcuerdosPublicoRouter(deps) {
   router.post('/:token/codigo', cargar, async (req, res) => {
     const a = req.acuerdo;
     if (estadoVisible(a) !== 'enviado') return res.status(409).json({ error: 'Este acuerdo ya no se puede firmar.' });
+    const nombrePrevio = String(req.body?.nombre || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+    if (nombrePrevio.length < 5 || !nombrePrevio.includes(' '))
+      return res.status(400).json({ error: 'Escribí tu nombre y apellido para recibir el código.' });
     const corte = new Date(Date.now() - OTP_THROTTLE_SEG * 1000).toISOString();
     const reciente = await one(`SELECT id FROM acuerdo_otp WHERE acuerdo_id = ? AND creado_en > ? LIMIT 1`, [a.id, corte]);
     if (reciente) return res.status(429).json({ error: 'Esperá un minuto antes de pedir otro código.' });
     const codigo = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    await q(`INSERT INTO acuerdo_otp (acuerdo_id, codigo_hash, expira) VALUES (?, ?, ?)`, [a.id, sha(codigo), enMinutos(OTP_TTL_MIN)]);
+    await q(`INSERT INTO acuerdo_otp (acuerdo_id, codigo_hash, expira, nombre) VALUES (?, ?, ?, ?)`, [a.id, sha(codigo), enMinutos(OTP_TTL_MIN), nombrePrevio]);
     if (a.canal === 'whatsapp') {
       if (canal.disponible) {
         try {
@@ -311,8 +317,8 @@ export function crearAcuerdosPublicoRouter(deps) {
     }
     await q(`UPDATE acuerdo_otp SET usado = 1 WHERE id = ?`, [otp.id]);
     const sesion = randomBytes(24).toString('hex');
-    await q(`INSERT INTO acuerdo_sesiones (acuerdo_id, token_hash, expira) VALUES (?, ?, ?)`, [a.id, sha(sesion), enMinutos(SESION_TTL_MIN)]);
-    res.json({ sesion });
+    await q(`INSERT INTO acuerdo_sesiones (acuerdo_id, token_hash, expira, nombre) VALUES (?, ?, ?, ?)`, [a.id, sha(sesion), enMinutos(SESION_TTL_MIN), otp.nombre || null]);
+    res.json({ sesion, nombre: otp.nombre || '' });
   });
 
   router.post('/:token/firmar', cargar, async (req, res) => {
@@ -320,7 +326,7 @@ export function crearAcuerdosPublicoRouter(deps) {
     const b = req.body || {};
     if (estadoVisible(a) !== 'enviado') return res.status(409).json({ error: 'Este acuerdo ya no se puede firmar.' });
     const ses = await one(
-      `SELECT id FROM acuerdo_sesiones WHERE acuerdo_id = ? AND token_hash = ? AND expira > NOW()`,
+      `SELECT id, nombre FROM acuerdo_sesiones WHERE acuerdo_id = ? AND token_hash = ? AND expira > NOW()`,
       [a.id, sha(String(b.sesion || ''))]
     );
     if (!ses) return res.status(401).json({ error: 'Verificá tu contacto de nuevo para firmar.' });
@@ -349,9 +355,9 @@ export function crearAcuerdosPublicoRouter(deps) {
     if (!r.rowsAffected) return res.status(409).json({ error: 'Este acuerdo ya fue firmado.' });
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
     await q(
-      `INSERT INTO acuerdo_firmas (acuerdo_id, nombre, documento, domicilio, local_nombre, firma_nombre, texto_version, texto_hash, texto_firmado, email_verificado, mail_copia, ip, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [a.id, nombre, documento, domicilio, local, String(b.firmaNombre).trim(), contrato.version, contrato.hash, contrato.texto, a.email, mailCopia, ip, String(req.headers['user-agent'] || '').slice(0, 300)]
+      `INSERT INTO acuerdo_firmas (acuerdo_id, nombre, documento, domicilio, local_nombre, firma_nombre, texto_version, texto_hash, texto_firmado, email_verificado, mail_copia, nombre_verificacion, ip, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [a.id, nombre, documento, domicilio, local, String(b.firmaNombre).trim(), contrato.version, contrato.hash, contrato.texto, a.email, mailCopia, ses.nombre || null, ip, String(req.headers['user-agent'] || '').slice(0, 300)]
     );
     await q(`DELETE FROM acuerdo_sesiones WHERE acuerdo_id = ?`, [a.id]);
 
