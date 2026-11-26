@@ -58,6 +58,25 @@ const GRUPOS = [
   ] },
 ];
 
+// Link para abrir el chat con el comercio y el mensaje ya escrito, según dónde estés:
+//  - Compu: WhatsApp Web.
+//  - Android (Chrome o la APK 1.1+): directo a WhatsApp Business (paquete com.whatsapp.w4b);
+//    si no está instalada, cae a wa.me (abre el WhatsApp que haya).
+//  - iPhone y APK vieja: wa.me, que abre el WhatsApp del teléfono.
+// Sin número abre el selector de chats.
+function urlWhatsapp(numero, mensaje) {
+  const ua = navigator.userAgent || '';
+  const texto = encodeURIComponent(mensaje || '');
+  const tel = numero ? `phone=${numero}&` : '';
+  const generico = numero ? `https://wa.me/${numero}?text=${texto}` : `https://wa.me/?text=${texto}`;
+  const apk = ua.match(/NextTapChips\/(\d+(?:\.\d+)?)/);
+  if (/Android/i.test(ua) && (!apk || parseFloat(apk[1]) >= 1.1)) {
+    return `intent://send?${tel}text=${texto}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(generico)};end`;
+  }
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return generico;
+  return `https://web.whatsapp.com/send?${tel}text=${texto}`;
+}
+
 async function copiar(texto, btn) {
   try {
     await navigator.clipboard.writeText(texto);
@@ -109,7 +128,7 @@ export function initAcuerdosAdmin({ api }) {
           <input id="ac-ad-link" readonly>
           <textarea id="ac-ad-mensaje" rows="4" readonly></textarea>
           <div class="ac-ad-acciones">
-            <a class="ac-ad-btn ac-ad-btn--primario" id="ac-ad-wa" target="_blank" rel="noopener">Abrir en WhatsApp Web</a>
+            <a class="ac-ad-btn ac-ad-btn--primario" id="ac-ad-wa" target="_blank" rel="noopener">Abrir en WhatsApp</a>
             <button type="button" class="ac-ad-btn" id="ac-ad-copiar-link">Copiar link</button>
             <button type="button" class="ac-ad-btn" id="ac-ad-copiar-msg">Copiar mensaje</button>
           </div>
@@ -189,10 +208,9 @@ export function initAcuerdosAdmin({ api }) {
     const p = a.params;
     const f = d.firma;
     const contacto = a.canal === 'whatsapp' ? `WhatsApp ${a.contacto}` : a.contacto;
-    const wa = d.whatsapp ? `phone=${d.whatsapp}&` : '';
     const acciones = [];
     if (d.link) {
-      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" target="_blank" rel="noopener" href="https://web.whatsapp.com/send?${wa}text=${encodeURIComponent(d.mensaje)}">Abrir en WhatsApp Web</a>`);
+      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" target="_blank" rel="noopener" href="${esc(urlWhatsapp(d.whatsapp, d.mensaje))}">Abrir en WhatsApp</a>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.link)}">Copiar link</button>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.mensaje)}">Copiar mensaje</button>`);
     }
@@ -253,9 +271,7 @@ export function initAcuerdosAdmin({ api }) {
       });
       $('ac-ad-link').value = r.link;
       $('ac-ad-mensaje').value = r.mensaje;
-      // WhatsApp Web directo con el chat del comercio y el mensaje escrito (sin número abre el selector de chats).
-      const wa = r.whatsapp ? `phone=${r.whatsapp}&` : '';
-      $('ac-ad-wa').href = `https://web.whatsapp.com/send?${wa}text=${encodeURIComponent(r.mensaje)}`;
+      $('ac-ad-wa').href = urlWhatsapp(r.whatsapp, r.mensaje);
       $('ac-ad-resultado').hidden = false;
       $('ac-ad-resultado').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       estado('Listo: link generado.');
