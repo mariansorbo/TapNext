@@ -71,7 +71,7 @@ export function initAcuerdosAdmin({ api }) {
         <div class="pap-bienvenida-acciones" style="margin-top:8px">
           <button type="button" class="row-btn" id="ac-ad-copiar-link">Copiar link</button>
           <button type="button" class="row-btn" id="ac-ad-copiar-msg">Copiar mensaje</button>
-          <a class="row-btn" id="ac-ad-wa" target="_blank" rel="noopener">Abrir WhatsApp</a>
+          <a class="row-btn" id="ac-ad-wa" target="_blank" rel="noopener">Abrir en WhatsApp Web</a>
         </div>
       </div>
     </div>
@@ -113,8 +113,9 @@ export function initAcuerdosAdmin({ api }) {
       });
       $('ac-ad-link').value = r.link;
       $('ac-ad-mensaje').value = r.mensaje;
-      const tel = $('ac-ad-tel').value.replace(/\D/g, '');
-      $('ac-ad-wa').href = `https://wa.me/${tel}?text=${encodeURIComponent(r.mensaje)}`;
+      // Abre WhatsApp Web directo, con el chat del comercio y el mensaje ya escritos (sin número, abre el selector de chats).
+      const wa = r.whatsapp ? `phone=${r.whatsapp}&` : '';
+      $('ac-ad-wa').href = `https://web.whatsapp.com/send?${wa}text=${encodeURIComponent(r.mensaje)}`;
       $('ac-ad-resultado').hidden = false;
       estado('Listo: link generado.');
       await listar();

@@ -182,9 +182,12 @@ export function crearAcuerdosAdminRouter(deps) {
     );
     const url = link(token);
     const p = norm.params;
+    // A quién abrirle el chat de WhatsApp Web: el contacto si es WhatsApp; si no, el teléfono opcional.
+    const whatsapp = contacto.canal === 'whatsapp' ? contacto.destino : normalizarWhatsapp(telefono);
     res.status(201).json({
       id: fila.id,
       link: url,
+      whatsapp,
       // Texto listo para pegar en WhatsApp: el envío lo hace el admin a mano.
       mensaje:
         `Hola! Te paso el acuerdo para el kit exhibidor y los ${p.unidIg + p.unidWpp} llaveros NextTap. ` +
