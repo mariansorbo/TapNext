@@ -192,7 +192,7 @@ app.use('/api', crearAfiliadosPublicoRouter());
 
 // Acuerdos con minoristas (link de firma del comercio). Ver server/acuerdos.js.
 await inicializarAcuerdos(db);
-const ACUERDOS_DEPS = { db, enviarCorreo, avisarAdmin, frontendUrl: process.env.FRONTEND_URL || 'https://next-tap.tech' };
+const ACUERDOS_DEPS = { db, enviarCorreo, correoDisponible, avisarAdmin, frontendUrl: process.env.FRONTEND_URL || 'https://next-tap.tech' };
 app.use('/api/acuerdos', crearAcuerdosPublicoRouter(ACUERDOS_DEPS));
 // Paneles admin y vendedor: el HTML/JS solo se entrega con sesión (server/privado.js).
 app.use('/privado', crearPrivadoRouter({ get, hashValue, puerto: process.env.PORT || 3001 }));

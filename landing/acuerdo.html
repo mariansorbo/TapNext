@@ -35,8 +35,8 @@
       <div id="ac-clausulas"></div>
     </details>
     <div class="ac-verificar">
-      <h2>Primero, verificamos tu mail</h2>
-      <p>Te mandamos un código de 6 dígitos a <b id="ac-mail"></b>.</p>
+      <h2 id="ac-verif-titulo">Primero, verificamos tu contacto</h2>
+      <p>Te mandamos un código de 6 dígitos: <b id="ac-mail"></b>.</p>
       <button type="button" class="ac-btn" id="ac-pedir-codigo">Enviarme el código</button>
       <div id="ac-codigo-caja" hidden>
         <label>Código<input id="ac-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></label>
@@ -49,18 +49,19 @@
 
   <!-- Paso 2: datos + firma -->
   <section id="ac-paso-firmar" class="ac-card" hidden>
-    <p class="ac-kicker">Mail verificado ✓</p>
+    <p class="ac-kicker">Verificado ✓</p>
     <h1>Tus datos y tu firma</h1>
     <form id="ac-form" novalidate>
       <label>Nombre y apellido<input id="ac-nombre" autocomplete="name" required></label>
       <label>DNI o CUIT<input id="ac-documento" inputmode="numeric" required></label>
       <label>Nombre del local<input id="ac-local"></label>
       <label>Domicilio del local<input id="ac-domicilio" autocomplete="street-address" required></label>
+      <label id="ac-mailcopia-caja" hidden>Tu mail (para mandarte la copia del acuerdo)<input id="ac-mailcopia" type="email" autocomplete="email"></label>
 
       <div class="ac-checks">
         <label class="ac-check"><input type="checkbox" id="ac-c1"><span>Leí y acepto el acuerdo y el anexo, incluida la cláusula 11 (confidencialidad, no copia y exclusividad).</span></label>
         <label class="ac-check"><input type="checkbox" id="ac-c2"><span id="ac-c2-texto"></span></label>
-        <label class="ac-check"><input type="checkbox" id="ac-c3"><span>Acepto firmar electrónicamente y que mi mail verificado es mi domicilio para notificaciones.</span></label>
+        <label class="ac-check"><input type="checkbox" id="ac-c3"><span id="ac-c3-texto">Acepto firmar electrónicamente y que mi mail verificado es mi domicilio para notificaciones.</span></label>
       </div>
 
       <label>Firma: escribí tu nombre y apellido completos<input id="ac-firma" autocomplete="off" required></label>
@@ -77,7 +78,7 @@
   <section id="ac-paso-listo" class="ac-card" hidden>
     <p class="ac-kicker">Firmado ✓</p>
     <h1>Listo, quedó firmado</h1>
-    <p>Te mandamos una copia del acuerdo a tu mail.</p>
+    <p>Te mandamos una copia del acuerdo por mail.</p>
     <p>Próximo paso: el anticipo de <b id="ac-anticipo"></b>. Te escribimos para coordinarlo y para la entrega del kit.</p>
   </section>
 </main>

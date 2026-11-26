@@ -53,7 +53,7 @@ export function initAcuerdosAdmin({ api }) {
       <p class="section-lead">Cada valor viene con su default y lo podés cambiar para este comercio. Los campos con * hay que completarlos. Al generar el link los valores quedan congelados.</p>
       <div class="modal-form" id="ac-ad-form">
         <label><span>Nombre del comercio</span><input id="ac-ad-comercio" maxlength="120"></label>
-        <label><span>Mail del comercio (acá llega el código)</span><input id="ac-ad-email" type="email" maxlength="160"></label>
+        <label><span>Mail o WhatsApp del comercio (acá llega el código)</span><input id="ac-ad-email" maxlength="160" placeholder="mail@comercio.com  o  11 2263 6101"></label>
         <label><span>Teléfono (opcional)</span><input id="ac-ad-tel" maxlength="40"></label>
         <label><span>El link vence en (días)</span><input id="ac-ad-dias" type="number" min="1" max="60" value="7"></label>
         <label><span>No vender equivalentes de otras marcas mientras dure el acuerdo</span>
@@ -105,7 +105,7 @@ export function initAcuerdosAdmin({ api }) {
         method: 'POST',
         body: JSON.stringify({
           comercio: $('ac-ad-comercio').value,
-          email: $('ac-ad-email').value,
+          contacto: $('ac-ad-email').value,
           telefono: $('ac-ad-tel').value,
           diasValidez: Number($('ac-ad-dias').value) || 7,
           params,
@@ -130,10 +130,10 @@ export function initAcuerdosAdmin({ api }) {
       caja.innerHTML = '<p class="admin-empty">Todavía no hay acuerdos.</p>';
       return;
     }
-    caja.innerHTML = `<table><thead><tr><th>Comercio</th><th>Mail</th><th>Estado</th><th>Lote</th><th>Anticipo</th><th>Creado</th><th></th></tr></thead><tbody>${acuerdos
+    caja.innerHTML = `<table><thead><tr><th>Comercio</th><th>Contacto</th><th>Estado</th><th>Lote</th><th>Anticipo</th><th>Creado</th><th></th></tr></thead><tbody>${acuerdos
       .map(
         (a) => `<tr>
-        <td>${esc(a.comercio)}</td><td>${esc(a.email)}</td><td>${esc(ESTADOS[a.estado] || a.estado)}</td>
+        <td>${esc(a.comercio)}</td><td>${esc(a.canal === 'whatsapp' ? `WhatsApp ${a.contacto}` : a.contacto)}</td><td>${esc(ESTADOS[a.estado] || a.estado)}</td>
         <td>${a.unidades} u</td><td>${pesos(a.anticipo)}</td><td>${fecha(a.creadoEn)}</td>
         <td>
           ${a.link ? `<button type="button" class="row-btn" data-copiar="${esc(a.link)}">Copiar link</button>` : ''}

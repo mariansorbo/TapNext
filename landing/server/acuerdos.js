@@ -24,6 +24,7 @@
 import express from 'express';
 import { randomBytes, randomInt, createHash } from 'node:crypto';
 import { PARAMS_DEFAULT, normalizarParams, armarContrato, pesos } from './acuerdos-texto.js';
+import { canalWhatsapp } from './verificacion/canales/whatsapp.js';
 
 const OTP_TTL_MIN = 10;
 const OTP_THROTTLE_SEG = 60;
@@ -37,8 +38,37 @@ const emailValido = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 const sinAcentos = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
 const normNombre = (s) => sinAcentos(s).toLowerCase().replace(/\s+/g, ' ').trim();
 
-function enmascarar(email) {
-  const [u, d] = String(email).split('@');
+// WhatsApp en formato internacional sin "+" (lo que pide la Cloud API). Acepta cómo lo
+// escribe uno en Argentina: 11 2263-6101, 011 2263 6101, +54 9 11 2263 6101, 5411...
+// Un número con "+" de otro país se respeta tal cual. Devuelve null si no se entiende.
+export function normalizarWhatsapp(raw) {
+  const texto = String(raw || '').trim();
+  let d = texto.replace(/\D/g, '');
+  if (texto.startsWith('+') && !texto.startsWith('+54')) return d.length >= 8 && d.length <= 15 ? d : null;
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('54')) d = d.slice(2);
+  d = d.replace(/^0/, '');
+  if (d.length === 10) return `549${d}`; // área + número, sin 9
+  if (d.length === 11 && d.startsWith('9')) return `54${d}`; // ya trae el 9
+  return null;
+}
+
+// Mail o WhatsApp: si tiene arroba es mail, si no, WhatsApp. { canal, destino } o { error }.
+export function normalizarContacto(raw) {
+  const t = String(raw || '').trim();
+  if (t.includes('@')) {
+    const email = t.toLowerCase();
+    return emailValido(email) ? { canal: 'email', destino: email } : { error: 'El mail no es válido.' };
+  }
+  const wa = normalizarWhatsapp(t);
+  return wa
+    ? { canal: 'whatsapp', destino: wa }
+    : { error: 'No entiendo ese WhatsApp. Ponelo con código de área, sin 0 ni 15 (ej. 11 2263 6101).' };
+}
+
+function enmascarar(destino, canal = 'email') {
+  if (canal === 'whatsapp') return `WhatsApp terminado en ${String(destino).slice(-4)}`;
+  const [u, d] = String(destino).split('@');
   return `${u.slice(0, 1)}${'*'.repeat(Math.max(2, Math.min(6, u.length - 1)))}@${d}`;
 }
 
@@ -48,7 +78,7 @@ export async function inicializarAcuerdos(db) {
       id SERIAL PRIMARY KEY,
       token TEXT UNIQUE NOT NULL,
       comercio TEXT NOT NULL,
-      email TEXT NOT NULL,
+      email TEXT NOT NULL,                  -- mail o WhatsApp del comercio, según el campo canal
       telefono TEXT,
       params_json TEXT NOT NULL,            -- parámetros congelados al crear el link
       estado TEXT NOT NULL DEFAULT 'enviado', -- enviado | firmado | pagado | anulado
@@ -75,6 +105,8 @@ export async function inicializarAcuerdos(db) {
       user_agent TEXT,
       firmado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE acuerdos ADD COLUMN IF NOT EXISTS canal TEXT NOT NULL DEFAULT 'email'; -- email | whatsapp
+    ALTER TABLE acuerdo_firmas ADD COLUMN IF NOT EXISTS mail_copia TEXT; -- adónde se mandó la copia
     CREATE TABLE IF NOT EXISTS acuerdo_otp (
       id SERIAL PRIMARY KEY,
       acuerdo_id INTEGER NOT NULL REFERENCES acuerdos(id),
@@ -119,7 +151,8 @@ export function crearAcuerdosAdminRouter(deps) {
         return {
           id: a.id,
           comercio: a.comercio,
-          email: a.email,
+          contacto: a.email,
+          canal: a.canal,
           estado: estadoVisible(a),
           link: a.estado === 'enviado' ? link(a.token) : null,
           unidades: p.unidIg + p.unidWpp,
@@ -135,17 +168,17 @@ export function crearAcuerdosAdminRouter(deps) {
 
   router.post('/acuerdos', async (req, res) => {
     const comercio = String(req.body?.comercio || '').trim();
-    const email = String(req.body?.email || '').trim().toLowerCase();
     const telefono = String(req.body?.telefono || '').trim() || null;
     if (comercio.length < 2) return res.status(400).json({ error: 'Poné el nombre del comercio.' });
-    if (!emailValido(email)) return res.status(400).json({ error: 'El mail no es válido.' });
+    const contacto = normalizarContacto(req.body?.contacto ?? req.body?.email);
+    if (contacto.error) return res.status(400).json({ error: contacto.error });
     const norm = normalizarParams(req.body?.params || {});
     if (norm.error) return res.status(400).json({ error: norm.error });
     const dias = Math.min(60, Math.max(1, Number(req.body?.diasValidez) || DIAS_VALIDEZ_DEFAULT));
     const token = randomBytes(12).toString('hex');
     const [fila] = await q(
-      `INSERT INTO acuerdos (token, comercio, email, telefono, params_json, expira) VALUES (?, ?, ?, ?, ?, ?)`,
-      [token, comercio, email, telefono, JSON.stringify(norm.params), enMinutos(dias * 1440)]
+      `INSERT INTO acuerdos (token, comercio, email, canal, telefono, params_json, expira) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [token, comercio, contacto.destino, contacto.canal, telefono, JSON.stringify(norm.params), enMinutos(dias * 1440)]
     );
     const url = link(token);
     const p = norm.params;
@@ -156,7 +189,7 @@ export function crearAcuerdosAdminRouter(deps) {
       mensaje:
         `Hola! Te paso el acuerdo para el kit exhibidor y los ${p.unidIg + p.unidWpp} llaveros NextTap. ` +
         `Lo firmás en 2 minutos desde acá: ${url} ` +
-        `(te va a llegar un código de verificación a ${enmascarar(email)}).`,
+        `(te va a llegar un código de verificación por ${contacto.canal === 'whatsapp' ? 'WhatsApp' : 'mail'}).`,
     });
   });
 
@@ -195,7 +228,8 @@ export function crearAcuerdosAdminRouter(deps) {
 
 export function crearAcuerdosPublicoRouter(deps) {
   const router = express.Router();
-  const { db, enviarCorreo, avisarAdmin } = deps;
+  const { db, enviarCorreo, avisarAdmin, correoDisponible = false } = deps;
+  const canal = deps.canalWhatsapp || canalWhatsapp; // inyectable para pruebas
   const { q, one, estadoVisible } = helpers(deps);
 
   // Todas las rutas con token pasan por acá: link inexistente, vencido o anulado = mismo 404 genérico.
@@ -209,12 +243,13 @@ export function crearAcuerdosPublicoRouter(deps) {
 
   router.get('/:token', cargar, async (req, res) => {
     const a = req.acuerdo;
-    const c = armarContrato(req.params_, { nombre: a.comercio });
+    const c = armarContrato(req.params_, { nombre: a.comercio, canal: a.canal });
     const firmable = estadoVisible(a) === 'enviado';
     res.json({
       comercio: a.comercio,
       estado: estadoVisible(a),
-      emailEnmascarado: enmascarar(a.email),
+      canal: a.canal,
+      contactoEnmascarado: enmascarar(a.email, a.canal),
       resumen: c.resumen,
       clausulas: c.clausulas,
       unidades: req.params_.unidIg + req.params_.unidWpp,
@@ -232,13 +267,28 @@ export function crearAcuerdosPublicoRouter(deps) {
     if (reciente) return res.status(429).json({ error: 'Esperá un minuto antes de pedir otro código.' });
     const codigo = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await q(`INSERT INTO acuerdo_otp (acuerdo_id, codigo_hash, expira) VALUES (?, ?, ?)`, [a.id, sha(codigo), enMinutos(OTP_TTL_MIN)]);
-    const ok = await enviarCorreo({
-      to: a.email,
-      subject: `Tu código para firmar el acuerdo NextTap: ${codigo}`,
-      text: `Tu código de verificación es ${codigo}. Vence en ${OTP_TTL_MIN} minutos.\n\nSi no lo pediste, ignorá este mail.`,
-    });
-    // Sin Resend configurado (local/demo) enviarCorreo ya dejó el código en consola.
-    res.json({ ok: true, enviado: ok, emailEnmascarado: enmascarar(a.email) });
+    if (a.canal === 'whatsapp') {
+      if (canal.disponible) {
+        try {
+          await canal.enviarCodigo(a.email, codigo);
+        } catch (err) {
+          console.error('[acuerdos] falló el envío por WhatsApp:', err.message);
+          return res.status(502).json({ error: 'No pudimos mandarte el código por WhatsApp. Avisale a NextTap.' });
+        }
+      } else {
+        // Sin credenciales de WhatsApp (local/demo): mismo patrón que el resto del server.
+        console.log(`[acuerdos demo] Código para WhatsApp ${a.email}: ${codigo}`);
+      }
+    } else {
+      const ok = await enviarCorreo({
+        to: a.email,
+        subject: `Tu código para firmar el acuerdo NextTap: ${codigo}`,
+        text: `Tu código de verificación es ${codigo}. Vence en ${OTP_TTL_MIN} minutos.\n\nSi no lo pediste, ignorá este mail.`,
+      });
+      // Sin Resend configurado enviarCorreo ya dejó el código en consola (demo); con Resend y fallo, avisamos.
+      if (!ok && correoDisponible) return res.status(502).json({ error: 'No pudimos mandarte el código por mail. Avisale a NextTap.' });
+    }
+    res.json({ ok: true, canal: a.canal, contactoEnmascarado: enmascarar(a.email, a.canal) });
   });
 
   router.post('/:token/verificar', cargar, async (req, res) => {
@@ -270,7 +320,7 @@ export function crearAcuerdosPublicoRouter(deps) {
       `SELECT id FROM acuerdo_sesiones WHERE acuerdo_id = ? AND token_hash = ? AND expira > NOW()`,
       [a.id, sha(String(b.sesion || ''))]
     );
-    if (!ses) return res.status(401).json({ error: 'Verificá tu mail de nuevo para firmar.' });
+    if (!ses) return res.status(401).json({ error: 'Verificá tu contacto de nuevo para firmar.' });
 
     const nombre = String(b.nombre || '').trim().replace(/\s+/g, ' ');
     const documento = String(b.documento || '').replace(/\D/g, '');
@@ -284,7 +334,10 @@ export function crearAcuerdosPublicoRouter(deps) {
     if (normNombre(b.firmaNombre || '') !== normNombre(nombre))
       return res.status(400).json({ error: 'La firma tiene que ser tu nombre completo, igual al de arriba.' });
 
-    const contrato = armarContrato(req.params_, { nombre, documento, domicilio, local });
+    // Si verificó por WhatsApp no tenemos su mail: lo pedimos para mandarle la copia.
+    const mailCopia = a.canal === 'whatsapp' ? String(b.mailCopia || '').trim().toLowerCase() : a.email;
+    if (!emailValido(mailCopia)) return res.status(400).json({ error: 'Poné un mail válido para mandarte la copia del acuerdo.' });
+    const contrato = armarContrato(req.params_, { nombre, documento, domicilio, local, canal: a.canal });
     // Primero cambia el estado (UPDATE condicional): dos firmas simultáneas no pasan las dos.
     const r = await db.execute({
       sql: `UPDATE acuerdos SET estado = 'firmado', firmado_en = NOW() WHERE id = ? AND estado = 'enviado'`,
@@ -293,18 +346,18 @@ export function crearAcuerdosPublicoRouter(deps) {
     if (!r.rowsAffected) return res.status(409).json({ error: 'Este acuerdo ya fue firmado.' });
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
     await q(
-      `INSERT INTO acuerdo_firmas (acuerdo_id, nombre, documento, domicilio, local_nombre, firma_nombre, texto_version, texto_hash, texto_firmado, email_verificado, ip, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [a.id, nombre, documento, domicilio, local, String(b.firmaNombre).trim(), contrato.version, contrato.hash, contrato.texto, a.email, ip, String(req.headers['user-agent'] || '').slice(0, 300)]
+      `INSERT INTO acuerdo_firmas (acuerdo_id, nombre, documento, domicilio, local_nombre, firma_nombre, texto_version, texto_hash, texto_firmado, email_verificado, mail_copia, ip, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [a.id, nombre, documento, domicilio, local, String(b.firmaNombre).trim(), contrato.version, contrato.hash, contrato.texto, a.email, mailCopia, ip, String(req.headers['user-agent'] || '').slice(0, 300)]
     );
     await q(`DELETE FROM acuerdo_sesiones WHERE acuerdo_id = ?`, [a.id]);
 
     const p = req.params_;
     // Copia por mail al comercio (con el texto completo firmado) y aviso al admin. Best-effort.
     enviarCorreo({
-      to: a.email,
+      to: mailCopia,
       subject: 'Tu acuerdo NextTap firmado',
-      text: `Hola ${nombre},\n\nRecibimos tu firma del acuerdo. Te dejamos una copia.\n\nPróximo paso: el anticipo de ${pesos(p.anticipo)}. Te escribimos para coordinarlo y la entrega del kit.\n\n————\n\n${contrato.texto}\n\nFirmado electrónicamente por ${nombre} (DNI/CUIT ${documento}) con el mail verificado ${a.email}.\nHuella del texto: ${contrato.hash}`,
+      text: `Hola ${nombre},\n\nRecibimos tu firma del acuerdo. Te dejamos una copia.\n\nPróximo paso: el anticipo de ${pesos(p.anticipo)}. Te escribimos para coordinarlo y la entrega del kit.\n\n————\n\n${contrato.texto}\n\nFirmado electrónicamente por ${nombre} (DNI/CUIT ${documento}) con ${a.canal === 'whatsapp' ? 'el WhatsApp verificado' : 'el mail verificado'} ${a.email}.\nHuella del texto: ${contrato.hash}`,
     }).catch(() => {});
     avisarAdmin({
       asunto: `✍️ Acuerdo firmado — ${a.comercio}`,

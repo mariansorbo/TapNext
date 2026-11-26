@@ -87,6 +87,7 @@ export function armarContrato(params, comercio = {}) {
   const muestras = p.muestras > 0
     ? `${p.muestras} llaveros de muestra${p.muestrasDetalle ? ` (${p.muestrasDetalle})` : ''}`
     : 'sin llaveros de muestra';
+  const medio = comercio.canal === 'whatsapp' ? 'El número de WhatsApp verificado' : 'El mail verificado';
   const quien = comercio.nombre
     ? `${comercio.nombre}${comercio.documento ? `, DNI/CUIT ${comercio.documento}` : ''}${comercio.domicilio ? `, con domicilio en ${comercio.domicilio}` : ''}`
     : '[nombre, DNI/CUIT y domicilio del Comercio]';
@@ -103,7 +104,7 @@ export function armarContrato(params, comercio = {}) {
   const clausulas = [
     {
       titulo: '1. Partes y notificaciones',
-      texto: `NextTap, representada por su titular, y ${quien} (en adelante, "el Comercio"). El mail verificado por el Comercio al firmar es su domicilio electrónico: todas las notificaciones se consideran válidas enviadas allí.`,
+      texto: `NextTap, representada por su titular, y ${quien} (en adelante, "el Comercio"). ${medio} por el Comercio al firmar es su domicilio electrónico: todas las notificaciones se consideran válidas enviadas allí.`,
     },
     {
       titulo: '2. Objeto',

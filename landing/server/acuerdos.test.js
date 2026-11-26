@@ -60,3 +60,26 @@ test('cláusula 11: exclusividad, plazos y penalidad opcional', () => {
   assert.match(b, /6 meses después/);
   assert.doesNotMatch(b, /tampoco exhibirá/);
 });
+
+import { normalizarWhatsapp, normalizarContacto } from './acuerdos.js';
+
+test('normalizarWhatsapp: formatos argentinos comunes → E.164 sin +', () => {
+  for (const raw of ['11 2263-6101', '011 2263 6101', '+54 9 11 2263 6101', '5491122636101', '54 11 2263 6101', '(11) 2263 6101'])
+    assert.equal(normalizarWhatsapp(raw), '5491122636101', raw);
+  assert.equal(normalizarWhatsapp('+1 415 555 2671'), '14155552671'); // otro país: se respeta
+  assert.equal(normalizarWhatsapp('2263 6101'), null); // falta código de área
+  assert.equal(normalizarWhatsapp('abc'), null);
+});
+
+test('normalizarContacto: arroba = mail, si no WhatsApp', () => {
+  assert.deepEqual(normalizarContacto(' Juan@Comercio.com '), { canal: 'email', destino: 'juan@comercio.com' });
+  assert.deepEqual(normalizarContacto('11 2263 6101'), { canal: 'whatsapp', destino: '5491122636101' });
+  assert.match(normalizarContacto('juan@').error, /mail/);
+  assert.match(normalizarContacto('123').error, /WhatsApp/);
+});
+
+test('armarContrato: el domicilio electrónico sigue al canal', () => {
+  const p = normalizarParams({ valorReposicionStand: 1000, valorReposicionMuestra: 500 }).params;
+  assert.match(armarContrato(p, { nombre: 'X', canal: 'whatsapp' }).texto, /número de WhatsApp verificado/);
+  assert.match(armarContrato(p, { nombre: 'X' }).texto, /El mail verificado/);
+});

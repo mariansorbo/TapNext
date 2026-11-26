@@ -54,7 +54,13 @@ async function cargar() {
     return mostrar('ac-paso-listo');
   }
   $('ac-comercio').textContent = d.comercio;
-  $('ac-mail').textContent = d.emailEnmascarado;
+  const wa = d.canal === 'whatsapp';
+  $('ac-mail').textContent = d.contactoEnmascarado;
+  $('ac-verif-titulo').textContent = wa ? 'Primero, verificamos tu WhatsApp' : 'Primero, verificamos tu mail';
+  $('ac-mailcopia-caja').hidden = !wa;
+  $('ac-c3-texto').textContent = wa
+    ? 'Acepto firmar electrónicamente y que mi WhatsApp verificado es mi domicilio para notificaciones.'
+    : 'Acepto firmar electrónicamente y que mi mail verificado es mi domicilio para notificaciones.';
   $('ac-resumen').innerHTML = d.resumen.map((r) => `<li>${esc(r)}</li>`).join('');
   $('ac-clausulas').innerHTML = clausulasHtml(d.clausulas);
   $('ac-clausulas-2').innerHTML = clausulasHtml(d.clausulas);
@@ -73,7 +79,7 @@ async function pedirCodigo() {
     const r = await api('/codigo', {});
     $('ac-codigo-caja').hidden = false;
     $('ac-pedir-codigo').hidden = true;
-    estado('ac-verificar-estado', `Te lo mandamos a ${r.emailEnmascarado}. Revisá también spam.`, 'ok');
+    estado('ac-verificar-estado', r.canal === 'whatsapp' ? `Te lo mandamos por WhatsApp (${r.contactoEnmascarado}).` : `Te lo mandamos a ${r.contactoEnmascarado}. Revisá también spam.`, 'ok');
     $('ac-codigo').focus();
   } catch (err) {
     $('ac-pedir-codigo').disabled = false;
@@ -108,6 +114,7 @@ async function firmar(e) {
       documento: $('ac-documento').value,
       local: $('ac-local').value,
       domicilio: $('ac-domicilio').value,
+      mailCopia: $('ac-mailcopia').value,
       firmaNombre: $('ac-firma').value,
       aceptaContrato: $('ac-c1').checked,
       aceptaStock: $('ac-c2').checked,
