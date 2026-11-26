@@ -122,3 +122,22 @@ test('sin fechaEntrega: el día de cobro queda atado a la constancia de recepci�
   assert.match(c.texto, /14\. Jurisdicción/);
   assert.equal(c.version, 4);
 });
+
+import { unidadesTotales } from './acuerdos-texto.js';
+
+test('lote con tres tipos: instagram, whatsapp y datos de transferencia', () => {
+  const base5 = { valorReposicionStand: 30000, valorReposicionMuestra: 8000 };
+  const { params } = normalizarParams({ ...base5, unidIg: 6, unidWpp: 5, unidAlias: 4 });
+  assert.equal(unidadesTotales(params), 15);
+  const c = armarContrato(params, { nombre: 'X' });
+  assert.match(c.texto, /6 de Instagram, 5 de WhatsApp y 4 de Datos de transferencia/);
+  assert.match(c.resumen[0], /Recibís 15 llaveros/);
+  assert.match(c.texto, /valor máximo del lote al precio de rendición: \$120\.000/);
+  // sin alias el texto queda como antes
+  assert.match(armarContrato(normalizarParams(base5).params, { nombre: 'X' }).texto, /10 de Instagram y 10 de WhatsApp\)/);
+  // acuerdos viejos (params congelados sin unidAlias) siguen funcionando
+  assert.equal(unidadesTotales({ unidIg: 10, unidWpp: 10 }), 20);
+  // solo alias también es un lote válido; vacío no
+  assert.ok(normalizarParams({ ...base5, unidIg: 0, unidWpp: 0, unidAlias: 3 }).params);
+  assert.match(normalizarParams({ ...base5, unidIg: 0, unidWpp: 0 }).error, /al menos una unidad/);
+});

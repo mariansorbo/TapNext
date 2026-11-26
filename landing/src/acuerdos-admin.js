@@ -28,6 +28,7 @@ const GRUPOS = [
   { titulo: 'Lote y kit', campos: [
     ['unidIg', 'Llaveros de Instagram', 'number'],
     ['unidWpp', 'Llaveros de WhatsApp', 'number'],
+    ['unidAlias', 'Llaveros de datos de transferencia', 'number', 'Los del alias o CBU. Poné 0 si el lote no los lleva.'],
     ['muestras', 'Muestras (cantidad)', 'number'],
     ['muestrasDetalle', 'Detalle de muestras (opcional)', 'text'],
     ['valorReposicionStand', 'Reposición del stand ($) *', 'number', 'Lo que te cuesta rehacerlo.'],
@@ -209,7 +210,7 @@ export function initAcuerdosAdmin({ api }) {
         ${fila('Teléfono', esc(a.telefono))}
       </dl></div>
       <div class="ac-sec"><h4>Qué se acordó</h4><dl class="ac-dl">
-        ${fila('Lote', `${p.unidIg} de Instagram + ${p.unidWpp} de WhatsApp (${p.unidIg + p.unidWpp} u)`)}
+        ${fila('Lote', `${[p.unidIg && `${p.unidIg} de Instagram`, p.unidWpp && `${p.unidWpp} de WhatsApp`, p.unidAlias && `${p.unidAlias} de datos de transferencia`].filter(Boolean).join(' + ')} (${(p.unidIg || 0) + (p.unidWpp || 0) + (p.unidAlias || 0)} u)`)}
         ${fila('Muestras', `${p.muestras}${p.muestrasDetalle ? ` — ${esc(p.muestrasDetalle)}` : ''}`)}
         ${fila('Precio de rendición', `${pesos(p.precioRendicion)} por unidad`, true)}
         ${fila('Anticipo', `${pesos(p.anticipo)} · ${p.anticipoReembolsable ? 'reembolsable' : 'no reembolsable'}`)}

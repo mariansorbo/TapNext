@@ -23,7 +23,7 @@
 
 import express from 'express';
 import { randomBytes, randomInt, createHash } from 'node:crypto';
-import { PARAMS_DEFAULT, normalizarParams, armarContrato, pesos, sumarDias } from './acuerdos-texto.js';
+import { PARAMS_DEFAULT, normalizarParams, armarContrato, pesos, sumarDias, unidadesTotales } from './acuerdos-texto.js';
 import { canalWhatsapp } from './verificacion/canales/whatsapp.js';
 
 const OTP_TTL_MIN = 10;
@@ -131,7 +131,7 @@ export async function inicializarAcuerdos(db) {
 // Texto listo para pegar en WhatsApp: el envío lo hace el admin a mano.
 function mensajeParaComercio(p, url, canal) {
   return (
-    `Hola! Te paso el acuerdo para el kit exhibidor y los ${p.unidIg + p.unidWpp} llaveros NextTap. ` +
+    `Hola! Te paso el acuerdo para el kit exhibidor y los ${unidadesTotales(p)} llaveros NextTap. ` +
     `Lo firmás en 2 minutos desde acá: ${url} ` +
     `(te va a llegar un código de verificación por ${canal === 'whatsapp' ? 'WhatsApp' : 'mail'}).`
   );
@@ -171,7 +171,7 @@ export function crearAcuerdosAdminRouter(deps) {
           canal: a.canal,
           estado: estadoVisible(a),
           link: a.estado === 'enviado' ? link(a.token) : null,
-          unidades: p.unidIg + p.unidWpp,
+          unidades: unidadesTotales(p),
           anticipo: p.anticipo,
           fechaEntrega: p.fechaEntrega || null,
           diaCobro: diaCobroDe(p),
@@ -272,7 +272,7 @@ export function crearAcuerdosPublicoRouter(deps) {
       contactoEnmascarado: enmascarar(a.email, a.canal),
       resumen: c.resumen,
       clausulas: c.clausulas,
-      unidades: req.params_.unidIg + req.params_.unidWpp,
+      unidades: unidadesTotales(req.params_),
       precioRendicionTexto: pesos(req.params_.precioRendicion),
       anticipoTexto: pesos(req.params_.anticipo),
       firmable,
@@ -384,7 +384,7 @@ export function crearAcuerdosPublicoRouter(deps) {
     }).catch(() => {});
     avisarAdmin({
       asunto: `✍️ Acuerdo firmado — ${a.comercio}`,
-      lineas: [`${nombre} (DNI/CUIT ${documento}) firmó el acuerdo de ${a.comercio}.`, `Lote: ${p.unidIg + p.unidWpp} llaveros. Anticipo pendiente: ${pesos(p.anticipo)}.`, 'Cuando te llegue el anticipo, marcalo como pagado en la solapa Acuerdos.'],
+      lineas: [`${nombre} (DNI/CUIT ${documento}) firmó el acuerdo de ${a.comercio}.`, `Lote: ${unidadesTotales(p)} llaveros. Anticipo pendiente: ${pesos(p.anticipo)}.`, 'Cuando te llegue el anticipo, marcalo como pagado en la solapa Acuerdos.'],
     }).catch(() => {});
 
     res.json({ ok: true, anticipoTexto: pesos(p.anticipo) });

@@ -25,6 +25,7 @@ export const PARAMS_DEFAULT = {
   fechaEntrega: null, // 'YYYY-MM-DD' opcional: con ella el contrato dice el día exacto de cobro
   unidIg: 10,
   unidWpp: 10,
+  unidAlias: 0, // llaveros de datos de transferencia (alias/CBU); 0 = el lote no los incluye
   muestras: 3,
   muestrasDetalle: '',
   anticipo: 50000,
@@ -41,7 +42,7 @@ export const PARAMS_DEFAULT = {
   exclusividadVenta: true,
 };
 
-const NUM = ['precioRendicion', 'precioSugeridoDesde', 'precioSugeridoHasta', 'plazoDias', 'unidIg', 'unidWpp',
+const NUM = ['precioRendicion', 'precioSugeridoDesde', 'precioSugeridoHasta', 'plazoDias', 'unidIg', 'unidWpp', 'unidAlias',
   'muestras', 'anticipo', 'tasaMoraMensual', 'diasReclamoFabrica', 'preavisoDias', 'valorReposicionStand',
   'valorReposicionMuestra', 'confidencialidadMeses', 'noCompetenciaMeses', 'penalidad'];
 
@@ -70,7 +71,7 @@ export function normalizarParams(entrada = {}) {
   p.jurisdiccion = String(p.jurisdiccion || '').trim().slice(0, 80) || PARAMS_DEFAULT.jurisdiccion;
   if (!(p.precioRendicion > 0)) return { error: 'El precio de rendición tiene que ser mayor a 0.' };
   if (!(p.plazoDias >= 1)) return { error: 'El plazo de rendición tiene que ser de al menos 1 día.' };
-  if (p.unidIg + p.unidWpp < 1) return { error: 'El lote tiene que tener al menos una unidad.' };
+  if (unidadesTotales(p) < 1) return { error: 'El lote tiene que tener al menos una unidad.' };
   if (p.valorReposicionStand === null || !(p.valorReposicionStand > 0))
     return { error: 'Cargá el valor de reposición del stand.' };
   if (p.muestras > 0 && (p.valorReposicionMuestra === null || !(p.valorReposicionMuestra > 0)))
@@ -96,7 +97,8 @@ export function fechaLarga(iso) {
 
 export const pesos = (n) => `$${Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
 
-const unidadesTotales = (p) => p.unidIg + p.unidWpp;
+// Total del lote. unidAlias puede no existir en acuerdos creados antes de sumarlo (params congelados).
+export const unidadesTotales = (p) => (p.unidIg || 0) + (p.unidWpp || 0) + (p.unidAlias || 0);
 
 // Texto completo. `comercio`: { nombre, documento, domicilio, local } (los dos
 // últimos pueden venir vacíos en la vista previa, antes de que los complete).
@@ -107,7 +109,8 @@ export function armarContrato(params, comercio = {}) {
   const detalleLote = [
     p.unidIg ? `${p.unidIg} de Instagram` : null,
     p.unidWpp ? `${p.unidWpp} de WhatsApp` : null,
-  ].filter(Boolean).join(' y ');
+    p.unidAlias ? `${p.unidAlias} de Datos de transferencia` : null,
+  ].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' y $1');
   const muestras = p.muestras > 0
     ? `${p.muestras} llaveros de muestra${p.muestrasDetalle ? ` (${p.muestrasDetalle})` : ''}`
     : 'sin llaveros de muestra';
