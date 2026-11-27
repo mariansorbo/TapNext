@@ -122,6 +122,7 @@ const FUNCION_LABELS = {
   linktree: 'LinkTree',
   alias: 'Datos de transferencia',
   custom: 'Custom',
+  wifi: 'Wi-Fi',
 };
 
 function renderTable(container, headers, rows) {

@@ -16,6 +16,7 @@ const FUNCION_CTA = {
   linktree: 'tu Linktree',
   custom: 'tu página custom',
   alias: 'tus datos de transferencia',
+  wifi: 'tu Wi-Fi',
 };
 
 // Paso 3 ("Listo") según la función que fijó el admin: qué carga el comprador.
@@ -30,6 +31,7 @@ const FUNCION_PASO_LISTO = {
   linktree: 'cargás tu usuario de Linktree y listo.',
   custom: 'cargás tu WhatsApp e Instagram y listo.',
   alias: 'cargás tu alias y listo.',
+  wifi: 'cargás el nombre y la contraseña de tu Wi-Fi y listo.',
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';

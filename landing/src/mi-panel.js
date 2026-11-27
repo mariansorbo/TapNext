@@ -17,6 +17,7 @@ const FUNCION_ICONOS = {
   linktree: BRAND_ICONS.linktree,
   custom: BRAND_ICONS.custom,
   alias: BRAND_ICONS.alias,
+  wifi: BRAND_ICONS.wifi,
 };
 const ICONO_GENERICO = `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect width="32" height="32" rx="8" fill="rgba(255,255,255,0.08)"/>
@@ -41,7 +42,7 @@ function resumenDestino(tipo, valor) {
   if (!meta.campos) return valor;
   try {
     const d = JSON.parse(valor) || {};
-    return [d.alias || d.nombre, d.titular].filter(Boolean).join(' · ') || valor;
+    return [d.alias || d.nombre || d.ssid, d.titular].filter(Boolean).join(' · ') || valor;
   } catch {
     return valor;
   }
@@ -136,6 +137,13 @@ const FUNCION_TEXTOS = {
     falta: 'Faltan cargar tus datos de transferencia. Hasta que los cargues, al acercarlo a un celular no muestra nada.',
     editar: 'Cambiar mis datos de transferencia',
     cargar: 'Cargar mis datos de transferencia',
+  },
+  wifi: {
+    que: 'qué Wi-Fi muestra',
+    apunta: 'Muestra el Wi-Fi:',
+    falta: 'Falta cargar tu Wi-Fi. Hasta que lo cargues, al acercarlo a un celular no muestra nada.',
+    editar: 'Cambiar mi Wi-Fi',
+    cargar: 'Cargar mi Wi-Fi',
   },
 };
 const TEXTO_FALTA_GENERICO = 'Todavía no cargaste a dónde lleva. Hasta que lo cargues, al acercarlo a un celular no abre nada.';

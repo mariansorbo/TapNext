@@ -15,6 +15,7 @@ const FUNCION_LABELS = {
   agenda: 'Agenda',
   linktree: 'LinkTree',
   custom: 'Custom',
+  wifi: 'Wi-Fi',
 };
 const MODELOS = ['llavero', 'tarjeta', 'placa'];
 

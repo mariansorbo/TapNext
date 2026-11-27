@@ -72,6 +72,11 @@ export const BRAND_ICONS = {
     <path d="M8 13h16M8 19h16" stroke="#4CC98C" stroke-width="1.6" stroke-linecap="round"/>
     <path d="M13 13v-2.5a3 3 0 0 1 6 0V13M13 19v2.5a3 3 0 0 0 6 0V19" stroke="#4CC98C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`,
+  wifi: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="32" rx="8" fill="rgba(123,92,255,0.15)"/>
+    <path d="M7 14.5a13 13 0 0 1 18 0M10 18a8.5 8.5 0 0 1 12 0M13 21.5a4 4 0 0 1 6 0" stroke="#7B5CFF" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="16" cy="25" r="1.5" fill="#7B5CFF"/>
+  </svg>`,
   custom: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="32" height="32" rx="8" fill="rgba(123,92,255,0.15)"/>
     <rect x="8" y="9" width="16" height="4" rx="2" stroke="#7B5CFF" stroke-width="1.6"/>
