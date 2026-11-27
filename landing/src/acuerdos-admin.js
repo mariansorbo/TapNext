@@ -214,7 +214,7 @@ export function initAcuerdosAdmin({ api }) {
     const contacto = a.canal === 'whatsapp' ? `WhatsApp ${a.contacto}` : a.contacto;
     const acciones = [];
     if (d.link) {
-      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" ${ATTR_EXTERNO} href="${esc(urlWhatsapp(d.whatsapp, d.mensaje))}">Abrir en WhatsApp</a>`);
+      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" ${ATTR_EXTERNO} data-wa-tel="${esc(d.whatsapp || '')}" data-wa-msg="${esc(d.mensaje)}" href="${esc(urlWhatsapp(d.whatsapp, d.mensaje))}">Abrir en WhatsApp</a>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.link)}">Copiar link</button>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.mensaje)}">Copiar mensaje</button>`);
     }
@@ -276,6 +276,8 @@ export function initAcuerdosAdmin({ api }) {
       $('ac-ad-link').value = r.link;
       $('ac-ad-mensaje').value = r.mensaje;
       $('ac-ad-wa').href = urlWhatsapp(r.whatsapp, r.mensaje);
+      $('ac-ad-wa').dataset.waTel = r.whatsapp || '';
+      $('ac-ad-wa').dataset.waMsg = r.mensaje;
       $('ac-ad-resultado').hidden = false;
       $('ac-ad-resultado').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       estado('Listo: link generado.');
@@ -291,6 +293,14 @@ export function initAcuerdosAdmin({ api }) {
   }
 
   raiz.addEventListener('click', async (e) => {
+    // Dentro de la APK (1.2+) WhatsApp Business se abre por código nativo, sin depender de links.
+    const wa = e.target.closest('[data-wa-msg]');
+    if (wa && typeof window.NfcNativo?.abrirWhatsappBusiness === 'function') {
+      e.preventDefault();
+      const r = window.NfcNativo.abrirWhatsappBusiness(wa.dataset.waTel || '', wa.dataset.waMsg || '');
+      if (r !== 'ok') alert('No encontré WhatsApp Business instalada en este celular.');
+      return;
+    }
     const chip = e.target.closest('[data-filtro]');
     if (chip) {
       filtro = chip.dataset.filtro;

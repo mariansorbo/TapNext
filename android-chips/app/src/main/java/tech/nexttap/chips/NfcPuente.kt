@@ -1,6 +1,7 @@
 package tech.nexttap.chips
 
 import android.content.Intent
+import android.net.Uri
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.VibrationEffect
@@ -78,6 +79,26 @@ class NfcPuente(
 
     @JavascriptInterface
     fun configurarServidor() { activity.configurarServidor() }
+
+    /**
+     * Abre el chat en WhatsApp Business (com.whatsapp.w4b), sin pasar por links del WebView.
+     * Devuelve "ok" o "no_instalada" (el panel avisa y usa el link común).
+     */
+    @JavascriptInterface
+    fun abrirWhatsappBusiness(telefono: String, texto: String): String {
+        val digitos = telefono.filter { it.isDigit() }
+        val destino = if (digitos.isEmpty()) "https://wa.me/?text=${Uri.encode(texto)}"
+                      else "https://wa.me/$digitos?text=${Uri.encode(texto)}"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(destino))
+            .setPackage("com.whatsapp.w4b")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            activity.startActivity(intent)
+            "ok"
+        } catch (_: Exception) {
+            "no_instalada"
+        }
+    }
 
     @JavascriptInterface
     fun version(): String = BuildConfig.VERSION_NAME
