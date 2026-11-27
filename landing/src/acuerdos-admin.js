@@ -64,6 +64,10 @@ const GRUPOS = [
 //    si no está instalada, cae a wa.me (abre el WhatsApp que haya).
 //  - iPhone y APK vieja: wa.me, que abre el WhatsApp del teléfono.
 // Sin número abre el selector de chats.
+// Dentro de la APK un link con target=_blank (nueva pestaña) puede descartarse sin avisar: ahí el link va
+// en la misma vista, y la app lo intercepta y abre WhatsApp. En un navegador se abre en pestaña nueva.
+const ATTR_EXTERNO = /NextTapChips\//.test(navigator.userAgent || '') ? '' : 'target="_blank" rel="noopener"';
+
 function urlWhatsapp(numero, mensaje) {
   const ua = navigator.userAgent || '';
   const texto = encodeURIComponent(mensaje || '');
@@ -128,7 +132,7 @@ export function initAcuerdosAdmin({ api }) {
           <input id="ac-ad-link" readonly>
           <textarea id="ac-ad-mensaje" rows="4" readonly></textarea>
           <div class="ac-ad-acciones">
-            <a class="ac-ad-btn ac-ad-btn--primario" id="ac-ad-wa" target="_blank" rel="noopener">Abrir en WhatsApp</a>
+            <a class="ac-ad-btn ac-ad-btn--primario" id="ac-ad-wa" ${ATTR_EXTERNO}>Abrir en WhatsApp</a>
             <button type="button" class="ac-ad-btn" id="ac-ad-copiar-link">Copiar link</button>
             <button type="button" class="ac-ad-btn" id="ac-ad-copiar-msg">Copiar mensaje</button>
           </div>
@@ -210,7 +214,7 @@ export function initAcuerdosAdmin({ api }) {
     const contacto = a.canal === 'whatsapp' ? `WhatsApp ${a.contacto}` : a.contacto;
     const acciones = [];
     if (d.link) {
-      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" target="_blank" rel="noopener" href="${esc(urlWhatsapp(d.whatsapp, d.mensaje))}">Abrir en WhatsApp</a>`);
+      acciones.push(`<a class="ac-ad-btn ac-ad-btn--primario" ${ATTR_EXTERNO} href="${esc(urlWhatsapp(d.whatsapp, d.mensaje))}">Abrir en WhatsApp</a>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.link)}">Copiar link</button>`);
       acciones.push(`<button type="button" class="ac-ad-btn" data-copiar="${esc(d.mensaje)}">Copiar mensaje</button>`);
     }
